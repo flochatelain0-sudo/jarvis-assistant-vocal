@@ -12,6 +12,7 @@ les reglages et secrets dans config.yaml (via core.config).
 Usage : uv run python jarvis14.py
 """
 
+import datetime as dt
 import os
 import queue
 import re
@@ -100,7 +101,10 @@ CAPTURE_TAUX = TAUX
 BLOC_CAPTURE = BLOC
 
 SEUIL_REVEIL = config.reglage("assistant.seuil_reveil", 0.5)   # sensibilite du mot d'activation
-SEUIL_INTERRUPTION = config.reglage("assistant.seuil_interruption", 0.7)  # couper Jarvis pendant qu'il parle (le micro entend aussi l'enceinte)
+# Mot d'activation redit PAR-DESSUS Jarvis : plus strict que l'eveil normal,
+# car le micro entend aussi l'enceinte. Reglable : sur un micro peu sensible ou
+# en casque (pas d'echo), 0.7 est inatteignable et couper devient impossible.
+SEUIL_INTERRUPTION = config.reglage("interruption.seuil_reveil", 0.7)
 
 # Seuils de NIVEAU (RMS) : dependent du gain du micro. Valeurs par defaut calees
 # sur un micro moyen, MAIS auto-calibrees au demarrage selon le bruit ambiant
@@ -110,7 +114,16 @@ SEUIL_PAROLE_SUR = config.reglage("assistant.seuil_parole", 0.025)   # au-dessus
 SEUIL_SILENCE = config.reglage("assistant.seuil_silence", 0.010)     # en-dessous = silence
 SILENCE_FIN = config.reglage("assistant.silence_fin", 1.2)           # s de silence -> fin de phrase
 DUREE_MAX = config.reglage("assistant.duree_max", 20)                # s max d'enregistrement
-BLOCS_AVANT_VERIF = 5      # 5 x 80 ms = 0,4 s de parole continue
+
+# Parole continue requise avant de transcrire ce qui est dit PAR-DESSUS Jarvis.
+# 3 x 80 ms = 0,24 s. C'etait 5 (0,4 s), mais un « stop » sec dure ~0,25 s : le
+# seuil ne pouvait mathematiquement jamais etre atteint pour le mot d'arret le
+# plus utilise.
+BLOCS_AVANT_VERIF = 3
+# Blocs faibles toleres sans remettre le compteur a zero. La plosive de « stop »
+# ou de « attends » cree une micro-coupure naturelle qui, sans cette tolerance,
+# annulait la detection juste avant qu'elle aboutisse.
+BLOCS_CREUX_TOLERES = 2
 DELAI_ENTRE_VERIFS = 1.0
 
 # Fenetre de suivi : apres une reponse, Jarvis reste a l'ecoute ce nombre de
@@ -171,6 +184,36 @@ def _refaire_systeme(memoire_courante):
         config.reglage("assistant.personnalite", personnalite.DEFAUT))
     SYSTEME_COURANT = (persona + "\n\n" + SYSTEME_BASE
                        + memoire.texte_pour_systeme(memoire_courante))
+
+
+_JOURS_FR = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
+_MOIS_FR = ("janvier", "fevrier", "mars", "avril", "mai", "juin", "juillet",
+            "aout", "septembre", "octobre", "novembre", "decembre")
+
+
+def _ancrage_temporel():
+    """Rappelle au modele la date et l'heure — recalcule a CHAQUE tour.
+
+    Sans cela, le modele ne sait pas quel jour on est : il interprete « cette
+    semaine » ou « la semaine qui vient » au hasard, ne peut pas verifier ce
+    que l'agenda lui rend, et doit appeler un outil rien que pour donner la
+    date. C'est la cause d'une famille entiere d'erreurs.
+
+    Recalcule a chaque tour, et pas une fois au demarrage : Jarvis tourne des
+    jours d'affilee, et une date figee serait pire que pas de date du tout.
+    """
+    d = dt.datetime.now().astimezone()
+    return (f"\n\nDate et heure actuelles : {_JOURS_FR[d.weekday()]} "
+            f"{d.day} {_MOIS_FR[d.month - 1]} {d.year}, {d.hour}h{d.minute:02d}. "
+            "Sers-t'en pour interpreter « aujourd'hui », « cette semaine », "
+            "« la semaine prochaine » : n'appelle pas d'outil pour connaitre la "
+            "date. Si un resultat d'agenda semble incoherent avec cette date, "
+            "dis-le au lieu de le lire tel quel.")
+
+
+def systeme_courant():
+    """Consigne systeme complete, horodatee a l'instant de l'appel."""
+    return SYSTEME_COURANT + _ancrage_temporel()
 
 
 # ---------------------------------------------------------------- HUD (option)
@@ -825,7 +868,7 @@ def repondre(historique):
         try:
             debut_llm = time.monotonic()
             reponse = fournisseur.repondre(
-                SYSTEME_COURANT, historique,
+                systeme_courant(), historique,
                 registre.schemas_api(
                     local_seulement=(fournisseur.nom == "Ollama"),
                     modules=modules_outils))
@@ -1115,11 +1158,13 @@ def repondre_en_ecoutant(historique, flux, reveil, whisper):
     facteur = float(config.reglage("interruption.facteur", 1.8))
     seuil_min = float(config.reglage("interruption.seuil", SEUIL_PAROLE_SUR))
     blocs_requis = int(config.reglage("interruption.blocs", BLOCS_AVANT_VERIF))
+    creux_toleres = int(config.reglage("interruption.creux", BLOCS_CREUX_TOLERES))
     debug = bool(config.reglage("interruption.debug", False))
 
     base = None            # niveau moyen de l'echo de Jarvis (suivi en continu)
     tampon = []            # audio de TA parole par-dessus
     blocs_sur = 0
+    creux = 0              # blocs faibles consecutifs, toleres jusqu'a un seuil
     derniere_verif = 0.0
 
     while thread.is_alive():
@@ -1144,6 +1189,7 @@ def repondre_en_ecoutant(historique, flux, reveil, whisper):
         if not _PARLE.is_set():
             base = None
             blocs_sur = 0
+            creux = 0
             tampon = []
             continue
 
@@ -1169,10 +1215,17 @@ def repondre_en_ecoutant(historique, flux, reveil, whisper):
         if niv > seuil_sur:
             tampon.append(bloc)
             blocs_sur += 1
+            creux = 0
         else:
-            if 0 < blocs_sur < blocs_requis:
-                tampon = []                # trop court : simple bruit, on oublie
-            blocs_sur = 0
+            if blocs_sur:
+                creux += 1
+                if creux <= creux_toleres:
+                    tampon.append(bloc)    # micro-coupure : on garde le fil
+                else:
+                    if blocs_sur < blocs_requis:
+                        tampon = []        # trop court : simple bruit, on oublie
+                    blocs_sur = 0
+                    creux = 0
 
         # On ne coupe QUE si on reconnait un mot d'arret ("attends", "stop"...)
         # dans ce que tu dis par-dessus. Ainsi Jarvis ne peut jamais se couper
@@ -1184,6 +1237,7 @@ def repondre_en_ecoutant(historique, flux, reveil, whisper):
             extrait = np.concatenate(tampon[-30:])
             tampon = []
             blocs_sur = 0
+            creux = 0
             try:
                 segments, _ = whisper.transcribe(extrait, language="fr", beam_size=1,
                                               initial_prompt=AMORCE_WHISPER)

@@ -19,9 +19,9 @@ LOG = logging.getLogger("jarvis")
 
 
 def fournisseur() -> str:
-    """Fournisseur cloud actif : openai ou anthropic."""
+    """Fournisseur cloud actif : openai, anthropic (Claude) ou gemini."""
     choix = str(reglage("cloud.fournisseur", "") or "").strip().lower()
-    if choix in {"openai", "anthropic"}:
+    if choix in {"openai", "anthropic", "gemini"}:
         return choix
     # Une ancienne config sans bloc cloud continue de fonctionner. Des qu'une
     # cle OpenAI est ajoutee, OpenAI devient naturellement le choix par defaut.
