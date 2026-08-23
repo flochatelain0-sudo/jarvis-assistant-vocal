@@ -1485,6 +1485,18 @@ def main():
     print("Chargement des modeles...")
 
     registre.charger_outils()
+
+    # Serveurs MCP externes : leurs outils rejoignent le registre, a confirmation.
+    try:
+        from core import mcp_externe
+        resume = mcp_externe.charger()
+        if resume:
+            print(f"MCP externe : {resume}")
+        import atexit
+        atexit.register(mcp_externe.arreter)
+    except Exception:
+        LOG.exception("mcp externe: chargement")
+
     voix.definir_parleur(dire)
     try:
         from tools.alexa import precharger_routines
