@@ -4,8 +4,8 @@
 
 ![Python](https://img.shields.io/badge/python-3.13-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
-![Mode](https://img.shields.io/badge/modes-hybrid%20%7C%20quality%20%7C%20local-orange)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)
+![Mode](https://img.shields.io/badge/mode-hybrid%20%7C%20quality%20%7C%20local-orange)
 
 Un assistant vocal en français qui tourne **sur ta machine**. Dis *« Hey Jarvis »*,
 parle naturellement : il raisonne avec un LLM, utilise une boîte à outils extensible
@@ -32,7 +32,10 @@ ESP32 avec audio ou Pi Zero ([options et fonctionnement](docs/satellite.md) ·
 [guide de choix et d'installation](docs/satellite_installation.md) ·
 [installation Raspberry/Linux détaillée](docs/satellite_pi.md)).
 
-> Projet perso partagé tel quel. Cible **Windows 11**, nécessite un micro et (en mode
+> Projet perso partagé tel quel. Tourne sur **Windows 11** et **macOS** (Intel et
+> Apple Silicon) — voir **[INSTALL_MAC.md](INSTALL_MAC.md)** pour le Mac, et les
+> [différences assumées](INSTALL_MAC.md#7-ce-qui-marche-et-ce-qui-ne-marche-pas)
+> (température GPU, overlay, raccourcis globaux). Nécessite un micro et (en mode
 > cloud) une clé API du fournisseur choisi. Les abonnements grand public et les API
 > sont généralement séparés. La plupart des intégrations sont **optionnelles** et se
 > désactivent proprement si non configurées.
@@ -130,26 +133,41 @@ les **features à vision comme le navigateur & les réservations restent cloud r
 **Matériel local (honnête) :** Whisper `medium` ≈ 2–3 Go VRAM, `qwen3.5:4b` (Q4) ≈ 3 Go —
 une carte **6 Go** (RTX 2060/3060) fait tourner les deux confortablement. Le `qwen3.5:9b`
 (~6 Go) demande plus de marge. Piper est temps réel sur CPU. `python scripts/doctor.py`
-conseille le modèle selon ta VRAM.
+conseille le modèle selon ta VRAM. Sur **Mac**, il n'y a pas de CUDA : Whisper tourne
+sur CPU (rapide en int8 sur Apple Silicon) et le modèle Ollama partage la mémoire
+unifiée — compte 16 Go pour `qwen3.5:9b`, 8 Go pour `qwen3.5:4b`.
 
 ## 🚀 Démarrage rapide
 
-Prérequis : **Python 3.13**, [uv](https://docs.astral.sh/uv/), Windows 11, un micro.
+Prérequis : **Python 3.13**, [uv](https://docs.astral.sh/uv/), Windows 11 ou macOS 12+,
+un micro.
 
 ```bash
 uv sync
 uv run playwright install chromium        # pour les réservations / le navigateur
-copy config.example.yaml config.yaml      # puis remplis ce dont tu as besoin
+copy config.example.yaml config.yaml      # Windows
 uv run python jarvis14.py
 ```
 
-Dis **« Hey Jarvis »**. Il faut soit la clé API du fournisseur cloud sélectionné
+Sur **macOS** (`brew install portaudio` d'abord — voir
+**[INSTALL_MAC.md](INSTALL_MAC.md)**) :
+
+```bash
+brew install portaudio                    # requis par le micro
+uv sync
+uv run playwright install chromium
+cp config.example.yaml config.yaml
+./launch_jarvis.sh
+```
+
+Dis « Hey Jarvis ». Il faut soit la clé API du fournisseur cloud sélectionné
 (`openai.cle` ou `anthropic.cle`), soit un modèle Ollama en mode local. Tout le reste
 est optionnel.
 
 Débutant complet ? Vois **[INSTALL_WITH_AI.md](INSTALL_WITH_AI.md)** — à coller dans
 n'importe quelle IA gratuite, elle t'installe tout pas à pas. Ou lance l'installateur
-interactif : `python scripts/setup.py`. Un souci ? `python scripts/doctor.py` diagnostique.
+interactif : `python scripts/setup.py`. Un souci ? `python scripts/doctor.py` diagnostique
+(sur Mac : **[TROUBLESHOOTING_MAC.md](TROUBLESHOOTING_MAC.md)**).
 
 ## 🤝 Se faire aider par une IA (gratuitement)
 
