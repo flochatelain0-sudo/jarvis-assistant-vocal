@@ -49,9 +49,9 @@ class ProviderTTS:
         return None
 
 
-class WindowsProvider(ProviderTTS):
-    """Demande volontairement le repli SAPI gere par jarvis14.dire()."""
-    nom = "Windows"
+class OSProvider(ProviderTTS):
+    """Demande volontairement le repli OS gere par jarvis14.dire()."""
+    nom = "OS"
 
 
 # --------------------------------------------------------------- ElevenLabs
@@ -140,6 +140,34 @@ class PiperProvider(ProviderTTS):
         c = self._chemin()
         return bool(c and c.exists())
 
+    def _rendre(self, np, texte):
+        """(audio int16, frequence) — gere les deux API de piper-tts.
+
+        Depuis la 1.3, `synthesize(texte)` rend un flux d'AudioChunk (un par
+        phrase) au lieu d'octets bruts ; `synthesize_stream_raw` a disparu. On
+        garde les deux chemins pour ne pas casser une installation plus ancienne.
+        """
+        if hasattr(self._voix, "synthesize"):
+            morceaux, frequence = [], None
+            for bloc in self._voix.synthesize(texte):
+                octets = getattr(bloc, "audio_int16_bytes", None)
+                if octets is None:                       # repli : tableau float
+                    arr = getattr(bloc, "audio_float_array", None)
+                    if arr is not None:
+                        octets = (np.asarray(arr) * 32767).astype(np.int16).tobytes()
+                if octets:
+                    morceaux.append(octets)
+                if frequence is None:
+                    frequence = getattr(bloc, "sample_rate", None)
+            brut = b"".join(morceaux)
+            if not brut:
+                return None
+            return (np.frombuffer(brut, dtype=np.int16),
+                    frequence or getattr(self._voix.config, "sample_rate", 22050))
+
+        brut = b"".join(self._voix.synthesize_stream_raw(texte))    # piper < 1.3
+        return np.frombuffer(brut, dtype=np.int16), self._voix.config.sample_rate
+
     def synthetiser(self, texte):
         try:
             import numpy as np
@@ -154,32 +182,7 @@ class PiperProvider(ProviderTTS):
         try:
             if self._voix is None:
                 self._voix = PiperVoice.load(str(chemin))
-
-            # Ancienne API (piper-tts <= 1.2.x) : synthesize_stream_raw() -> PCM brut.
-            if hasattr(self._voix, "synthesize_stream_raw"):
-                brut = b"".join(self._voix.synthesize_stream_raw(texte))
-                return np.frombuffer(brut, dtype=np.int16), self._voix.config.sample_rate
-
-            # Nouvelle API (piper-tts >= 1.3.0, réécriture OHF-Voice/piper1-gpl) :
-            # synthesize() renvoie des AudioChunk (int16 + sample_rate). C'est le
-            # cas de la version par défaut de requirements.txt (issue NOVON82).
-            morceaux, freq = [], None
-            for chunk in self._voix.synthesize(texte):
-                octets = getattr(chunk, "audio_int16_bytes", None)
-                if octets is None:                       # repli : tableau float
-                    arr = getattr(chunk, "audio_float_array", None)
-                    if arr is not None:
-                        octets = (np.asarray(arr) * 32767).astype(np.int16).tobytes()
-                if octets:
-                    morceaux.append(octets)
-                if freq is None:
-                    freq = getattr(chunk, "sample_rate", None)
-            brut = b"".join(morceaux)
-            if not brut:
-                return None
-            if not freq:
-                freq = getattr(getattr(self._voix, "config", None), "sample_rate", 22050)
-            return np.frombuffer(brut, dtype=np.int16), freq
+            return self._rendre(np, texte)
         except Exception as e:
             print(f"  [Piper] echec ({e}), repli "
                   f"{plateforme.nom_voix_systeme()}.")
@@ -227,12 +230,19 @@ class KokoroProvider(ProviderTTS):
 _TTS = None
 
 
+def _provider_local():
+    """Piper ou Kokoro, selon voix_locale."""
+    moteur = (reglage("voix_locale", "piper") or "piper").lower()
+    return KokoroProvider() if moteur == "kokoro" else PiperProvider()
+
+
 def tts():
     """Provider TTS courant.
 
-    ``tts.moteur`` peut valoir auto/elevenlabs/piper/kokoro/windows. Le mode
+    ``tts.moteur`` peut valoir auto/elevenlabs/piper/kokoro/os. Le mode
     local garde sa promesse de confidentialite : ElevenLabs y est ignore et un
-    moteur local est choisi.
+    moteur local est choisi. En hybride SANS cle ElevenLabs mais avec une voix
+    locale installee, on prefere cette voix locale au repli de l'OS.
     """
     global _TTS
     if _TTS is None:
@@ -252,7 +262,15 @@ def tts():
         elif moteur == "piper":
             _TTS = PiperProvider()
         else:
-            _TTS = WindowsProvider()
+            # hybride sans cle ElevenLabs : la voix locale vaut mieux que le
+            # repli de l'OS (le vrai repli OS reste gere par jarvis14.dire()).
+            cloud = ElevenLabsProvider()
+            local = _provider_local()
+            if not cloud.disponible() and local.disponible():
+                _TTS = local
+                LOG.info("pas de cle ElevenLabs : repli sur la voix locale %s", local.nom)
+            else:
+                _TTS = cloud
         LOG.info("provider TTS : %s (mode %s)", _TTS.nom, m)
     return _TTS
 
