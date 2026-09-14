@@ -68,10 +68,12 @@ plutôt que de planter.
 | Météo / web | météo, recherche web | ✅ | ✅ si en ligne\* |
 | Productivité internet | Gmail, Google Agenda, deadlines, brief | ✅ | ☁️ cloud recommandé |
 | Communication | Discord, Instagram, appels Twilio | ✅ | ☁️ cloud recommandé |
-| Vision / agentique | réservation web, assistance navigateur, capture écran | ✅ | ❌ (vision requise) |
+| Ouvrir un site / chercher dans Chrome | `browser_open` | ✅ | ✅ |
+| Vision / agentique | réservation web, lecture/action sur page, capture écran | ✅ | ❌ (vision requise) |
 | Serveur MCP | domotique/PC exposés | ✅ | ✅ |
 
-\* Les outils internet ne sont pas proposés au modèle local et, plus généralement,
+\* Les outils internet complexes ne sont pas proposés au modèle local ;
+`browser_open` est l'exception volontaire pour une navigation explicitement demandée. Plus généralement,
 échouent proprement avec un message clair s'il n'y a pas de réseau.
 
 **En résumé** : le mode local couvre très bien la **domotique et le PC** en tout

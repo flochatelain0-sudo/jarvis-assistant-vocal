@@ -4,7 +4,6 @@ import ctypes
 import os
 import subprocess
 import time
-import webbrowser
 from pathlib import Path
 
 from core.config import reglage
@@ -30,29 +29,36 @@ def _presser(code, fois=1):
 
 @outil(
     nom="ouvrir_application",
-    description="Lance une application ou ouvre un site web",
+    description="Lance uniquement un utilitaire Windows integre : calculatrice, "
+                "bloc-notes, explorateur ou parametres. Pour une application/jeu "
+                "configure, utilise launch_app. Pour un site, une URL ou une recherche, "
+                "utilise TOUJOURS browser_open.",
     parametres={
         "type": "object",
         "properties": {
             "nom": {
                 "type": "string",
-                "description": "Nom de l'application ou du site "
-                               "(spotify, discord, youtube, calculatrice...)",
+                "description": "Nom de l'utilitaire Windows "
+                               "(calculatrice, bloc-notes, explorateur, parametres).",
             }
         },
         "required": ["nom"],
     },
 )
 def ouvrir_application(nom: str) -> str:
-    """Lance une application ou un site."""
+    """Lance un utilitaire ; reroute par securite les demandes web mal classees."""
     nom_min = nom.lower().strip()
+
+    # Filet de securite contre un mauvais tool-call (frequent avec les petits LLM) :
+    # une URL ou un site connu ne doit jamais etre passe a os.startfile comme un exe.
+    from tools.navigateur import est_demande_web
+    if est_demande_web(nom):
+        from tools.navigateur import browser_open
+        return browser_open(url=nom)
 
     raccourcis = {
         "spotify": "spotify:",
         "discord": None,  # traite plus bas
-        "navigateur": "https://www.google.com",
-        "internet": "https://www.google.com",
-        "youtube": "https://www.youtube.com",
         "calculatrice": "calc",
         "bloc-notes": "notepad",
         "explorateur": "explorer",
@@ -70,15 +76,12 @@ def ouvrir_application(nom: str) -> str:
     cible = raccourcis.get(nom_min, nom)
 
     try:
-        if str(cible).startswith("http"):
-            webbrowser.open(cible)
-        else:
-            # os.startfile (pas de shell) -> évite l'injection de commande via un
-            # nom piégé (ex. 'x" & calc & "'). Repli argv-list si indisponible.
-            try:
-                os.startfile(cible)                        # noqa: S606 (pas de shell)
-            except AttributeError:
-                subprocess.Popen(["cmd", "/c", "start", "", cible], shell=False)
+        # os.startfile (pas de shell) -> évite l'injection de commande via un
+        # nom piégé (ex. 'x" & calc & "'). Repli argv-list si indisponible.
+        try:
+            os.startfile(cible)                        # noqa: S606 (pas de shell)
+        except AttributeError:
+            subprocess.Popen(["cmd", "/c", "start", "", cible], shell=False)
         return f"{nom} lance."
     except Exception as e:
         return f"Impossible de lancer {nom} : {e}"

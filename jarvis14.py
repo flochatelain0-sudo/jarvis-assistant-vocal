@@ -105,7 +105,9 @@ SYSTEME_BASE = (
     "envoyer_mail quand l'utilisateur veut envoyer (le systeme demandera confirmation). "
     "Si la question fait reference a ce qui est affiche (qu'est-ce que c'est, lis "
     "ca, cette erreur, mon ecran, ce message), appelle capture_screen puis reponds "
-    "d'apres l'image."
+    "d'apres l'image. Pour ouvrir un site, une URL, Netflix/YouTube ou faire une "
+    "recherche web, utilise browser_open. Pour un logiciel configure, utilise "
+    "launch_app. N'utilise ouvrir_application que pour les utilitaires Windows."
 )
 
 # Consigne systeme courante (persona + regles + memoire). Passee a chaque appel

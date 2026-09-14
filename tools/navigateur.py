@@ -16,6 +16,7 @@ SECURITE (ton Chrome = toutes tes sessions connectees) :
 """
 import logging
 import os
+import re
 import socket
 import subprocess
 import time
@@ -24,6 +25,7 @@ from urllib.parse import urlparse, quote_plus
 
 from core.config import reglage
 from core.registre import outil
+from core.util import sans_accents
 
 LOG = logging.getLogger("jarvis")
 
@@ -32,6 +34,62 @@ _BROWSER = None   # navigateur Chrome connecte via CDP
 _MSG_ABSENT = ("Je n'ai pas reussi a lancer Chrome connecte. Verifie que Google "
                "Chrome est installe (ou renseigne navigateur.chrome_exe dans "
                "config.yaml), ou lance le raccourci \"Chrome + Jarvis\".")
+
+# Les noms usuels sont normalises ici, pas laisses au jugement du LLM. Cela rend
+# « ouvre Netflix » aussi fiable avec un petit modele local qu'avec le cloud.
+_SITES_CONNUS = {
+    "navigateur": "https://www.google.com",
+    "internet": "https://www.google.com",
+    "netflix": "https://www.netflix.com",
+    "youtube": "https://www.youtube.com",
+    "google": "https://www.google.com",
+    "twitch": "https://www.twitch.tv",
+    "instagram": "https://www.instagram.com",
+    "facebook": "https://www.facebook.com",
+    "tiktok": "https://www.tiktok.com",
+    "prime video": "https://www.primevideo.com",
+    "disney plus": "https://www.disneyplus.com",
+}
+_URL_RE = re.compile(
+    r"^(?:https?://)?(?:www\.)?[a-z0-9](?:[a-z0-9-]*\.)+[a-z]{2,}(?:[/?#].*)?$",
+    re.I,
+)
+
+
+def _sans_verbe(texte):
+    brut = (texte or "").strip()
+    normalise = sans_accents(brut).lower().strip()
+    for prefixe in ("dans le navigateur ", "va sur ", "ouvre ", "lance ",
+                    "le site ", "site ", "sur le site "):
+        if normalise.startswith(prefixe):
+            brut = brut[len(prefixe):].strip()
+            normalise = sans_accents(brut).lower().strip()
+    return brut, normalise
+
+
+def est_demande_web(texte):
+    """Vrai pour une URL, une recherche explicite ou un service web connu."""
+    brut, normalise = _sans_verbe(texte)
+    return (normalise in _SITES_CONNUS
+            or normalise.startswith(("cherche ", "recherche "))
+            or bool(_URL_RE.match(brut)))
+
+
+def _resoudre_cible(url="", recherche=""):
+    """Transforme une demande imparfaite du LLM en URL sure et exploitable."""
+    if (recherche or "").strip():
+        return f"https://www.google.com/search?q={quote_plus(recherche.strip())}"
+    brut, normalise = _sans_verbe(url)
+    if normalise.startswith(("cherche ", "recherche ")):
+        termes = brut.split(" ", 1)[1].strip() if " " in brut else ""
+        return f"https://www.google.com/search?q={quote_plus(termes)}" if termes else ""
+    if normalise in _SITES_CONNUS:
+        return _SITES_CONNUS[normalise]
+    if _URL_RE.match(brut):
+        return brut if "://" in brut else "https://" + brut
+    # Si le modele place par erreur des mots-cles dans le champ URL, mieux vaut
+    # une recherche Google qu'un faux domaine comme https://tests godox.
+    return f"https://www.google.com/search?q={quote_plus(brut)}" if brut else ""
 
 
 def _chrome_exe():
@@ -169,9 +227,10 @@ def _protege(url):
 
 @outil(
     nom="browser_open",
-    description="Ouvre une page dans un nouvel onglet de Chrome. Pour 'ouvre "
-                "YouTube', 'va sur le site X', 'cherche des tests du Godox TL60'. "
-                "Donne SOIT une url complete, SOIT une recherche (mots-cles).",
+    description="Ouvre un SITE WEB ou lance une RECHERCHE dans Chrome. C'est le "
+                "SEUL outil a utiliser pour 'ouvre Netflix/YouTube', 'va sur le "
+                "site X', une adresse en .com/.fr ou 'cherche X'. Ne jamais utiliser "
+                "ouvrir_application pour un site. Donne soit une URL, soit recherche.",
     parametres={
         "type": "object",
         "properties": {
@@ -185,13 +244,9 @@ def browser_open(url: str = "", recherche: str = "") -> str:
     if browser is None:
         return _MSG_ABSENT
     try:
-        cible = url.strip()
-        if not cible and recherche.strip():
-            cible = f"https://www.google.com/search?q={quote_plus(recherche.strip())}"
+        cible = _resoudre_cible(url, recherche)
         if not cible:
             return "Dis-moi quoi ouvrir (une adresse ou une recherche)."
-        if "://" not in cible:
-            cible = "https://" + cible
         page = _contexte(browser).new_page()
         page.goto(cible, wait_until="domcontentloaded", timeout=15000)
         try:

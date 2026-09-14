@@ -2,7 +2,7 @@
 
 Jarvis peut t'assister pendant que tu surfes sur **ton** Chrome : ouvrir un
 onglet, resumer/traduire la page active, gerer les onglets, et agir (clic,
-scroll, remplir un champ) pilote par Claude.
+scroll, remplir un champ) avec le modèle cloud actif.
 
 C'est distinct de la **reservation** (docs/reservation.md), qui tourne sur un
 profil Playwright separe. Ici, c'est ton navigateur.
@@ -22,8 +22,8 @@ YouTube ») **sans** avoir lance Chrome, Jarvis le **lance tout seul** (profil d
 > une fois** aux sites ou tu veux de l'aide (Google, YouTube...) : ca reste
 > memorise. Tes mots de passe ne passent jamais par Jarvis.
 
-Si tu demandes une action navigateur sans avoir lance ce raccourci, Jarvis
-repond : « Chrome n'est pas connecte, lance-le via le raccourci Chrome + Jarvis. »
+Si le lancement automatique échoue, Jarvis le signale clairement et propose le
+raccourci « Chrome + Jarvis » comme solution manuelle.
 
 ## Ce que tu peux dire
 
@@ -34,6 +34,15 @@ repond : « Chrome n'est pas connecte, lance-le via le raccourci Chrome + Jarvis
 | « quels onglets sont ouverts », « passe sur l'onglet YouTube » | `browser_tabs` |
 | « ferme cet onglet », « ferme tous les onglets YouTube » | `browser_close_tabs` (confirmation) |
 | « accepte les cookies », « descends aux commentaires », « mets la video en pause » | `browser_interact` |
+
+`browser_open` reste disponible en mode local : le raisonnement demeure dans
+Ollama, puis Chrome ouvre uniquement le site explicitement demandé. Les noms
+usuels (`Netflix`, `YouTube`, `Twitch`...) et les domaines (`netflix.com`) sont
+normalisés par le code. Même si un petit modèle choisit par erreur
+`ouvrir_application`, Jarvis reroute la demande vers le navigateur.
+
+La section `apps:` de `config.yaml` sert uniquement aux logiciels et jeux lancés
+avec `launch_app`; il n'est pas nécessaire d'y ajouter les sites web.
 
 Exemple combine : « Jarvis, resume-moi cette page et note les points importants » ->
 il lit l'onglet actif, te resume, et enregistre dans tes notes.

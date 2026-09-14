@@ -84,17 +84,16 @@ def tous():
     return list(_REGISTRE.values())
 
 
-# Outils NON exposes au modele local (mode local) : soit ils exigent internet et/ou
-# de la vision (impossibles/peu fiables hors ligne), soit ils noieraient un petit
-# modele 7b. En mode local on garde un jeu d'outils reduit et fiable (domotique, PC,
-# minuteurs, memoire, meteo...). Ces memes outils s'auto-desactivent hors ligne.
+# Outils NON exposes au modele local : soit ils exigent de la vision/un raisonnement
+# agentique cloud, soit ils noieraient un petit modele. `browser_open` reste permis :
+# ouvrir explicitement une URL ne demande aucune vision ni intelligence cloud.
 _NON_LOCAUX = {
     "capture_screen", "faire_brief",
     "lire_mails", "lire_mail", "preparer_mail", "envoyer_mail", "mettre_a_la_corbeille",
     "get_events", "create_event", "delete_event", "get_deadlines",
     "chercher_web",
     "book_appointment", "confirmer_reservation",
-    "browser_open", "browser_current_page", "browser_tabs", "browser_close_tabs",
+    "browser_current_page", "browser_tabs", "browser_close_tabs",
     "browser_interact",
     "call_with_message", "call_and_book", "cout_appels",
     "instagram_resume", "rafraichir_instagram",
