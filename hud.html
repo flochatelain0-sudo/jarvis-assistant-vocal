@@ -177,6 +177,89 @@
   .coin.hd { top: 20px; right: 22px; border-left: none; border-bottom: none; }
   .coin.bg { bottom: 20px; left: 22px; border-right: none; border-top: none; }
   .coin.bd { bottom: 20px; right: 22px; border-left: none; border-top: none; }
+
+  /* --- controles rapides : discrets tant que le tiroir est ferme --- */
+  .controle-bouton {
+    position: fixed;
+    right: 42px; top: 112px;
+    z-index: 21;
+    border: 1px solid rgba(111,227,255,0.25);
+    background: rgba(4,12,17,0.72);
+    color: var(--texte-faible);
+    padding: 8px 12px;
+    font: 10px var(--mono);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color .2s, border-color .2s, box-shadow .2s;
+  }
+  .controle-bouton:hover, .controle-bouton[aria-expanded="true"] {
+    color: var(--vous);
+    border-color: rgba(111,227,255,0.65);
+    box-shadow: 0 0 16px rgba(111,227,255,0.10);
+  }
+  .controle-tiroir {
+    position: fixed;
+    z-index: 20;
+    top: 96px; right: 24px; bottom: 24px;
+    width: min(390px, calc(100vw - 48px));
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 62px 22px 22px;
+    border: 1px solid rgba(111,227,255,0.20);
+    background: linear-gradient(145deg, rgba(7,18,24,0.97), rgba(3,8,12,0.97));
+    box-shadow: -18px 0 60px rgba(0,0,0,0.55), inset 0 0 42px rgba(111,227,255,0.025);
+    transform: translateX(calc(100% + 40px));
+    opacity: 0;
+    pointer-events: none;
+    transition: transform .28s ease, opacity .22s ease;
+  }
+  .controle-tiroir.ouvert { transform: none; opacity: 1; pointer-events: auto; }
+  .controle-tiroir h2 {
+    color: var(--vous); font-size: 13px; font-weight: 500;
+    letter-spacing: 4px; text-transform: uppercase; margin-bottom: 5px;
+  }
+  .controle-sous-titre { color: var(--texte-faible); font-size: 10px; line-height: 1.5; }
+  .controle-section { margin-top: 22px; padding-top: 16px; border-top: 1px solid rgba(111,227,255,.12); }
+  .controle-section h3 {
+    color: #78909b; font-size: 10px; font-weight: 500;
+    letter-spacing: 3px; text-transform: uppercase; margin-bottom: 11px;
+  }
+  .controle-label { display: block; margin: 11px 0 6px; color: var(--texte-faible); font-size: 10px; letter-spacing: 1px; }
+  .controle-ligne { display: flex; gap: 7px; align-items: center; }
+  .controle-ligne + .controle-ligne { margin-top: 8px; }
+  .controle-tiroir select, .controle-tiroir input {
+    width: 100%; max-width: 100%; min-width: 0; flex: 1; height: 34px; padding: 0 9px;
+    border: 1px solid rgba(120,160,180,.25);
+    background: rgba(1,6,9,.78); color: var(--texte);
+    font: 11px var(--mono); outline: none;
+  }
+  .controle-tiroir select:focus, .controle-tiroir input:focus { border-color: rgba(111,227,255,.65); }
+  .controle-action, .controle-mode {
+    height: 34px; padding: 0 11px;
+    border: 1px solid rgba(111,227,255,.28);
+    background: rgba(111,227,255,.055); color: #86a8b5;
+    font: 10px var(--mono); letter-spacing: 1px; text-transform: uppercase;
+    cursor: pointer;
+  }
+  .controle-action:hover, .controle-mode:hover, .controle-mode.actif {
+    color: var(--vous); border-color: rgba(111,227,255,.7);
+    box-shadow: inset 0 0 15px rgba(111,227,255,.07);
+  }
+  .controle-action:disabled { opacity: .35; cursor: wait; }
+  .controle-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .controle-statut { min-height: 30px; margin-top: 14px; color: var(--texte-faible); font-size: 10px; line-height: 1.5; }
+  .controle-statut.ok { color: #52e0a0; }
+  .controle-statut.ko { color: #ff7c7c; }
+  .controle-panneau {
+    display: block; margin-top: 20px; color: #6f9dac; font-size: 10px;
+    letter-spacing: 1px; text-decoration: none; text-transform: uppercase;
+  }
+  .controle-panneau:hover { color: var(--vous); }
+  @media (max-width: 700px) {
+    .controle-bouton { right: 28px; top: 104px; }
+    .controle-tiroir { top: 88px; right: 12px; bottom: 12px; width: calc(100vw - 24px); }
+  }
 </style>
 </head>
 <body>
@@ -219,6 +302,60 @@
     <div class="heure" id="vHeure">--:--:--</div>
     <div class="date" id="vDate">—</div>
   </div>
+
+  <button class="controle-bouton" id="ouvrirControle" type="button"
+    aria-controls="controleTiroir" aria-expanded="false">⚙ Config</button>
+  <aside class="controle-tiroir" id="controleTiroir" aria-hidden="true">
+    <h2>Commandes rapides</h2>
+    <p class="controle-sous-titre" id="controleActif">Chargement de la configuration…</p>
+
+    <section class="controle-section">
+      <h3>Mode de routage</h3>
+      <div class="controle-modes" id="controleModes">
+        <button class="controle-mode" type="button" data-mode="local">Local</button>
+        <button class="controle-mode" type="button" data-mode="hybride">Hybride</button>
+        <button class="controle-mode" type="button" data-mode="qualite">Qualité</button>
+      </div>
+    </section>
+
+    <section class="controle-section">
+      <h3>Modèle cloud</h3>
+      <label class="controle-label" for="controleFournisseur">Fournisseur</label>
+      <select id="controleFournisseur"></select>
+      <label class="controle-label" for="controleModeleCloud">Modèle</label>
+      <input id="controleModeleCloud" list="controleModelesCloud" autocomplete="off">
+      <datalist id="controleModelesCloud"></datalist>
+      <div class="controle-ligne" style="margin-top:8px">
+        <button class="controle-action" type="button" id="activerHybride">Activer hybride</button>
+        <button class="controle-action" type="button" id="activerQualite">Activer qualité</button>
+      </div>
+    </section>
+
+    <section class="controle-section">
+      <h3>Modèle local</h3>
+      <div class="controle-ligne">
+        <select id="controleModeleLocal"></select>
+        <button class="controle-action" type="button" id="activerLocal">Activer</button>
+      </div>
+      <p class="controle-sous-titre" id="controleOllama"></p>
+    </section>
+
+    <section class="controle-section">
+      <h3>Voix</h3>
+      <label class="controle-label" for="controleMoteurVoix">Moteur TTS</label>
+      <select id="controleMoteurVoix"></select>
+      <label class="controle-label" for="controleVoixEleven">Voix ElevenLabs</label>
+      <select id="controleVoixEleven"></select>
+      <label class="controle-label" for="controleModeleEleven">Modèle ElevenLabs</label>
+      <div class="controle-ligne">
+        <select id="controleModeleEleven"></select>
+        <button class="controle-action" type="button" id="testerVoix">Tester</button>
+      </div>
+    </section>
+
+    <div class="controle-statut" id="controleStatut" role="status"></div>
+    <a class="controle-panneau" id="lienPanneau" href="#">Ouvrir le panneau complet →</a>
+  </aside>
 
   <div class="transcription" id="transcription"></div>
 
@@ -268,6 +405,135 @@ let couleur = Object.assign({}, COULEURS.veille);  // couleur affichee, lissee
 
 const $ = (id) => document.getElementById(id);
 const lerp = (a, b, t) => a + (b - a) * t;
+
+// ------------------------------------------------------------- controles rapides
+
+let CONTROLES = null;
+let controleEnCours = false;
+
+function optionSelect(select, valeur, texte, selectionne) {
+  const o = document.createElement("option");
+  o.value = String(valeur);
+  o.textContent = String(texte);
+  o.selected = Boolean(selectionne);
+  select.appendChild(o);
+}
+
+function remplirSelect(select, elements, valeur, libelle) {
+  select.replaceChildren();
+  for (const element of elements) {
+    const v = typeof element === "object" ? element.valeur : element;
+    const t = libelle ? libelle(element) : v;
+    optionSelect(select, v, t, String(v) === String(valeur));
+  }
+}
+
+function statutControle(texte, ok = null) {
+  const el = $("controleStatut");
+  el.textContent = texte || "";
+  el.classList.toggle("ok", ok === true);
+  el.classList.toggle("ko", ok === false);
+}
+
+function actualiserModelesCloud() {
+  if (!CONTROLES) return;
+  const fournisseur = $("controleFournisseur").value || "openai";
+  const profil = CONTROLES.mode === "qualite" ? "qualite" : "hybride";
+  const modeles = CONTROLES.cloud.modeles[fournisseur] || [];
+  const liste = $("controleModelesCloud");
+  liste.replaceChildren();
+  for (const modele of modeles) {
+    const o = document.createElement("option");
+    o.value = modele.nom;
+    o.label = modele.role || modele.nom;
+    liste.appendChild(o);
+  }
+  $("controleModeleCloud").value =
+    (CONTROLES.cloud.courants[fournisseur] || {})[profil] || (modeles[0] || {}).nom || "";
+}
+
+function afficherControles(d) {
+  CONTROLES = d;
+  $("controleActif").textContent = "Actif · " + (d.modele_actif || "inconnu");
+  document.querySelectorAll("#controleModes [data-mode]").forEach((b) =>
+    b.classList.toggle("actif", b.dataset.mode === d.mode));
+
+  const fournisseurs = ["openai", "anthropic"];
+  remplirSelect($("controleFournisseur"), fournisseurs, d.cloud.fournisseur, (f) => {
+    const nom = f === "openai" ? "OpenAI" : "Anthropic / Claude";
+    return nom + (d.cloud.configure[f] ? "" : " · clé absente");
+  });
+  actualiserModelesCloud();
+
+  const locaux = d.local.modeles.length ? d.local.modeles : [d.local.modele];
+  remplirSelect($("controleModeleLocal"), locaux, d.local.modele);
+  $("controleOllama").textContent = d.local.joignable
+    ? locaux.length + " modèle(s) Ollama disponible(s)"
+    : "Ollama est hors ligne";
+
+  const labelsMoteur = {auto:"Auto", elevenlabs:"ElevenLabs", piper:"Piper",
+    kokoro:"Kokoro", windows:"Windows"};
+  remplirSelect($("controleMoteurVoix"), d.voix.moteurs, d.voix.moteur,
+    (m) => labelsMoteur[m] || m);
+
+  const voix = d.voix.elevenlabs.voix || [];
+  $("controleVoixEleven").replaceChildren();
+  if (!voix.length) {
+    optionSelect($("controleVoixEleven"), d.voix.elevenlabs_voix || "",
+      d.voix.elevenlabs.configure ? "Aucune voix chargée" : "Clé ElevenLabs absente", true);
+  } else {
+    for (const v of voix) optionSelect($("controleVoixEleven"), v.id,
+      v.nom + (v.categorie ? " · " + v.categorie : ""), v.id === d.voix.elevenlabs_voix);
+  }
+  remplirSelect($("controleModeleEleven"), d.voix.modeles_elevenlabs,
+    d.voix.elevenlabs_modele);
+  $("lienPanneau").href = d.panneau_url;
+}
+
+async function chargerControles(silencieux = false) {
+  if (!silencieux) statutControle("Chargement…");
+  try {
+    const rep = await fetch("/api/controle", {cache: "no-store"});
+    const d = await rep.json();
+    if (!rep.ok || !d.ok) throw new Error(d.message || "Configuration indisponible");
+    afficherControles(d);
+    if (!silencieux) statutControle("");
+  } catch (e) {
+    statutControle(e.message || "Impossible de charger la configuration", false);
+  }
+}
+
+async function envoyerControle(donnees) {
+  if (controleEnCours) return;
+  controleEnCours = true;
+  document.querySelectorAll(".controle-action,.controle-mode").forEach((b) => b.disabled = true);
+  statutControle("Application…");
+  try {
+    const rep = await fetch("/api/controle", {
+      method: "POST",
+      headers: {"Content-Type": "application/json", "X-Jarvis-HUD": "1"},
+      body: JSON.stringify(donnees),
+    });
+    const d = await rep.json();
+    if (d.ok && donnees.action !== "tester_voix") await chargerControles(true);
+    statutControle(d.message || (d.ok ? "Appliqué" : "Échec"), Boolean(d.ok));
+  } catch (e) {
+    statutControle(e.message || "Commande impossible", false);
+  } finally {
+    controleEnCours = false;
+    document.querySelectorAll(".controle-action,.controle-mode").forEach((b) => b.disabled = false);
+  }
+}
+
+function ouvrirFermerControles(force) {
+  const tiroir = $("controleTiroir");
+  const ouvert = force === undefined ? !tiroir.classList.contains("ouvert") : Boolean(force);
+  tiroir.classList.toggle("ouvert", ouvert);
+  tiroir.setAttribute("aria-hidden", String(!ouvert));
+  $("ouvrirControle").setAttribute("aria-expanded", String(ouvert));
+  $("ouvrirControle").textContent = ouvert ? "× Fermer" : "⚙ Config";
+  if (ouvert) chargerControles();
+}
 
 function versCouleur(cible, t) {
   couleur.r = lerp(couleur.r, cible.r, t);
@@ -636,6 +902,27 @@ majReleve();
 setInterval(majHorloge, 1000);
 requestAnimationFrame(dessiner);
 requestAnimationFrame(majNiveau);
+
+$("ouvrirControle").addEventListener("click", () => ouvrirFermerControles());
+$("controleFournisseur").addEventListener("change", actualiserModelesCloud);
+document.querySelectorAll("#controleModes [data-mode]").forEach((b) =>
+  b.addEventListener("click", () => envoyerControle({action:"mode", valeur:b.dataset.mode})));
+$("activerHybride").addEventListener("click", () => envoyerControle({
+  action:"modele_cloud", fournisseur:$("controleFournisseur").value,
+  modele:$("controleModeleCloud").value, profil:"hybride"}));
+$("activerQualite").addEventListener("click", () => envoyerControle({
+  action:"modele_cloud", fournisseur:$("controleFournisseur").value,
+  modele:$("controleModeleCloud").value, profil:"qualite"}));
+$("activerLocal").addEventListener("click", () => envoyerControle({
+  action:"modele_local", modele:$("controleModeleLocal").value}));
+$("controleMoteurVoix").addEventListener("change", (e) => envoyerControle({
+  action:"moteur_voix", valeur:e.target.value}));
+$("controleVoixEleven").addEventListener("change", (e) => envoyerControle({
+  action:"voix_elevenlabs", valeur:e.target.value}));
+$("controleModeleEleven").addEventListener("change", (e) => envoyerControle({
+  action:"modele_elevenlabs", valeur:e.target.value}));
+$("testerVoix").addEventListener("click", () => envoyerControle({action:"tester_voix"}));
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") ouvrirFermerControles(false); });
 
 if (location.protocol === "file:") {
   demonstration();

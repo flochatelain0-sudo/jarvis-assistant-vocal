@@ -159,6 +159,147 @@ def demo(actif):
     _diffuser({"t": "demo", "v": bool(actif)})
 
 
+# ------------------------------------------------------ controles rapides HUD
+
+
+def _libelle_modele_actif():
+    """Libelle public du LLM actif, sans lire ni exposer aucune cle API."""
+    from core.config import reglage
+    from core.routage import mode_actuel
+
+    mode = mode_actuel()
+    if mode == "local":
+        return f"Ollama · {reglage('ollama.modele', 'qwen2.5:7b')}"
+
+    from core import cloud
+    fournisseur = cloud.fournisseur()
+    marque = "OpenAI" if fournisseur == "openai" else "Claude"
+    return f"{marque} · {cloud.modele(qualite=(mode == 'qualite'))}"
+
+
+def _synchroniser_controles():
+    """Actualise le releve du HUD apres une bascule faite dans son tiroir."""
+    from core.routage import mode_actuel
+
+    config(_libelle_modele_actif(), _ETAT.get("stt", ""))
+    routage(mode_actuel())
+
+
+def _etat_controles():
+    """Etat strictement non sensible utilise par le tiroir de configuration."""
+    from core import cloud, panneau
+    from core.config import reglage
+    from core.routage import mode_actuel
+
+    mode = mode_actuel()
+    fournisseur = cloud.fournisseur()
+    openai = panneau._openai_etat()
+    eleven = panneau._elevenlabs_voix()
+    installes = panneau._ollama_installes()
+
+    modeles_openai = list(openai.get("catalogue", []))
+    noms_openai = {m.get("nom") for m in modeles_openai}
+    for nom in (reglage("openai.modele", "gpt-5.6-terra"),
+                reglage("openai.modele_qualite", "gpt-6-astra")):
+        if nom and nom not in noms_openai:
+            modeles_openai.append({"nom": nom, "role": "Configure manuellement",
+                                    "accessible": None})
+            noms_openai.add(nom)
+
+    modeles_anthropic = []
+    for nom in (reglage("anthropic.modele", "claude-haiku-4-5"),
+                reglage("anthropic.modele_qualite", "claude-sonnet-4-5")):
+        if nom and nom not in modeles_anthropic:
+            modeles_anthropic.append(nom)
+
+    locaux = [m.get("nom", "") for m in installes if m.get("nom")]
+    local_actif = str(reglage("ollama.modele", "qwen2.5:7b"))
+    if local_actif and local_actif not in locaux:
+        locaux.insert(0, local_actif)
+
+    return {
+        "ok": True,
+        "mode": mode,
+        "modele_actif": _libelle_modele_actif(),
+        "cloud": {
+            "fournisseur": fournisseur,
+            "configure": {
+                "openai": bool(openai.get("configure")),
+                "anthropic": bool(reglage("anthropic.cle", "")),
+            },
+            "courants": {
+                "openai": {
+                    "hybride": reglage("openai.modele", "gpt-5.6-terra"),
+                    "qualite": reglage("openai.modele_qualite", "gpt-6-astra"),
+                },
+                "anthropic": {
+                    "hybride": reglage("anthropic.modele", "claude-haiku-4-5"),
+                    "qualite": reglage("anthropic.modele_qualite", "claude-sonnet-4-5"),
+                },
+            },
+            "modeles": {
+                "openai": modeles_openai,
+                "anthropic": [{"nom": n, "role": "Configure dans Jarvis",
+                                "accessible": None} for n in modeles_anthropic],
+            },
+            "openai_joignable": bool(openai.get("joignable")),
+        },
+        "local": {
+            "modele": local_actif,
+            "modeles": locaux,
+            "joignable": panneau._ollama_joignable(),
+        },
+        "voix": {
+            "moteur": reglage("tts.moteur", "auto"),
+            "elevenlabs_voix": reglage("elevenlabs.voix", ""),
+            "elevenlabs_modele": reglage("elevenlabs.modele", "eleven_flash_v2_5"),
+            "elevenlabs": eleven,
+            "moteurs": ["auto", "elevenlabs", "piper", "kokoro", "windows"],
+            "modeles_elevenlabs": ["eleven_flash_v2_5", "eleven_multilingual_v2"],
+        },
+        "panneau_url": f"http://127.0.0.1:{int(reglage('serveur.port', 8790))}/panneau",
+    }
+
+
+def _appliquer_controle(donnees):
+    """Applique une action whitelistée du HUD et renvoie un resultat JSON."""
+    from core import panneau
+
+    action = str((donnees or {}).get("action", "")).strip().lower()
+    if action == "mode":
+        resultat = panneau._definir_reglage("mode", donnees.get("valeur", ""))
+    elif action == "modele_local":
+        resultat = panneau._definir_actif("local", str(donnees.get("modele", "")).strip())
+    elif action == "modele_cloud":
+        resultat = panneau._definir_actif(
+            "cloud", str(donnees.get("modele", "")).strip(),
+            profil=str(donnees.get("profil", "hybride")).strip().lower(),
+            fournisseur=str(donnees.get("fournisseur", "openai")).strip().lower())
+    elif action == "moteur_voix":
+        resultat = panneau._definir_reglage("tts.moteur", donnees.get("valeur", ""))
+    elif action == "voix_elevenlabs":
+        resultat = panneau._definir_reglage(
+            "elevenlabs.voix", donnees.get("valeur", ""))
+    elif action == "modele_elevenlabs":
+        resultat = panneau._definir_reglage(
+            "elevenlabs.modele", donnees.get("valeur", ""))
+    elif action == "tester_voix":
+        from core import voix
+        threading.Thread(
+            target=voix.parler,
+            args=("Test de la voix Jarvis. Tout fonctionne.",),
+            daemon=True,
+            name="hud-test-voix",
+        ).start()
+        resultat = {"ok": True, "message": "Test vocal lance."}
+    else:
+        return {"ok": False, "message": "Controle inconnu."}
+
+    if resultat.get("ok") and action != "tester_voix":
+        _synchroniser_controles()
+    return resultat
+
+
 # ---------------------------------------------------------------- serveur
 
 
@@ -169,12 +310,63 @@ class _Poignee(BaseHTTPRequestHandler):
         pass  # pas de bruit dans la console
 
     def do_GET(self):
-        if self.path == "/flux":
+        chemin = self.path.split("?", 1)[0]
+        if chemin == "/flux":
             self._flux()
-        elif self.path in ("/", "/hud.html", "/index.html"):
+        elif chemin == "/api/controle":
+            self._controle_etat()
+        elif chemin in ("/", "/hud.html", "/index.html"):
             self._page()
         else:
             self.send_error(404)
+
+    def do_POST(self):
+        chemin = self.path.split("?", 1)[0]
+        if chemin != "/api/controle":
+            self.send_error(404)
+            return
+        if self.client_address[0] not in {"127.0.0.1", "::1"}:
+            self._json({"ok": False, "message": "Acces local uniquement."}, 403)
+            return
+        # L'en-tete custom provoque un preflight pour toute page tierce : sans
+        # reponse CORS, un site visite dans le navigateur ne peut pas modifier Jarvis.
+        if self.headers.get("X-Jarvis-HUD") != "1":
+            self._json({"ok": False, "message": "Requete HUD invalide."}, 403)
+            return
+        if "application/json" not in self.headers.get("Content-Type", "").lower():
+            self._json({"ok": False, "message": "Corps JSON requis."}, 415)
+            return
+        try:
+            taille = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            taille = 0
+        if taille <= 0 or taille > 8192:
+            self._json({"ok": False, "message": "Taille de requete invalide."}, 400)
+            return
+        try:
+            donnees = json.loads(self.rfile.read(taille).decode("utf-8"))
+            resultat = _appliquer_controle(donnees)
+            self._json(resultat, 200 if resultat.get("ok") else 400)
+        except Exception as e:
+            self._json({"ok": False, "message": str(e)[:160]}, 500)
+
+    def _controle_etat(self):
+        if self.client_address[0] not in {"127.0.0.1", "::1"}:
+            self._json({"ok": False, "message": "Acces local uniquement."}, 403)
+            return
+        try:
+            self._json(_etat_controles())
+        except Exception as e:
+            self._json({"ok": False, "message": str(e)[:160]}, 500)
+
+    def _json(self, donnees, statut=200):
+        corps = json.dumps(donnees, ensure_ascii=False).encode("utf-8")
+        self.send_response(statut)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(corps)))
+        self.end_headers()
+        self.wfile.write(corps)
 
     def _page(self):
         try:

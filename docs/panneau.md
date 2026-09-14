@@ -11,6 +11,21 @@ Ouvre-le dans un navigateur **sur la machine de Jarvis** :
 http://localhost:8790/panneau
 ```
 
+Le **HUD/orbe** (`http://127.0.0.1:8770`) possède aussi un bouton **⚙ Config**
+en haut à droite. Son tiroir permet les bascules du quotidien sans quitter le
+visage de Jarvis :
+
+- mode `local` / `hybride` / `qualité` ;
+- fournisseur et modèle cloud (OpenAI ou Anthropic), avec profils hybride et
+  qualité ;
+- modèle Ollama déjà installé ;
+- moteur TTS, voix et modèle ElevenLabs, avec bouton de test.
+
+Ces changements prennent effet dès la réponse suivante. Le panneau complet
+reste l'endroit où installer, tester ou supprimer les modèles et modifier les
+réglages avancés. Le HUD ne reçoit jamais les clés API : il ne voit que leur
+état « configurée / absente » et les noms des modèles/voix disponibles.
+
 **À la voix** : « **ouvre le tableau de configuration** » (ou « tableau de bord »,
 « ouvre le panneau ») → l'outil `ouvrir_panneau` (N1, local, non exposé au MCP)
 lance le navigateur sur cette page. Si le serveur n'est pas démarré, Jarvis le dit.
