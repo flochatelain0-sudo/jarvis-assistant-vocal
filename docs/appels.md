@@ -78,7 +78,7 @@ dans les limites que tu donnes.
 > « Jarvis, appelle le 01 23 45 67 89 et reserve une table pour 2 vendredi 20h,
 >   pas apres 21h. »
 
-Chaine : Twilio (mu-law 8kHz) -> Whisper -> Claude (phrases courtes) -> ElevenLabs
+Chaine : Twilio (mu-law 8kHz) -> Whisper -> modèle cloud (phrases courtes) -> ElevenLabs
 (sortie ulaw_8000) -> Twilio. La V2 **exige une voix ElevenLabs** (`elevenlabs.cle`).
 
 ### Le serveur public (le point cle)
@@ -114,7 +114,7 @@ personne qui ne comprend pas (reformule puis propose un rappel), raccrochage. Ja
 ### Latence (honnete)
 
 Chaque tour de parole enchaine : fin de phrase detectee (~0,7 s de silence) + Whisper
-(~0,3-0,8 s) + Claude (~0,5-1,5 s) + ElevenLabs (~0,3-0,8 s). En pratique, compte
+(~0,3-0,8 s) + modèle cloud (~0,5-2 s) + ElevenLabs (~0,3-0,8 s). En pratique, compte
 **~2 a 4 secondes** avant que Jarvis reponde — correct pour une reservation, mais pas
 le « moins de 2 s » vise dans l'absolu. Le moteur est teste en local de bout en bout ;
 la latence reelle depend de ton GPU et de ta connexion. Reglages utiles :

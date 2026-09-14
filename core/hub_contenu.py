@@ -1,7 +1,7 @@
 """Hub de contenu : pipeline d'ingestion d'une inspiration (Insta/TikTok) au Vault.
 
 Le CHAINON MANQUANT, c'est l'INDEXEUR (le "greffier") : ingest.py depose une fiche
-brute dans Vault/raw/, puis ce module la lit, demande a Claude un RESUME + des
+brute dans Vault/raw/, puis ce module la lit, demande au modele cloud un RESUME + des
 THEMES + un enrichissement (tags/format/pourquoi), APPEND l'entree a index.md
 (dedup par shortcode), enrichit le front-matter de la fiche, met a jour
 progression.txt, puis relance graphe.py + build_vault.py, et (option) miroir Drive.
@@ -155,17 +155,12 @@ def _themes_existants(index_texte: str, limite: int = 60) -> list:
 
 
 def _analyser_llm(fiche: dict, commentaire: str, themes_existants: list) -> dict:
-    """Demande a Claude : titre court, themes, resume concret, tags, format.
+    """Demande au modele cloud : titre court, themes, resume, tags, format.
 
     Renvoie un dict ; leve en cas d'echec dur (l'appelant gere).
     """
-    import anthropic
-    cle = reglage("anthropic.cle", "")
-    if not cle:
-        raise RuntimeError("cle Anthropic absente (anthropic.cle)")
-    modele = (reglage("hub.modele", "") or reglage("anthropic.modele", "")
-              or "claude-haiku-4-5")
-    client = anthropic.Anthropic(api_key=cle)
+    from core import cloud
+    modele = reglage("hub.modele", "") or ""
 
     desc = (fiche.get("description") or "").strip()
     trans = (fiche.get("transcription") or "").strip()
@@ -196,12 +191,9 @@ Renvoie ce JSON exact :
   "tags": ["3 a 6 mots-cles minuscules"],
   "format": "un seul parmi: talking head, tuto, storytelling, trend, interview, sketch, vlog, demo produit, motivation, autre"
 }}"""
-    rep = client.messages.create(
-        model=modele, max_tokens=700,
-        system=[{"type": "text", "text": systeme}],
-        messages=[{"role": "user", "content": prompt}],
-    )
-    texte = "".join(b.text for b in rep.content if getattr(b, "type", None) == "text")
+    texte = cloud.repondre_texte(
+        systeme, [{"role": "user", "content": prompt}],
+        max_tokens=700, nom_modele=modele)
     m = re.search(r"\{.*\}", texte, re.S)
     if not m:
         raise RuntimeError("l'indexeur n'a pas renvoye de JSON")

@@ -79,6 +79,12 @@
   <section id="modeles" class="tab on">
     <div class="card"><h2>Matériel</h2><div id="mat" class="row"></div></div>
     <div class="card"><h2>Modèle actif par backend</h2><div id="actifs"></div></div>
+    <div class="card"><h2>Modèles cloud OpenAI</h2>
+      <div id="openai-etat" class="muted" style="margin-bottom:8px"></div>
+      <table><thead><tr><th>Modèle</th><th>Capacités</th><th>Prix API / 1M tokens</th><th>Activer</th></tr></thead>
+      <tbody id="openai-modeles"></tbody></table>
+      <small class="note">L'abonnement ChatGPT et la facturation API sont séparés. La clé reste uniquement dans <span class="mono">config.yaml</span>.</small>
+    </div>
     <div class="card"><h2>Modèles LLM locaux (Ollama)</h2>
       <div id="ollama-etat" class="muted" style="margin-bottom:8px"></div>
       <table><thead><tr><th>Modèle</th><th>Badges</th><th>Taille</th><th></th></tr></thead>
@@ -95,13 +101,14 @@
   <section id="reglages" class="tab">
     <div class="card"><h2>Mode de routage</h2>
       <div class="fld"><div class="lab"><b>Où réfléchit Jarvis</b>
-        <small>Local = tout sur ta machine (gratuit, privé). Cloud = Claude (plus fin, payant).</small></div>
+        <small>Local = hors ligne. Hybride = OpenAI économique + Hermes pour le fond. Qualité = GPT-6 Astra.</small></div>
         <div class="seg" id="seg-mode">
           <button data-v="local">🖥️ Local</button>
-          <button data-v="cloud">☁️ Cloud</button>
+          <button data-v="hybride">⚡ Hybride</button>
+          <button data-v="qualite">✨ Qualité</button>
         </div>
       </div>
-      <small class="note">Le modèle précis (Ollama / Claude / Whisper) se choisit dans l'onglet <b>Modèles</b>.</small>
+      <small class="note">Le modèle précis (Ollama / OpenAI / Whisper) se choisit dans l'onglet <b>Modèles</b>.</small>
     </div>
 
     <div class="card"><h2>Audio</h2>
@@ -110,6 +117,32 @@
       <div class="fld"><div class="lab"><b>Haut-parleur</b><small>Sortie pour la voix de Jarvis.</small></div>
         <select class="txt" id="sel-hp" onchange="setReglage('audio.haut_parleur',this.value,this)"></select></div>
       <div id="audio-msg" class="msg"></div>
+    </div>
+
+    <div class="card"><h2>Voix de Jarvis</h2>
+      <div class="fld"><div class="lab"><b>Moteur vocal</b>
+        <small>Auto choisit ElevenLabs en cloud et Piper en local. Le mode local reste intégralement local.</small></div>
+        <div class="seg" id="seg-tts">
+          <button data-v="auto">Auto</button>
+          <button data-v="elevenlabs">ElevenLabs</button>
+          <button data-v="piper">Piper</button>
+          <button data-v="kokoro">Kokoro</button>
+          <button data-v="windows">Windows</button>
+        </div>
+      </div>
+      <div class="fld"><div class="lab"><b>Voix ElevenLabs</b>
+        <small id="elevenlabs-etat">Vérification du compte…</small></div>
+        <select class="txt" id="sel-eleven-voix" onchange="setReglage('elevenlabs.voix',this.value,this)"></select>
+      </div>
+      <div class="fld"><div class="lab"><b>Modèle ElevenLabs</b><small>Flash = faible latence pour la conversation.</small></div>
+        <select class="txt" id="sel-eleven-modele" onchange="setReglage('elevenlabs.modele',this.value,this)">
+          <option value="eleven_flash_v2_5">Eleven Flash v2.5</option>
+          <option value="eleven_turbo_v2_5">Eleven Turbo v2.5</option>
+          <option value="eleven_multilingual_v2">Eleven Multilingual v2</option>
+        </select>
+      </div>
+      <div class="row"><button class="act" onclick="testerVoix()">Tester la voix</button></div>
+      <div id="tts-msg" class="msg"></div>
     </div>
 
     <div class="card"><h2>Voix &amp; écoute</h2>
@@ -151,6 +184,10 @@
       <div id="budget"></div>
       <small class="note">Jarvis : mesuré (tokens + coût estimé, tarifs config <span class="mono">budget.prix</span>). Hermes : tokens via <span class="mono">hermes insights</span>.</small>
     </div>
+    <div class="card"><h2>File de tâches Hermes <span id="taches-kpi" class="muted" style="font-size:12px;font-weight:400"></span></h2>
+      <div id="taches" class="muted">Chargement…</div>
+      <small class="note">Command center : délégations parallèles, statut · durée · tokens · coût estimé. À la voix : « où en sont les tâches ? »</small>
+    </div>
     <div class="card"><h2>Activité Hermes</h2>
       <div id="activite" class="muted">Chargement…</div>
     </div>
@@ -181,7 +218,7 @@ const bYes=(t)=>`<span class="badge on">${t}</span>`, bNo=(t)=>`<span class="bad
 $$('nav button').forEach(b=>b.onclick=()=>{
   $$('nav button').forEach(x=>x.classList.toggle('on',x===b));
   $$('.tab').forEach(t=>t.classList.toggle('on',t.id===b.dataset.t));
-  if(b.dataset.t==='etat'){chargerEtat();chargerBudget();chargerActivite();} if(b.dataset.t==='perms')chargerPerms();
+  if(b.dataset.t==='etat'){chargerEtat();chargerBudget();chargerActivite();chargerTaches();} if(b.dataset.t==='perms')chargerPerms();
   if(b.dataset.t==='reglages')chargerReglages();
 });
 const fmt=n=>(n||0).toLocaleString('fr-FR');
@@ -200,18 +237,34 @@ async function chargerModeles(){
   // actifs par backend
   const A=d.actifs, be=d.backend_actif;
   const ligneActif=(cle,label,val,editable)=>{
-    const on = (cle==='local'&&be==='local')||(cle==='cloud'&&be==='cloud');
+    const on = (cle==='local'&&be==='local')||(cle==='cloud'&&(be==='hybride'||be==='qualite'));
     let ed = editable? `<input class="txt" id="in-${cle}" value="${val}" style="width:230px">
-       <button class="act ghost" onclick="activer('${cle}',$('#in-${cle}').value)">Activer</button>`:'';
+       <button class="act ghost" onclick="${cle==='cloud'?`activerCloud($('#in-cloud').value,'${be==='qualite'?'qualite':'hybride'}')`:`activer('${cle}',$('#in-${cle}').value)`}">Activer</button>`:'';
     return `<tr><td>${label} ${on?'<span class="badge on">actif</span>':''}</td>
       <td class="mono">${val}</td><td>${ed}</td></tr>`;
   };
   $('#actifs').innerHTML=`<table><tbody>
     ${ligneActif('local','LLM local (Ollama)',A.local,false)}
-    ${ligneActif('cloud','LLM cloud (Claude)',A.cloud,true)}
+    ${ligneActif('cloud',`LLM cloud (${A.cloud_fournisseur==='openai'?'OpenAI':'Anthropic'})`,A.cloud,true)}
     ${ligneActif('whisper','Whisper (voix→texte)',A.whisper,false)}
     ${ligneActif('hermes','Hermes (orchestrateur)',A.hermes,true)}
-  </tbody></table><small class="note">Changer le backend LLM (local/cloud) se fait en activant un modèle ci-dessous. Redémarre Jarvis après.</small>`;
+  </tbody></table><small class="note">Les changements LLM et de mode prennent effet au prochain tour, sans redémarrage.</small>`;
+  // cloud OpenAI
+  const oa=d.openai||{};
+  $('#openai-etat').innerHTML = !oa.configure
+    ? '<span style="color:var(--ko)">Clé API absente : ajoute <span class="mono">openai.cle</span> dans config.yaml.</span>'
+    : oa.joignable ? '<span style="color:var(--ok)">API OpenAI connectée.</span>'
+    : `<span style="color:var(--ko)">API non vérifiée : ${(oa.erreur||'accès refusé').replace(/</g,'&lt;')}</span>`;
+  $('#openai-modeles').innerHTML=(oa.catalogue||[]).map(c=>{
+    const acces=c.accessible===true?bYes('autorisé'):(c.accessible===false?bNo('non autorisé'):'<span class="badge">à vérifier</span>');
+    const badges=acces+bYes('outils')+bYes('vision')+bYes('français');
+    const actifH=A.cloud_fournisseur==='openai'&&A.cloud_hybride===c.nom&&be==='hybride';
+    const actifQ=A.cloud_fournisseur==='openai'&&A.cloud_qualite===c.nom&&be==='qualite';
+    return `<tr class="${actifH||actifQ?'actif':''}"><td><b class="mono">${c.nom}</b><br><small class="note">${c.role}</small></td>
+      <td>${badges}</td><td class="mono">$${c.prix_entree} entrée · $${c.prix_sortie} sortie</td>
+      <td><div class="row"><button class="act ghost" onclick="activerCloud('${c.nom}','hybride')">Hybride</button>
+      <button class="act" onclick="activerCloud('${c.nom}','qualite')">Qualité</button></div></td></tr>`;
+  }).join('');
   // ollama
   $('#ollama-etat').textContent = d.ollama.joignable
     ? `Ollama joignable (${d.ollama.hote}).` : `Ollama injoignable — lance « ollama serve ».`;
@@ -249,6 +302,11 @@ async function chargerModeles(){
 async function activer(backend,modele){
   const r=await post('/api/panneau/modele-actif',{backend,modele});
   flash(r); if(r.ok) setTimeout(chargerModeles,400);
+}
+async function activerCloud(modele,profil){
+  const r=await post('/api/panneau/modele-actif',{
+    backend:'cloud',fournisseur:'openai',modele,profil});
+  flash(r); if(r.ok){setTimeout(chargerModeles,300);setTimeout(chargerReglages,300);}
 }
 async function tester(nom,btn){
   const cell=btn.closest('td'), msg=$('.msg',cell); msg.textContent='Test en cours…'; btn.disabled=true;
@@ -308,6 +366,27 @@ async function chargerBudget(){
     html='<span class="muted">Aucune conso enregistrée pour l’instant (redémarre Jarvis pour activer le comptage).</span>'+html;
   $('#budget').innerHTML=html;
 }
+async function chargerTaches(){
+  const d=await api('/api/panneau/taches');
+  const c=d.compte||{};
+  $('#taches-kpi').textContent=`${c.en_cours||0} en cours · ${c.validation||0} à valider · ${c.terminee||0} terminées`;
+  const T=d.taches||[];
+  if(!T.length){$('#taches').innerHTML='<span class="muted">Aucune délégation.</span>';return;}
+  const ic={en_cours:'⏳',terminee:'✅',en_attente_validation:'⚠️',echouee:'❌'};
+  const lib={en_cours:'en cours',terminee:'terminée',en_attente_validation:'à valider',echouee:'échouée'};
+  $('#taches').innerHTML=T.map(t=>{
+    const dur=t.duree!=null?t.duree+'s':(t.debut?Math.round((Date.now()/1000)-t.debut)+'s':'');
+    const tok=t.tokens!=null?' · '+fmt(t.tokens)+' tk':'';
+    const cout=t.cout!=null?' · $'+Number(t.cout).toFixed(4):'';
+    const modele=t.modele?' · '+t.modele:'';
+    const res=t.resume?`<div class="muted" style="font-size:12px;margin-top:2px">${(t.resume||'').replace(/</g,'&lt;')}</div>`:'';
+    return `<div style="padding:6px 0;border-bottom:1px solid var(--bord)">
+      <div>${ic[t.statut]||'•'} <b>${(t.tache||'').replace(/</g,'&lt;')}</b></div>
+      <div class="mono muted" style="font-size:11px">session « ${t.session} » · ${lib[t.statut]||t.statut} · ${dur}${tok}${cout}${modele}</div>
+      ${res}</div>`;
+  }).join('');
+}
+
 async function chargerActivite(){
   const d=await api('/api/panneau/hermes-activite');
   // complète la ligne budget Hermes (tokens jour/mois)
@@ -331,8 +410,9 @@ const PERSO_LABEL={jarvis_sarcastique:'Jarvis (sarcastique)',neutre:'Neutre',con
 async function chargerReglages(){
   const d=await api('/api/panneau/reglages');
   // mode
+  const mode=d.mode==='cloud'?'hybride':d.mode;
   $$('#seg-mode button').forEach(x=>{
-    x.classList.toggle('on',x.dataset.v===d.mode);
+    x.classList.toggle('on',x.dataset.v===mode);
     x.onclick=()=>setReglage('mode',x.dataset.v,x.closest('.card').querySelector('.msg')||x);
   });
   // micro / haut-parleur
@@ -342,6 +422,20 @@ async function chargerReglages(){
   const hpNul = d.haut_parleur===null||d.haut_parleur===undefined;
   $('#sel-hp').innerHTML=opt('defaut','Sortie par défaut de Windows',hpNul)
     +(d.sorties||[]).map(s=>opt(s.index,`#${s.index} · ${s.nom}`,!hpNul&&s.index===d.haut_parleur)).join('');
+  // moteur vocal + voix ElevenLabs
+  $$('#seg-tts button').forEach(x=>{
+    x.classList.toggle('on',x.dataset.v===(d.tts_moteur||'auto'));
+    x.onclick=()=>setReglage('tts.moteur',x.dataset.v,x);
+  });
+  const el=d.elevenlabs||{};
+  $('#elevenlabs-etat').innerHTML=!el.configure
+    ? '<span style="color:var(--ko)">Clé absente dans config.yaml.</span>'
+    : el.joignable?`<span style="color:var(--ok)">Connecté · ${(el.voix||[]).length} voix.</span>`
+    : `<span style="color:var(--ko)">Connexion refusée : ${(el.erreur||'vérifie la clé').replace(/</g,'&lt;')}</span>`;
+  let voix=(el.voix||[]).map(v=>opt(v.id,`${v.nom}${v.categorie?' · '+v.categorie:''}`,v.id===d.elevenlabs_voix)).join('');
+  if(!voix&&d.elevenlabs_voix) voix=opt(d.elevenlabs_voix,'Voix actuellement configurée',true);
+  $('#sel-eleven-voix').innerHTML=voix||opt('','Aucune voix disponible',true);
+  $('#sel-eleven-modele').value=d.elevenlabs_modele||'eleven_flash_v2_5';
   // personnalite
   $('#sel-perso').innerHTML=(d.personnalites||[]).map(p=>opt(p,PERSO_LABEL[p]||p,p===d.personnalite)).join('');
   // sliders
@@ -352,11 +446,18 @@ async function setReglage(cle,valeur,cibleOuBtn){
   // pour le segment mode : refléter la sélection tout de suite
   if(cle==='mode') $$('#seg-mode button').forEach(x=>x.classList.toggle('on',x.dataset.v===valeur));
   const r=await post('/api/panneau/reglage',{cle,valeur});
+  if(cle==='tts.moteur') $$('#seg-tts button').forEach(x=>x.classList.toggle('on',x.dataset.v===valeur));
   const zone={'mode':'#audio-msg','audio.micro':'#audio-msg','audio.haut_parleur':'#audio-msg',
     'assistant.personnalite':'#voix-msg','assistant.duree_suite':'#voix-msg',
-    'assistant.seuil_reveil':'#wake-msg'}[cle];
+    'assistant.seuil_reveil':'#wake-msg','tts.moteur':'#tts-msg',
+    'elevenlabs.voix':'#tts-msg','elevenlabs.modele':'#tts-msg'}[cle];
   const el=zone?$(zone):null;
   if(el) el.innerHTML=`<span style="color:var(--${r.ok?'ok':'ko'})">${r.message||''}</span>`;
+  if(r.ok&&cle==='mode') setTimeout(chargerModeles,250);
+}
+async function testerVoix(){
+  const r=await post('/api/panneau/tester-voix',{});
+  $('#tts-msg').innerHTML=`<span style="color:var(--${r.ok?'ok':'ko'})">${r.message||''}</span>`;
 }
 
 /* ---------- PERMISSIONS ---------- */

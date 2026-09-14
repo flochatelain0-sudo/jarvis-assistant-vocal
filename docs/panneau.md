@@ -31,9 +31,12 @@ danger (choix de modèle, modèle d'Hermes) — **jamais une règle de sécurit�
   **Supprimer**, **Activer**.
 - **Modèles Whisper** (tiny → large-v3-turbo) : reco + badge *français fiable* ;
   installer / activer / supprimer. (Whisper tourne en **CPU** chez toi.)
-- **Modèle actif par backend** : local (Ollama), cloud (Claude), Whisper et
-  **Hermes** — affiché et changeable en un clic (écrit dans `config.yaml`, et pour
-  Hermes via `hermes config set model.default`). **Redémarre** le composant après.
+- **Modèles cloud OpenAI** : catalogue `gpt-5.6-luna/terra/sol` et
+  `gpt-6-astra`, tarifs, vision, appels d'outils et vérification de l'accès réel
+  via la clé API locale.
+- **Modèle actif par backend** : local (Ollama), cloud (OpenAI ou repli
+  Anthropic), Whisper et **Hermes**. Le LLM cloud/local change au tour suivant ;
+  Whisper demande encore un redémarrage.
 
 ## 2. Page Réglages (voix, audio, mot d'activation)
 
@@ -41,10 +44,13 @@ Les réglages du quotidien, écrits dans `config.yaml` (**redémarre Jarvis** po
 appliquer). Écriture **whitelistée** : seules ces clés sont modifiables depuis le
 panneau — jamais une clé/secret (`_CLES_REGLABLES` dans `core/panneau.py`).
 
-- **Mode de routage** : `local` (tout sur ta machine, gratuit/privé) vs `cloud`
-  (Claude, plus fin, payant) → `mode`. Le *modèle précis* reste dans l'onglet Modèles.
+- **Mode de routage** : `local`, `hybride` ou `qualite`. Le changement est
+  immédiat et réinitialise proprement les providers LLM/TTS.
 - **Audio** : **micro** (`audio.micro`) et **haut-parleur** (`audio.haut_parleur`,
   « défaut » = sortie Windows) — listés en direct via `sounddevice.query_devices()`.
+- **Moteur vocal** : `Auto`, `ElevenLabs`, `Piper`, `Kokoro` ou `Windows`, liste
+  des voix du compte ElevenLabs et bouton de test. La clé n'est jamais envoyée au
+  navigateur. En mode local, un moteur cloud est toujours remplacé par un moteur local.
 - **Voix & écoute** : **personnalité** (`assistant.personnalite`) et **durée
   d'écoute enchaînée** (`assistant.duree_suite`, secondes où Jarvis continue
   d'écouter après une réponse sans redire le mot d'activation).
@@ -63,7 +69,7 @@ gateway Hermes, Docker, et la **connexion MCP Hermes → Jarvis**. Bouton
 
 ### Budget par fournisseur (N9)
 
-- **Jarvis (mesuré)** : chaque appel Claude est instrumenté (`core/budget.py`) →
+- **Jarvis (mesuré)** : chaque appel OpenAI/Claude est instrumenté (`core/budget.py`) →
   tokens (in/out, cache compris) + **coût estimé** via la table de prix
   `budget.prix` (config). Résumé **du jour** et **du mois**, persistant dans
   `budget.json` (non versionné). Redémarre Jarvis pour activer le comptage.

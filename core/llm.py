@@ -1,8 +1,9 @@
 """Abstraction du modele de langage : le reste du code ignore quel provider tourne.
 
-Deux implementations, choisies par config.yaml (mode: cloud | local) :
-  - ClaudeProvider  : API Anthropic (cloud, defaut).
-  - OllamaProvider  : Ollama en local (http://localhost:11434), 100% offline.
+Trois implementations, choisies par config.yaml :
+  - OpenAIProvider : Responses API (cloud recommande, GPT-6 Astra disponible).
+  - ClaudeProvider : API Anthropic (repli compatible pour les anciennes configs).
+  - OllamaProvider : Ollama en local (http://localhost:11434), 100% offline.
 
 Les deux exposent la meme methode `repondre(systeme, historique, outils)` et
 renvoient un objet a la forme d'une reponse Anthropic (.stop_reason + .content,
@@ -24,6 +25,7 @@ except Exception:
     pass
 
 from core.config import reglage
+from core import cloud
 
 LOG = logging.getLogger("jarvis")
 
@@ -55,6 +57,126 @@ class ProviderLLM:
 
     def repondre(self, systeme, historique, outils):
         raise NotImplementedError
+
+
+# --------------------------------------------------------------- OpenAI (cloud)
+
+class OpenAIProvider(ProviderLLM):
+    """Adaptateur Responses API -> forme historique comprise par jarvis14."""
+
+    nom = "OpenAI"
+
+    def __init__(self, modele=None, qualite=False):
+        self.modele = modele or cloud.modele(qualite=qualite)
+        self.qualite = qualite
+        self.client = cloud.client_openai()
+
+    def disponible(self):
+        return self.client is not None
+
+    @staticmethod
+    def _outils(outils):
+        return [{
+            "type": "function",
+            "name": o["name"],
+            "description": o.get("description", ""),
+            "parameters": o.get("input_schema", {
+                "type": "object", "properties": {}}),
+            "strict": False,
+        } for o in outils]
+
+    @staticmethod
+    def _contenu_image(contenu):
+        for item in contenu or []:
+            if not isinstance(item, dict) or item.get("type") != "image":
+                continue
+            src = item.get("source", {}) or {}
+            if src.get("type") == "base64" and src.get("data"):
+                mime = src.get("media_type", "image/jpeg")
+                return f"data:{mime};base64,{src['data']}"
+        return ""
+
+    def _traduire(self, historique):
+        """Historique Anthropic interne -> items Responses API."""
+        items = []
+        for message in historique:
+            role = message.get("role", "user")
+            contenu = message.get("content", "")
+            if isinstance(contenu, str):
+                items.append({"role": role, "content": contenu})
+                continue
+
+            if role == "assistant":
+                textes = [b.text for b in (contenu or [])
+                          if getattr(b, "type", None) == "text" and b.text]
+                if textes:
+                    items.append({"role": "assistant", "content": " ".join(textes)})
+                for bloc in contenu or []:
+                    if getattr(bloc, "type", None) != "tool_use":
+                        continue
+                    items.append({
+                        "type": "function_call",
+                        "call_id": bloc.id,
+                        "name": bloc.name,
+                        "arguments": json.dumps(bloc.input or {}, ensure_ascii=False),
+                    })
+                continue
+
+            # Les resultats d'outils sont des items autonomes. Une capture est
+            # ajoutee comme image utilisateur juste apres son function output.
+            for resultat in contenu or []:
+                if not isinstance(resultat, dict) or resultat.get("type") != "tool_result":
+                    continue
+                sortie = resultat.get("content", "")
+                image = self._contenu_image(sortie) if isinstance(sortie, list) else ""
+                items.append({
+                    "type": "function_call_output",
+                    "call_id": resultat.get("tool_use_id", ""),
+                    "output": "Capture d'ecran disponible." if image else str(sortie),
+                })
+                if image:
+                    items.append({"role": "user", "content": [{
+                        "type": "input_image", "image_url": image,
+                    }]})
+        return items
+
+    def repondre(self, systeme, historique, outils):
+        kwargs = {
+            "model": self.modele,
+            "instructions": systeme,
+            "input": self._traduire(historique),
+            "tools": self._outils(outils),
+            "parallel_tool_calls": True,
+            "max_output_tokens": int(reglage("openai.max_output_tokens", 2048)),
+            "store": False,
+        }
+        raisonnement = cloud._raisonnement(self.modele, self.qualite)
+        if raisonnement:
+            kwargs["reasoning"] = raisonnement
+        rep = self.client.responses.create(**kwargs)
+        cloud.enregistrer_usage(rep, "OpenAI (Jarvis)", self.modele)
+
+        blocs = []
+        texte = (getattr(rep, "output_text", "") or "").strip()
+        if texte:
+            blocs.append(Bloc("text", text=texte))
+        for item in getattr(rep, "output", []) or []:
+            if getattr(item, "type", None) != "function_call":
+                continue
+            brut = getattr(item, "arguments", "{}") or "{}"
+            try:
+                arguments = json.loads(brut) if isinstance(brut, str) else dict(brut)
+            except (ValueError, TypeError):
+                LOG.warning("OpenAI: arguments outil invalides (%s)", brut)
+                arguments = {}
+            blocs.append(Bloc(
+                "tool_use",
+                id=getattr(item, "call_id", None) or getattr(item, "id", None),
+                name=getattr(item, "name", ""),
+                input=arguments,
+            ))
+        stop = "tool_use" if any(b.type == "tool_use" for b in blocs) else "end"
+        return Reponse(stop, blocs)
 
 
 # --------------------------------------------------------------- Claude (cloud)
@@ -212,19 +334,20 @@ def llm():
     """Provider LLM courant selon le mode (local | hybride | qualite).
 
     - local   : Ollama.
-    - hybride : Claude, modele economique (anthropic.modele) — reflexes + vision.
-    - qualite : Claude, modele fort (anthropic.modele_qualite)."""
+    - hybride : cloud economique (OpenAI par defaut) - reflexes + vision.
+    - qualite : cloud fort (GPT-6 Astra par defaut)."""
     global _LLM
     if _LLM is None:
         from core.routage import mode_actuel
         m = mode_actuel()
         if m == "local":
             _LLM = OllamaProvider()
-        elif m == "qualite":
-            _LLM = ClaudeProvider(reglage("anthropic.modele_qualite",
-                                          "claude-sonnet-4-5"))
-        else:                                    # hybride (defaut)
-            _LLM = ClaudeProvider(reglage("anthropic.modele", "claude-haiku-4-5"))
+        else:
+            qualite = m == "qualite"
+            if cloud.fournisseur() == "openai":
+                _LLM = OpenAIProvider(cloud.modele(qualite=qualite), qualite=qualite)
+            else:
+                _LLM = ClaudeProvider(cloud.modele(qualite=qualite))
         LOG.info("provider LLM : %s (mode %s, modele %s)",
                  _LLM.nom, m, getattr(_LLM, "modele", "-"))
     return _LLM

@@ -3,10 +3,23 @@
 
 mode: hybride                  # local | hybride | qualite  (voir docs/costs.md)
                                #  local   = tout local (Ollama + Piper), rien ne sort
-                               #  hybride = DEFAUT : reflexes + vision en Claude eco ;
+                               #  hybride = DEFAUT : reflexes + vision en OpenAI eco ;
                                #            taches de fond confiees a Hermes
-                               #  qualite = cloud partout, modele le plus fort
+                               #  qualite = cloud partout, GPT-6 Astra par defaut
                                # (l'ancien "cloud" reste accepte = hybride)
+
+cloud:
+  fournisseur: openai          # openai (recommande) | anthropic (compatibilite)
+
+openai:
+  cle: "sk-proj-..."           # cle API Platform ; l'abonnement ChatGPT ne la remplace pas
+  modele: "gpt-5.6-terra"      # mode hybride : equilibre qualite/cout
+  modele_qualite: "gpt-6-astra" # mode qualite : flagship GPT-6
+  raisonnement: low            # none|low|medium|high|xhigh|max (selon le modele)
+  raisonnement_qualite: high
+  max_output_tokens: 2048       # inclut les tokens de raisonnement
+  timeout: 90                  # secondes max par appel
+  max_retries: 1
 
 ollama:                        # mode local : modele de langage local (http://localhost:11434)
   hote: "http://localhost:11434"
@@ -27,7 +40,7 @@ kokoro:                        # TTS local alternatif (voix FR unique ; uv add k
   voix: ""                     # chemin de voices-v1.0.bin
   voix_nom: "ff_siwis"         # voix francaise de Kokoro
 
-anthropic:
+anthropic:                     # ancien fournisseur, garde comme repli optionnel
   cle: "sk-ant-..."            # https://console.anthropic.com/ , section API keys
   modele: "claude-haiku-4-5"          # mode hybride : modele economique (reflexes + vision)
   modele_qualite: "claude-sonnet-4-5" # mode qualite : modele le plus fort
@@ -37,6 +50,10 @@ elevenlabs:                    # facultatif ; sans cle, Jarvis garde la voix Win
   voix: ""                     # ID d'une voix (onglet Voices) ; vide = 1re du compte
   modele: "eleven_flash_v2_5"
   langue: "fr"                 # force la langue (flash/turbo v2.5) : bonne prononciation des accents
+
+tts:
+  moteur: auto                 # auto | elevenlabs | piper | kokoro | windows
+                               # auto = ElevenLabs en cloud, Piper/Kokoro en local
 
 hue:                           # Philips Hue, API locale
   pont: "192.168.1.XXX"        # adresse du pont sur ton reseau
@@ -223,7 +240,8 @@ hermes:                        # delegation a Hermes Agent (facultatif ; voir do
   api_url: "http://127.0.0.1:8642"   # API locale d'Hermes (gateway, loopback uniquement)
   api_key: ""                        # cle du serveur API d'Hermes (= API_SERVER_KEY de son .env)
   # api_key_file: ""                 # alternative : chemin d'un fichier contenant la cle
-  session: "jarvis-delegation"       # session persistante (contexte partage entre delegations)
+  session: "jarvis-delegation"       # repli ; Jarvis genere sinon une session unique par delegation
+  modele_facturation: ""              # si l'API ne renvoie pas le modele : ex. "opus" pour estimer le cout
   timeout: 900                       # secondes max d'une delegation (une recherche de fond peut durer)
   resume_max: 500                    # longueur max du resume lu a voix haute (filtre de confidentialite)
 
@@ -235,7 +253,7 @@ integrations:                  # chemins des projets externes (hub de contenu ; 
   bash: ""                                         # Git Bash pour ingest.sh (projet Scripts) ; vide = auto (C:/Program Files/Git/bin/bash.exe)
 
 hub:                           # indexeur/pipeline du hub de contenu
-  modele: ""                   # modele Claude pour l'indexation (vide = anthropic.modele)
+  modele: ""                   # modele cloud pour l'indexation (vide = modele actif)
   timeout_ingest: 600          # secondes max pour telecharger + transcrire une video (Insta/TikTok)
   timeout_youtube: 3600        # secondes max pour une ingestion YouTube (chaine + Whisper, cote hote)
   miroir_dossier: ""           # miroir de index.md + vault.html vers un dossier synchro (ex. iCloudDrive) ; vide = pas de miroir
@@ -249,6 +267,10 @@ securite:                      # niveaux de permission (N8) ; voir docs/panneau.
 
 budget:                        # suivi de conso + garde-fous (N12) ; voir docs/costs.md
   prix:                        # $/million de tokens (entree, sortie) ; cle = sous-chaine du modele
+    gpt-6-astra: [10.0, 50.0]  # tarifs OpenAI API ; verifier docs/costs.md
+    gpt-5.6-sol: [4.0, 20.0]
+    gpt-5.6-terra: [2.0, 12.0]
+    gpt-5.6-luna: [0.2, 1.2]
     haiku: [1.0, 5.0]          # tarifs API Anthropic (a ajuster si besoin)
     sonnet: [3.0, 15.0]
     opus: [5.0, 25.0]

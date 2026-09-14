@@ -1,4 +1,4 @@
-"""Capture d'ecran : Jarvis peut VOIR ce qui est affiche (bloc image envoye a Claude)."""
+"""Capture d'ecran : Jarvis peut VOIR ce qui est affiche (bloc image envoye au LLM)."""
 from core.registre import outil
 
 # Cote le plus large envoye a Claude (recommandation vision d'Anthropic).

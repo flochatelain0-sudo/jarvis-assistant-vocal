@@ -1,6 +1,6 @@
 """Controle de la souris : Jarvis clique sur ce qu'il VOIT (Windows).
 
-Chaine : capture_screen envoie l'ecran a Claude, Claude repere l'element voulu
+Chaine : capture_screen envoie l'ecran au LLM, qui repere l'element voulu
 DANS L'IMAGE, puis appelle cliquer_ecran avec les coordonnees telles qu'il les
 voit dans cette image. La conversion vers l'ecran reel se fait ici.
 

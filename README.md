@@ -9,8 +9,8 @@
 
 Un assistant vocal en français qui tourne **sur ta machine**. Dis *« Hey Jarvis »*,
 parle naturellement : il raisonne avec un LLM, utilise une boîte à outils extensible
-(domotique, PC, web, téléphone…) et te répond à voix haute. Deux modes au choix, en
-une ligne de config : **cloud** (Claude + ElevenLabs) ou **100 % local hors ligne**
+(domotique, PC, web, téléphone…) et te répond à voix haute. Trois modes au choix :
+**hybride**, **qualité** (OpenAI + ElevenLabs) ou **100 % local hors ligne**
 (Ollama + Piper).
 
 **🧠 Jarvis + Hermes.** Pour la réflexion de fond et la recherche, Jarvis **délègue à
@@ -21,7 +21,7 @@ et le corps** — c'est toujours Jarvis qui exécute les actions, jamais Hermes,
 outils sûrs, écrit seulement des brouillons).
 
 > Projet perso partagé tel quel. Cible **Windows 11**, nécessite un micro et (en mode
-> cloud) une clé API Anthropic. La plupart des intégrations sont **optionnelles** et se
+> cloud) une clé API OpenAI Platform. L'abonnement ChatGPT est séparé de l'API. La plupart des intégrations sont **optionnelles** et se
 > désactivent proprement si non configurées.
 
 ## ✨ Fonctionnalités
@@ -49,7 +49,7 @@ outils sûrs, écrit seulement des brouillons).
 - 🤝 **Délégation à Hermes** — confie la réflexion / recherche de fond à un agent délibératif **local** (doctrine : Jarvis tient les clés & le corps, Hermes pense) ([docs/hermes.md](docs/hermes.md))
 - 🧭 **Panneau web local** (`/panneau`) — modèles (LLM Ollama + Whisper, reco selon la VRAM), état de la chaîne, permissions — **accessible en local uniquement** ([docs/panneau.md](docs/panneau.md))
 - 🔐 **Sécurité graduée** — niveaux **N1/N2/N3** par outil, « toujours autoriser » révocable, budget LLM par fournisseur
-- 💸 **Routage & budgets** — 4 backends (local / hybride / qualité), suivi des coûts jour/mois par fournisseur (Claude, ElevenLabs, Twilio, Hermes), plafonds avec alerte vocale à 80 % et **bascule auto en local** au plafond ([docs/costs.md](docs/costs.md))
+- 💸 **Routage & budgets** — 4 backends (local / hybride / qualité), suivi des coûts jour/mois par fournisseur (OpenAI, ElevenLabs, Twilio, Hermes), plafonds avec alerte vocale à 80 % et **bascule auto en local** au plafond ([docs/costs.md](docs/costs.md))
 - ⏻ **Extinction / réveil du PC** — extinction propre à la voix (confirmation N3, délai annulable) ; réveil par prise connectée ou Wake-on-LAN ([docs/wol.md](docs/wol.md))
 - ✋ **Gestes de la main** — pilote lumières / média / OBS d'un geste via webcam, **100 % local** (MediaPipe en sous-process isolé, aucune image ne sort) ([docs/gestes.md](docs/gestes.md))
 - 🎵 **Reconnaissance musicale** — « c'est quoi cette musique ? » (micro de la pièce **ou** son d'une vidéo/reel via loopback), à la demande uniquement ([docs/musique.md](docs/musique.md))
@@ -67,7 +67,7 @@ outils sûrs, écrit seulement des brouillons).
 flowchart LR
     Mic([🎙️ Micro]) --> WW[openWakeWord<br/>« Hey Jarvis »]
     WW --> STT[faster-whisper<br/>STT — local]
-    STT --> LLM{{LLM<br/>Claude ☁️ OU Ollama 🏠}}
+    STT --> LLM{{LLM<br/>OpenAI ☁️ OU Ollama 🏠}}
     LLM <-->|appels d'outils| TOOLS[🧰 Outils]
     LLM --> TTS{{TTS<br/>ElevenLabs ☁️ OU Piper 🏠}}
     TTS --> SPK([🔊 Haut-parleurs])
@@ -90,7 +90,7 @@ flowchart LR
 
 | | **cloud** (défaut) | **local** (hors ligne) |
 |---|---|---|
-| LLM | Claude (API Anthropic) | Ollama (`qwen3.5:4b`…) |
+| LLM | OpenAI Responses API (`gpt-5.6-terra` / `gpt-6-astra`) | Ollama (`qwen3.5:4b`…) |
 | Voix | ElevenLabs | Piper (français) |
 | Transcription | faster-whisper (local) | faster-whisper (local) |
 | Qualité | maximale | bonne (selon le modèle) |
@@ -118,7 +118,7 @@ copy config.example.yaml config.yaml      # puis remplis ce dont tu as besoin
 uv run python jarvis14.py
 ```
 
-Dis **« Hey Jarvis »**. Le seul réglage strictement requis est `anthropic.cle` (mode
+Dis **« Hey Jarvis »**. Le seul réglage strictement requis est `openai.cle` (mode
 cloud) ou un modèle local (mode local). Tout le reste est optionnel.
 
 Débutant complet ? Vois **[INSTALL_WITH_AI.md](INSTALL_WITH_AI.md)** — à coller dans
@@ -147,12 +147,13 @@ Aucun outil n'est imposé : prends celui qui te convient.
 
 Tout est dans un unique `config.yaml` **non versionné** (copié depuis
 `config.example.yaml`, qui documente chaque clé). Nouvelles sections côté config :
-`hermes` (délégation), `integrations`/`hub` (Vault + génération), `suivi` (pipeline
+`cloud`/`openai` (LLM cloud), `tts`/`elevenlabs` (voix), `hermes` (délégation), `integrations`/`hub` (Vault + génération), `suivi` (pipeline
 de contenus), `securite.toujours` (autorisations N2 mémorisées), `budget.prix`
 (coût LLM), `serveur`/`pont_iphone`. Guides par intégration :
 
 | Intégration | Guide |
 |---|---|
+| OpenAI / GPT-6 Astra | [docs/openai.md](docs/openai.md) |
 | Cloud vs local, Ollama, Piper | [docs/local.md](docs/local.md) |
 | Routage 4 backends, coûts & budgets | [docs/costs.md](docs/costs.md) |
 | Philips Hue | [docs/hue.md](docs/hue.md) |

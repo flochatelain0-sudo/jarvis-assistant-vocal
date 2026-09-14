@@ -4,28 +4,53 @@ Jarvis peut confier une **tâche de réflexion / recherche de fond** à
 [Hermes Agent](https://github.com/NousResearch/hermes-agent), qui tourne **en local**
 sur ta machine, puis t'annoncer le résultat **à voix haute** quand c'est prêt.
 
-- Outil : `deleguer_a_hermes(tache)` — **non exposé via MCP**, **confirmation vocale requise**.
+- Outil : `deleguer_a_hermes(tache, session)` — **non exposé via MCP**. Chaque
+  délégation utilise une session nommée et plusieurs tâches peuvent tourner en parallèle.
 - Phrases déclencheuses : « **délègue à Hermes** … », « **fais une recherche de fond sur** … »,
   « **lance Hermes sur** … ».
 
 > Exemple : « Jarvis, délègue à Hermes : compare les 3 meilleurs micros pour le streaming en 2026. »
-> Jarvis : « Je vais déléguer à Hermes : compare les 3 meilleurs micros… Tu confirmes ? » → « oui »
-> → « Je délègue ça à Hermes. Je te préviens dès que c'est prêt. » … *(plus tard)* …
+> Jarvis : « Je délègue ça à Hermes. Je te préviens dès que c'est prêt. » … *(plus tard)* …
 > « Hermes a terminé. En résumé : … »
 
 ## Comment ça marche
 
-1. Confirmation vocale (l'outil a `confirmation=True`).
-2. Jarvis **répond tout de suite** (« je délègue, je te préviens ») et lance la tâche **en
+1. Jarvis **répond tout de suite** (« je délègue, je te préviens ») et lance la tâche **en
    fond** — il ne te fait pas attendre.
-3. En tâche de fond, Jarvis appelle l'**API locale d'Hermes** :
+2. En tâche de fond, Jarvis appelle l'**API locale d'Hermes** :
    `POST http://127.0.0.1:8642/v1/responses`, en-tête `Authorization: Bearer <clé>`, corps
    `{"model":"hermes-agent","input":"…","conversation":"jarvis-delegation"}`. Hermes réfléchit
    (et peut utiliser ses propres outils : web, code en conteneur Docker, etc.).
-4. Le résultat passe par le **filtre de confidentialité** (`core/confidentialite.py` :
+3. Le résultat passe par le **filtre de confidentialité** (`core/confidentialite.py` :
    caviarde mails/clés/numéros/jetons, raccourcit) puis est **lu à voix haute**.
-5. **Session persistante** : toutes les délégations partagent la conversation
-   `jarvis-delegation` → Hermes garde le contexte d'une délégation à l'autre.
+4. **Sessions nommées** : chaque délégation reçoit sa propre conversation. Deux
+   recherches longues ne se mélangent donc plus et s'exécutent en parallèle.
+
+## Command Center et suivi vocal
+
+La page **État** du panneau local affiche les délégations en cours, terminées,
+échouées ou en attente de ta validation. Chaque ligne indique la session, la durée,
+les tokens de la réponse quand l'API Hermes les fournit, et le résumé filtré.
+
+Dis **« Jarvis, où en sont les tâches ? »** pour obtenir ce point à l'oral via
+l'outil local `taches_hermes`.
+
+## Notre équipe d'agents (skills Hermes)
+
+Les chemins sont ceux du conteneur, jamais les chemins Windows personnels.
+
+| Rôle | Périmètre fichiers | Outils autorisés pour ce rôle |
+|---|---|---|
+| **Analyste du Vault** (`analyser-vault`) | lecture seule `/vault` | `chercher_inspiration`, `etat_contenus`, `generer_idees_contenu` |
+| **Scénariste maison** (`generer-script-maison`) | lecture seule `/scripts`, écriture uniquement `/scripts/drafts` | `chercher_inspiration`, `etat_contenus` |
+| **Ingest YouTube** (`ingerer-chaine-youtube`) | lecture seule `/scripts`; les sorties passent par Jarvis | `lancer_ingestion_youtube` |
+| **Veilleur** (`creer-une-veille`) | aucun dossier personnel requis | recherche web et crons internes Hermes, livraison Telegram |
+
+Les barrières imposées sont les montages `/vault:ro`, `/scripts:ro`,
+`/scripts/drafts:rw`, ainsi que `mcp_expose` côté Jarvis. Les périmètres par rôle
+sont des consignes comportementales : Hermes partage techniquement un catalogue
+MCP commun, il n'existe pas encore d'ACL distincte pour chaque skill. Aucun
+credential et aucun outil physique/sensible n'est ajouté à Hermes.
 
 ## Configuration (`config.yaml`)
 
@@ -34,7 +59,8 @@ hermes:
   api_url: "http://127.0.0.1:8642"   # gateway Hermes, loopback
   api_key: "…"                       # = API_SERVER_KEY du .env d'Hermes
   # api_key_file: "…"                # alternative : un fichier contenant la clé
-  session: "jarvis-delegation"       # session persistante
+  session: "jarvis-delegation"       # repli ; Jarvis crée normalement une session par tâche
+  modele_facturation: ""              # optionnel si l'API ne renvoie pas le modele
   timeout: 900                       # une recherche de fond peut être longue
   resume_max: 500                    # longueur max du résumé vocal
 ```
@@ -47,7 +73,8 @@ La clé provient du `.env` d'Hermes (`API_SERVER_KEY`). Le serveur API d'Hermes 
 
 - **Non exposé via MCP** : seule la voix (chez toi) peut déclencher une délégation ; un token
   MCP volé ne peut pas lancer Hermes.
-- **Confirmation vocale** avant chaque délégation.
+- La délégation locale ne demande pas de confirmation, afin que le routage des
+  tâches de fond puisse être automatique.
 - **Filtre de confidentialité** sur le texte lu à voix haute (dernier garde-fou).
 - L'API 8642 est en **loopback** et protégée par la clé `API_SERVER_KEY`.
 - Rappel (voir `HERMES_NOTES.md` §14) : Hermes n'a **aucun credential** de tes comptes ; toute
@@ -59,3 +86,5 @@ La clé provient du `.env` d'Hermes (`API_SERVER_KEY`). Le serveur API d'Hermes 
 - `timeout` : monte-le si tes recherches de fond sont longues (défaut 900 s).
 - `resume_max` : longueur du résumé vocal (défaut 500 caractères).
 - `session` : change le nom pour repartir d'un contexte vierge.
+- `modele_facturation` : nom utilisé uniquement pour estimer le coût par tâche
+  quand la réponse Hermes ne fournit pas son modèle réel.

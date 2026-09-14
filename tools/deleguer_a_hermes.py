@@ -1,18 +1,29 @@
-"""Delegation d'une tache a Hermes Agent (cerveau delibératif) via son API locale.
+"""Delegation d'une ou PLUSIEURS taches a Hermes Agent (cerveau delibératif).
 
 Flux : Jarvis envoie la tache a l'API d'Hermes (gateway loopback 8642), repond
 TOUT DE SUITE "je delegue, je te previens", puis - en tache de fond - recupere le
 resultat, le passe au FILTRE DE CONFIDENTIALITE, et l'annonce a voix haute (resume
-court). Session persistante entre delegations (parametre `conversation`).
+court). Plusieurs delegations peuvent tourner EN PARALLELE, chacune dans sa propre
+session nommee (`session`) -> conversations Hermes independantes.
+
+COMMAND CENTER (N11) : chaque delegation est suivie comme une TACHE (statut, duree,
+tokens) -> visible dans le panneau « Etat » et listable vocalement (« Jarvis, ou en
+sont les taches ? » -> outil taches_hermes). Aucune nouvelle infra : juste de la
+visibilite sur le mecanisme existant.
 
 Securite :
 - NON expose via MCP (mcp_expose defaut False) : un agent externe ne peut pas
   declencher de delegation.
-- confirmation vocale requise (une delegation peut couter et durer).
+- lancement local sans confirmation, pour le routage automatique des taches de fond.
 - le resultat lu a voix haute passe par core.confidentialite.filtrer().
 Voir docs/hermes.md.
 """
 import threading
+import time
+import uuid
+import json
+import re
+from datetime import datetime
 from pathlib import Path
 
 from core import voix, confidentialite
@@ -27,20 +38,95 @@ except Exception:
     pass
 import requests
 
-# --- suivi HUD : tâches Hermes en cours + part Hermes (tokens) ---
-_EN_COURS = 0
+# ---- Registre des taches Hermes (COMMAND CENTER) + part Hermes (tokens totaux) ----
 _LOCK = threading.Lock()
-_TOKENS = None
+_MAX_TACHES = 50
+_TOKENS = None               # tokens Hermes cumules (30 j), pour le HUD/panneau
+_FICHIER_TACHES = Path(__file__).resolve().parent.parent / "logs" / "hermes" / "taches.json"
+
+# Marqueur qu'Hermes peut poser dans son resume pour demander ta validation.
+_MARQUEUR_VALIDATION = "[A VALIDER]"
+
+
+def _charger_taches():
+    try:
+        taches = json.loads(_FICHIER_TACHES.read_text(encoding="utf-8"))
+        if not isinstance(taches, list):
+            return []
+        maintenant = time.time()
+        for t in taches:
+            if t.get("statut") == "en_cours":
+                t.update(statut="echouee", fin=maintenant,
+                         duree=round(maintenant - float(t.get("debut") or maintenant), 1),
+                         resume="Interrompue par un redemarrage de Jarvis.")
+        return taches[-_MAX_TACHES:]
+    except (OSError, ValueError, TypeError):
+        return []
+
+
+_TACHES = _charger_taches()
+
+
+def _sauver_taches_verrouille():
+    try:
+        _FICHIER_TACHES.parent.mkdir(parents=True, exist_ok=True)
+        _FICHIER_TACHES.write_text(
+            json.dumps(_TACHES[-_MAX_TACHES:], ensure_ascii=False, indent=2),
+            encoding="utf-8")
+    except OSError:
+        pass
 
 
 def taches_en_cours() -> int:
-    return _EN_COURS
+    with _LOCK:
+        return sum(1 for t in _TACHES if t["statut"] == "en_cours")
+
+
+def taches_liste():
+    """Copie des taches (pour le panneau Etat et l'outil taches_hermes)."""
+    with _LOCK:
+        return [dict(t) for t in _TACHES]
+
+
+def _ajouter_tache(session, tache):
+    identifiant = uuid.uuid4().hex[:8]
+    if session:
+        nom_session = session
+    else:
+        base = re.sub(r"[^a-z0-9]+", "-", (tache or "tache").lower()).strip("-")[:24]
+        nom_session = f"jarvis-{base or 'tache'}-{identifiant[:4]}"
+    t = {"id": identifiant, "session": nom_session,
+         "tache": (tache or "")[:140], "statut": "en_cours",
+         "debut": time.time(), "fin": None, "duree": None,
+         "tokens": None, "cout": None, "modele": "", "resume": ""}
+    with _LOCK:
+        _TACHES.append(t)
+        del _TACHES[:-_MAX_TACHES]
+        _sauver_taches_verrouille()
+    _pousser_hud()
+    return t
+
+
+def _finir_tache(t, statut, resume="", tokens=None, cout=None, modele=""):
+    with _LOCK:
+        t["statut"] = statut
+        t["fin"] = time.time()
+        t["duree"] = round(t["fin"] - t["debut"], 1)
+        t["resume"] = resume
+        if tokens is not None:
+            t["tokens"] = tokens
+        if cout is not None:
+            t["cout"] = cout
+        if modele:
+            t["modele"] = modele
+        _sauver_taches_verrouille()
+    _pousser_hud()
 
 
 def _pousser_hud():
     try:
         import hud
-        hud.hermes(_EN_COURS, _TOKENS)
+        hud.hermes(taches_en_cours(), _TOKENS)
     except Exception:
         pass
 
@@ -64,7 +150,7 @@ def _maj_tokens():
 
 
 def rafraichir_hud():
-    """Rafraîchit la part Hermes (tokens) puis pousse au HUD. Appelé au démarrage."""
+    """Rafraichit la part Hermes (tokens) puis pousse au HUD. Appele au demarrage."""
     _maj_tokens()
     _pousser_hud()
 
@@ -84,7 +170,8 @@ def _cle_api() -> str:
     return ""
 
 
-def _appeler_hermes(tache: str) -> str:
+def _appeler_hermes(tache: str, session: str = ""):
+    """Appelle Hermes. Renvoie texte, tokens, cout estime et modele."""
     base = reglage("hermes.api_url", "http://127.0.0.1:8642").rstrip("/")
     cle = _cle_api()
     if not cle:
@@ -95,12 +182,14 @@ def _appeler_hermes(tache: str) -> str:
         "definitive dans CE meme message. N'annonce PAS que tu vas le faire, ne dis "
         "pas 'un instant'. Reponds en francais. Termine IMPERATIVEMENT par une "
         "derniere ligne commencant par 'RESUME:' suivie de 2 phrases maximum, "
-        "claires et actionnables, redigees pour une lecture a voix haute."
+        "claires et actionnables, redigees pour une lecture a voix haute. Si (et "
+        "SEULEMENT si) la tache demande MON accord avant d'agir, prefixe le RESUME "
+        f"par {_MARQUEUR_VALIDATION}."
     )
     body = {
         "model": "hermes-agent",
         "input": prompt,
-        "conversation": reglage("hermes.session", "jarvis-delegation"),
+        "conversation": session or reglage("hermes.session", "jarvis-delegation"),
     }
     reponse = requests.post(
         f"{base}/v1/responses", json=body,
@@ -115,7 +204,24 @@ def _appeler_hermes(tache: str) -> str:
             for bloc in item.get("content", []):
                 if bloc.get("type") == "output_text" and bloc.get("text"):
                     morceaux.append(bloc["text"])
-    return "\n".join(morceaux).strip() or "(reponse vide d'Hermes)"
+    # tokens de CETTE reponse si l'API les renvoie (usage.total_tokens ou in+out)
+    tokens = None
+    cout = None
+    modele_utilise = str(data.get("model") or reglage("hermes.modele_facturation", "") or "")
+    u = data.get("usage") or {}
+    if isinstance(u, dict):
+        entree = int(u.get("input_tokens") or 0)
+        sortie = int(u.get("output_tokens") or 0)
+        tokens = u.get("total_tokens") or (entree + sortie) or None
+        try:
+            from core.budget import _prix
+            pin, pout = _prix(modele_utilise)
+            if pin or pout:
+                cout = round((entree * pin + sortie * pout) / 1_000_000, 4)
+        except Exception:
+            pass
+    return (("\n".join(morceaux).strip() or "(reponse vide d'Hermes)"),
+            tokens, cout, modele_utilise)
 
 
 def _resume_vocal(texte: str) -> str:
@@ -131,7 +237,6 @@ def _resume_vocal(texte: str) -> str:
 def _journaliser(tache: str, resultat: str) -> None:
     """Garde le resultat COMPLET dans logs/hermes/ (la voix ne dit que le resume)."""
     try:
-        from datetime import datetime
         dossier = Path(__file__).resolve().parent.parent / "logs" / "hermes"
         dossier.mkdir(parents=True, exist_ok=True)
         horo = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -143,37 +248,44 @@ def _journaliser(tache: str, resultat: str) -> None:
 
 
 def deleguer_en_fond(tache: str, intro: str = "Hermes a termine. ",
-                     nom_thread: str = "deleguer-hermes") -> str:
-    """Reutilisable : delegue une tache a Hermes en tache de fond, journalise le
-    resultat complet, et annonce a voix haute un resume court (filtre confidentialite).
-    Renvoie tout de suite l'accuse pour Jarvis. Utilise par deleguer_a_hermes ET par
-    les outils de contenu (generer_idees, generer_script)."""
+                     nom_thread: str = "deleguer-hermes", session: str = "") -> str:
+    """Delegue une tache a Hermes en tache de fond (session nommee optionnelle),
+    la SUIT comme une tache (registre), journalise le resultat complet, et annonce a
+    voix haute un resume court (filtre confidentialite). Renvoie tout de suite
+    l'accuse pour Jarvis. Reutilise par deleguer_a_hermes et les outils de contenu."""
+    t = _ajouter_tache(session, tache)
+    session_effective = t["session"]
+
     def worker():
-        global _EN_COURS
-        with _LOCK:
-            _EN_COURS += 1
-        _pousser_hud()                            # HUD : une tache Hermes de plus
         try:
-            resultat = _appeler_hermes(tache)
+            resultat, tokens, cout, modele_utilise = _appeler_hermes(
+                tache, session_effective)
             _journaliser(tache, resultat)
             resume = confidentialite.filtrer(
                 _resume_vocal(resultat), max_car=int(reglage("hermes.resume_max", 500)))
-            voix.parler(intro + resume)
+            a_valider = _MARQUEUR_VALIDATION in (resume or "") or "[A VALIDER]" in (resultat[:400] or "")
+            resume = resume.replace(_MARQUEUR_VALIDATION, "").strip()
+            _finir_tache(t, "en_attente_validation" if a_valider else "terminee",
+                         resume=resume, tokens=tokens, cout=cout,
+                         modele=modele_utilise)
+            prefixe = intro if not a_valider else "Hermes attend ta validation. "
+            voix.parler(prefixe + resume)
             try:                                  # retour Hermes aussi a l'ecran (overlay)
                 import overlay
                 overlay.afficher(resume, type="reponse")
             except Exception:
                 pass
         except Exception as e:
+            _finir_tache(t, "echouee", resume=str(e)[:120])
             voix.parler("La delegation a Hermes a echoue. "
                         + confidentialite.filtrer(str(e), 120))
         finally:
-            with _LOCK:
-                _EN_COURS -= 1
             _maj_tokens()                         # conso Hermes mise a jour apres la tache
             _pousser_hud()
-    threading.Thread(target=worker, daemon=True, name=nom_thread).start()
-    return "Je confie ca a Hermes. Je te previens des que c'est pret."
+    threading.Thread(target=worker, daemon=True,
+                     name=f"{nom_thread}-{t['id']}").start()
+    ou = f" (session {session_effective})"
+    return f"Je confie ca a Hermes{ou}. Je te previens des que c'est pret."
 
 
 @outil(
@@ -183,24 +295,57 @@ def deleguer_en_fond(tache: str, intro: str = "Hermes a termine. ",
         "(agent delibératif local). A appeler DE TOI-MEME, sans demander, des que la "
         "demande est une tache de fond : analyse, veille, recherche longue, synthese, "
         "reflexion approfondie — et bien sur si l'utilisateur dit 'delegue a Hermes', "
-        "'fais une recherche de fond', 'lance Hermes sur...'. Jarvis annonce « je "
-        "confie ca a Hermes » et previent vocalement quand c'est pret. NE PAS utiliser "
-        "pour une question simple/reflexe a laquelle tu peux repondre directement."
+        "'fais une recherche de fond', 'lance Hermes sur...'. Plusieurs delegations "
+        "peuvent tourner EN PARALLELE : donne un `session` court et parlant (ex. "
+        "'veille-ia', 'analyse-budget') pour les suivre separement. Jarvis annonce "
+        "« je confie ca a Hermes » et previent vocalement quand c'est pret. NE PAS "
+        "utiliser pour une question simple/reflexe a laquelle tu peux repondre direct."
     ),
     parametres={
         "type": "object",
         "properties": {
-            "tache": {
-                "type": "string",
-                "description": "La tache/question a confier a Hermes, formulee clairement.",
-            }
+            "tache": {"type": "string",
+                      "description": "La tache/question a confier a Hermes, formulee clairement."},
+            "session": {"type": "string",
+                        "description": "Nom court de la session (optionnel) pour paralleliser "
+                                       "plusieurs delegations independantes. Ex. 'veille-ia'."},
         },
         "required": ["tache"],
     },
 )
-def deleguer_a_hermes(tache: str) -> str:
+def deleguer_a_hermes(tache: str, session: str = "") -> str:
     """Envoie la tache a Hermes en tache de fond ; previent a voix haute a la fin."""
     tache = (tache or "").strip()
     if not tache:
         return "Je n'ai pas compris la tache a deleguer."
-    return deleguer_en_fond(tache)
+    return deleguer_en_fond(tache, session=(session or "").strip())
+
+
+_ETIQ = {"en_cours": "en cours", "terminee": "terminée",
+         "en_attente_validation": "en attente de ta validation", "echouee": "échouée"}
+
+
+@outil(
+    nom="taches_hermes",
+    description="Fait le point sur les taches confiees a Hermes : ce qui tourne, ce "
+                "qui est termine, ce qui attend ta validation. Pour « ou en sont les "
+                "taches ? », « qu'est-ce qu'Hermes fait ? », « les delegations en cours ».",
+    parametres={"type": "object", "properties": {}},
+)
+def taches_hermes() -> str:
+    taches = taches_liste()
+    if not taches:
+        return "Aucune tache confiee a Hermes pour l'instant."
+    encours = [t for t in taches if t["statut"] == "en_cours"]
+    valider = [t for t in taches if t["statut"] == "en_attente_validation"]
+    finies = [t for t in taches if t["statut"] == "terminee"][-3:]
+    bouts = []
+    if encours:
+        noms = ", ".join(f"« {t['tache'][:40]} »" for t in encours[:4])
+        bouts.append(f"{len(encours)} en cours : {noms}")
+    if valider:
+        noms = ", ".join(f"« {t['tache'][:40]} »" for t in valider[:3])
+        bouts.append(f"{len(valider)} en attente de ta validation : {noms}")
+    if finies and not encours and not valider:
+        bouts.append("dernière terminée : " + (finies[-1]["resume"] or finies[-1]["tache"])[:120])
+    return ". ".join(bouts) + "." if bouts else "Tout est traité, rien en attente."

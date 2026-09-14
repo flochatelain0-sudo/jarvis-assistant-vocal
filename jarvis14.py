@@ -2,7 +2,7 @@
 Assistant vocal local, avec mot d'activation et actions.
 
 Dites « Hey Jarvis », parlez, taisez-vous. Il repond et agit.
-Chaine : openWakeWord -> faster-whisper -> Claude (+ outils) -> ElevenLabs/SAPI
+Chaine : openWakeWord -> faster-whisper -> OpenAI/Ollama (+ outils) -> ElevenLabs/Piper/SAPI
 
 Architecture : les outils vivent dans tools/ (auto-decouverts via core.registre),
 les reglages et secrets dans config.yaml (via core.config).
@@ -22,7 +22,7 @@ from pathlib import Path
 
 # Magasin de certificats Windows (comme git) au lieu du bundle certifi.
 # Indispensable si un antivirus/proxy intercepte le TLS, sinon les appels HTTPS
-# (Claude, Gmail) echouent avec "certificate verify failed". Avant tout reseau.
+# (OpenAI, Gmail) echouent avec "certificate verify failed". Avant tout reseau.
 try:
     import truststore
     truststore.inject_into_ssl()
@@ -51,8 +51,9 @@ def _haut_parleur():
     l'outil sortie_audio -> config.definir). None = sortie par defaut de Windows."""
     return config.reglage("audio.haut_parleur", None)
 
-# Le choix du modele LLM (Claude/Ollama) et de la voix (ElevenLabs/Piper) est gere
-# par les providers (core/llm.py, core/tts.py), selon config.yaml (mode: cloud|local).
+# Le choix du modele LLM (OpenAI/Ollama) et de la voix est gere
+# par les providers (core/llm.py, core/tts.py), selon config.yaml
+# (mode: local|hybride|qualite).
 MODELE_WHISPER = config.reglage("whisper.modele", "medium")
 
 TAUX = 16000               # taux de TRAITEMENT : openWakeWord ET faster-whisper exigent 16 kHz
@@ -507,7 +508,7 @@ def dire_en_flux(morceaux):
 
 
 def _executer_outils(blocs):
-    """Execute les outils demandes par Claude et renvoie leurs resultats.
+    """Execute les outils demandes par le LLM actif et renvoie leurs resultats.
 
     S'appuie sur le registre. Logge chaque appel, ne crashe jamais (une
     exception d'outil devient une reponse comprehensible), et met les outils a
@@ -567,7 +568,7 @@ def _executer_outils(blocs):
 
 
 def repondre(historique):
-    """Interroge Claude et boucle sur les appels d'outils jusqu'a la reponse.
+    """Interroge le LLM actif et boucle sur les appels d'outils jusqu'a la reponse.
 
     Pour les outils lents, prononce un accuse de reception en parallele. Pour
     les outils a confirmation, prononce l'annonce et renvoie SENTINEL_CONFIRM
@@ -580,7 +581,9 @@ def repondre(historique):
         if mode == "local":
             return ("Le modele local (Ollama) n'est pas joignable. Verifie qu'Ollama "
                     "tourne et que le modele est telecharge.")
-        return "Ma cle Claude n'est pas configuree."
+        from core import cloud
+        return ("Ma cle OpenAI n'est pas configuree." if cloud.fournisseur() == "openai"
+                else "Ma cle Anthropic n'est pas configuree.")
 
     fil_accuse = None
     accuse_donne = False
@@ -974,7 +977,7 @@ def _confirmer(interrompu, relancer, whisper, historique, flux):
 def _tronquer(historique):
     if len(historique) > 40:
         del historique[:len(historique) - 40]
-        # Claude exige que la conversation commence par un vrai tour utilisateur.
+        # Les fournisseurs cloud exigent un vrai premier tour utilisateur.
         while historique and not (
             historique[0]["role"] == "user"
             and isinstance(historique[0]["content"], str)
@@ -1132,7 +1135,9 @@ def main():
             print("ATTENTION : Ollama injoignable. Lance 'ollama serve' et verifie le "
                   "modele (config ollama.modele).")
         else:
-            print("ATTENTION : aucune cle Claude dans config.yaml (anthropic.cle). "
+            from core import cloud
+            nom_cle = "openai.cle" if cloud.fournisseur() == "openai" else "anthropic.cle"
+            print(f"ATTENTION : aucune cle cloud dans config.yaml ({nom_cle}). "
                   "L'assistant ne pourra pas repondre.")
 
     _hud("demarrer")

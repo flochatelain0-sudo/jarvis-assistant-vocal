@@ -9,8 +9,8 @@
 | Mode | LLM | Voix | Pour quoi |
 |---|---|---|---|
 | **local** | Ollama | Piper/Kokoro | tout local, **rien ne sort**, gratuit |
-| **hybride** *(défaut)* | Claude éco (`anthropic.modele`) | ElevenLabs | réflexes (domotique, timers, scènes, questions courtes) + vision/navigateur/résa en cloud ; **tâches de fond → Hermes** |
-| **qualite** | Claude fort (`anthropic.modele_qualite`) | ElevenLabs | cloud partout, meilleur raisonnement |
+| **hybride** *(défaut)* | OpenAI équilibré (`gpt-5.6-terra`) | ElevenLabs par défaut | réflexes + vision/navigateur/résa en cloud ; **tâches de fond → Hermes** |
+| **qualite** | GPT-6 Astra (`gpt-6-astra`) | ElevenLabs par défaut | cloud partout, meilleur raisonnement |
 
 *(L'ancien `mode: cloud` reste accepté = `hybride`.)* Changement **à la voix** :
 « passe en local », « repasse en hybride », « mode qualité » (`mode_routage`).
@@ -24,8 +24,8 @@ restent sur le chemin court de Jarvis (rapide, économique).
 
 Compteurs par fournisseur, agrégés **jour / mois**, dans `budget.json` (non versionné) :
 
-- **Claude (Jarvis)** : chaque appel instrumenté (tokens in/out + cache), coût via
-  `budget.prix` (tarifs Anthropic $/Mtok).
+- **OpenAI (Jarvis)** : chaque appel Responses API est instrumenté (tokens in/out
+  + cache), coût via `budget.prix` ($/Mtok). Anthropic reste compté si le repli est actif.
 - **Voix ElevenLabs** : facturée au caractère → `budget.prix_elevenlabs` ($/1000 car.).
 - **Twilio** (appels) : compteur mensuel `logs/calls/compteur.json`.
 - **Hermes** : tient **sa propre** compta (`hermes insights`) — Jarvis la lit mais ne
@@ -61,12 +61,16 @@ budget:
 
 | Usage | Backend | Coût approx. |
 |---|---|---|
-| Commande domotique / timer / scène | hybride (Haiku) | ~0,001–0,003 $ |
+| Commande domotique / timer / scène | hybride (`gpt-5.6-terra`) | dépend du contexte, généralement quelques millièmes de dollar |
 | Question courte parlée (réponse ElevenLabs ~200 car.) | hybride | ~0,02 $ (voix) + LLM |
 | Question avec vision (capture d'écran) | hybride | ~0,01–0,03 $ |
 | Analyse / recherche de fond | Hermes | plus élevé (modèle fort, longue) |
 | Appel téléphonique | Twilio | ~0,02 $/min + voix |
 | Tout en **local** | Ollama + Piper | **0 $** |
+
+Les tarifs exacts changent : le catalogue du panneau et `config.example.yaml`
+servent de valeurs de départ, à vérifier dans la documentation OpenAI avant de
+modifier les plafonds.
 
 Pour ne rien dépenser : `mode: local` (ou « passe en local »). Pour la qualité
 maximale ponctuelle : « mode qualité », puis « repasse en hybride ».

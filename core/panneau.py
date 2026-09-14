@@ -36,6 +36,8 @@ _HOTES_LOCAUX = {"localhost", "127.0.0.1", "::1", "[::1]"}
 
 # Progression des "ollama pull" en cours : nom -> {statut, pct, message}.
 _PULLS = {}
+_OPENAI_CACHE = {"ts": 0.0, "ids": set(), "erreur": ""}
+_ELEVENLABS_CACHE = {"ts": 0.0, "voix": [], "erreur": ""}
 
 
 # ============================================================ catalogue modeles
@@ -54,6 +56,23 @@ CATALOGUE_LLM = [
      "tool_calling": True,  "francais": True,  "licence": "Llama 3.1"},
     {"nom": "qwen2.5:14b",  "params": "14B", "vram": 10.0, "taille_go": 9.0,
      "tool_calling": True,  "francais": True,  "licence": "Qwen (Apache-2.0)"},
+]
+
+# Catalogue cloud verifie dans la documentation OpenAI. L'acces effectif depend
+# du projet API de l'utilisateur : le panneau le confirme via GET /v1/models.
+CATALOGUE_OPENAI = [
+    {"nom": "gpt-5.6-luna", "role": "Rapide / economique",
+     "prix_entree": 0.20, "prix_sortie": 1.20,
+     "tool_calling": True, "vision": True, "francais": True},
+    {"nom": "gpt-5.6-terra", "role": "Equilibre (hybride conseille)",
+     "prix_entree": 2.00, "prix_sortie": 12.00,
+     "tool_calling": True, "vision": True, "francais": True},
+    {"nom": "gpt-5.6-sol", "role": "Qualite professionnelle",
+     "prix_entree": 4.00, "prix_sortie": 20.00,
+     "tool_calling": True, "vision": True, "francais": True},
+    {"nom": "gpt-6-astra", "role": "Flagship (qualite maximale)",
+     "prix_entree": 10.00, "prix_sortie": 50.00,
+     "tool_calling": True, "vision": True, "francais": True},
 ]
 
 # Whisper tourne en CPU chez toi (GPU casse) : la VRAM n'est pas le facteur limitant,
@@ -128,6 +147,33 @@ def _ollama_installes():
         return []
 
 
+def _openai_etat():
+    """Catalogue OpenAI + verification de l'acces reel par la cle configuree."""
+    from core import cloud
+    configure = bool(reglage("openai.cle", ""))
+    ids, erreur = set(), ""
+    if configure:
+        maintenant = time.time()
+        if maintenant - _OPENAI_CACHE["ts"] > 60:
+            try:
+                client = cloud.client_openai()
+                ids = {m.id for m in client.models.list().data}
+                _OPENAI_CACHE.update(ts=maintenant, ids=ids, erreur="")
+            except Exception as e:
+                LOG.warning("liste modeles OpenAI: %s", e)
+                _OPENAI_CACHE.update(ts=maintenant, ids=set(), erreur=str(e)[:160])
+        ids = set(_OPENAI_CACHE["ids"])
+        erreur = _OPENAI_CACHE["erreur"]
+    catalogue = [{**m, "accessible": m["nom"] in ids if ids else None}
+                 for m in CATALOGUE_OPENAI]
+    return {
+        "configure": configure,
+        "joignable": bool(ids),
+        "erreur": erreur,
+        "catalogue": catalogue,
+    }
+
+
 def _modeles():
     """Etat complet de la page Modeles."""
     mat = _materiel()
@@ -144,15 +190,27 @@ def _modeles():
     whisper_actif = reglage("whisper.modele", "medium")
     whisper_dl = _whisper_installes()
 
+    from core import cloud
+    from core.routage import mode_actuel
+    mode = mode_actuel()
     return {
         "materiel": mat,
-        "backend_actif": (reglage("mode", "cloud") or "cloud").lower(),
+        "backend_actif": mode,
         "actifs": {
             "local": reglage("ollama.modele", "qwen2.5:7b"),
-            "cloud": reglage("anthropic.modele", "claude-haiku-4-5"),
+            "cloud": cloud.modele(qualite=(mode == "qualite")),
+            "cloud_hybride": (reglage("openai.modele", "gpt-5.6-terra")
+                               if cloud.fournisseur() == "openai"
+                               else reglage("anthropic.modele", "claude-haiku-4-5")),
+            "cloud_qualite": (reglage("openai.modele_qualite", "gpt-6-astra")
+                               if cloud.fournisseur() == "openai"
+                               else reglage("anthropic.modele_qualite", "claude-sonnet-4-5")),
+            "cloud_fournisseur": cloud.fournisseur(),
             "whisper": whisper_actif,
             "hermes": _hermes_modele(),
         },
+        "openai": _openai_etat(),
+        "anthropic_configure": bool(reglage("anthropic.cle", "")),
         "ollama": {
             "joignable": _ollama_joignable(),
             "hote": _ollama_hote(),
@@ -338,18 +396,30 @@ def _hermes_definir_modele(modele):
 
 # ============================================================== modele actif
 
-def _definir_actif(backend, modele):
+def _definir_actif(backend, modele, profil="hybride", fournisseur=""):
     backend = (backend or "").lower()
     if not modele:
         return {"ok": False, "message": "Modele manquant."}
     if backend == "local":
-        definir("mode", "local")
         definir("ollama.modele", modele)
-        return {"ok": True, "message": f"Backend LOCAL actif, modele {modele}. Redemarre Jarvis."}
+        from core.routage import definir_mode
+        definir_mode("local", raison="panneau")
+        return {"ok": True, "message": f"Backend LOCAL actif, modele {modele}."}
     if backend == "cloud":
-        definir("mode", "cloud")
-        definir("anthropic.modele", modele)
-        return {"ok": True, "message": f"Backend CLOUD actif, modele {modele}. Redemarre Jarvis."}
+        fournisseur = (fournisseur or "openai").lower()
+        if fournisseur not in {"openai", "anthropic"}:
+            return {"ok": False, "message": "Fournisseur cloud inconnu."}
+        if fournisseur == "openai" and not reglage("openai.cle", ""):
+            return {"ok": False, "message": "Ajoute d'abord openai.cle dans config.yaml (la cle API est separee de l'abonnement ChatGPT)."}
+        if fournisseur == "anthropic" and not reglage("anthropic.cle", ""):
+            return {"ok": False, "message": "Cle Anthropic absente dans config.yaml."}
+        profil = "qualite" if profil == "qualite" else "hybride"
+        definir("cloud.fournisseur", fournisseur)
+        definir(f"{fournisseur}.modele_qualite" if profil == "qualite"
+                else f"{fournisseur}.modele", modele)
+        from core.routage import definir_mode
+        definir_mode(profil, raison="panneau")
+        return {"ok": True, "message": f"{fournisseur.title()} {modele} actif en mode {profil}."}
     if backend == "whisper":
         definir("whisper.modele", modele)
         return {"ok": True, "message": f"Whisper -> {modele}. Redemarre Jarvis."}
@@ -364,7 +434,8 @@ def _definir_actif(backend, modele):
 _CLES_REGLABLES = {
     "mode": "str", "audio.micro": "int", "audio.haut_parleur": "nint",
     "assistant.personnalite": "str", "assistant.duree_suite": "int",
-    "assistant.seuil_reveil": "float",
+    "assistant.seuil_reveil": "float", "tts.moteur": "str",
+    "elevenlabs.voix": "str", "elevenlabs.modele": "str",
 }
 
 
@@ -382,6 +453,33 @@ def _audio_devices():
         return [], []
 
 
+def _elevenlabs_voix():
+    """Liste les voix du compte sans jamais renvoyer la cle au navigateur."""
+    cle = str(reglage("elevenlabs.cle", "") or "").strip()
+    if not cle:
+        return {"configure": False, "joignable": False, "voix": [],
+                "erreur": "Cle ElevenLabs absente."}
+    maintenant = time.time()
+    if maintenant - _ELEVENLABS_CACHE["ts"] > 60:
+        try:
+            import urllib.request
+            requete = urllib.request.Request(
+                "https://api.elevenlabs.io/v1/voices",
+                headers={"xi-api-key": cle})
+            with urllib.request.urlopen(requete, timeout=8) as rep:
+                data = json.loads(rep.read().decode("utf-8"))
+            voix = [{"id": v.get("voice_id", ""), "nom": v.get("name", "Voix"),
+                     "categorie": v.get("category", "")}
+                    for v in data.get("voices", []) if v.get("voice_id")]
+            _ELEVENLABS_CACHE.update(ts=maintenant, voix=voix, erreur="")
+        except Exception as e:
+            LOG.warning("liste voix ElevenLabs: %s", e)
+            _ELEVENLABS_CACHE.update(ts=maintenant, voix=[], erreur=str(e)[:160])
+    return {"configure": True, "joignable": bool(_ELEVENLABS_CACHE["voix"]),
+            "voix": list(_ELEVENLABS_CACHE["voix"]),
+            "erreur": _ELEVENLABS_CACHE["erreur"]}
+
+
 def _reglages():
     entrees, sorties = _audio_devices()
     return {
@@ -391,6 +489,10 @@ def _reglages():
         "personnalite": reglage("assistant.personnalite", "jarvis_sarcastique"),
         "duree_suite": reglage("assistant.duree_suite", 10),
         "seuil_reveil": reglage("assistant.seuil_reveil", 0.5),
+        "tts_moteur": reglage("tts.moteur", "auto"),
+        "elevenlabs_voix": reglage("elevenlabs.voix", ""),
+        "elevenlabs_modele": reglage("elevenlabs.modele", "eleven_flash_v2_5"),
+        "elevenlabs": _elevenlabs_voix(),
         "entrees": entrees, "sorties": sorties,
         "personnalites": ["jarvis_sarcastique", "neutre", "concis"],
     }
@@ -400,7 +502,7 @@ def _definir_reglage(cle, valeur):
     from core.config import definir
     typ = _CLES_REGLABLES.get(cle)
     if typ is None:
-        return {"ok": False, "message": "Réglage non autorisé."}
+        return {"ok": False, "message": "Reglage non autorise."}
     try:
         if typ == "nint":
             valeur = None if valeur in (None, "", "defaut", "null") else int(valeur)
@@ -410,8 +512,20 @@ def _definir_reglage(cle, valeur):
             valeur = float(valeur)
         else:
             valeur = str(valeur)
+        if cle == "mode":
+            from core.routage import definir_mode
+            if not definir_mode(str(valeur), raison="panneau"):
+                return {"ok": False, "message": "Mode invalide."}
+            return {"ok": True, "message": f"Mode {valeur} actif immediatement."}
+        if cle == "tts.moteur" and valeur not in {
+                "auto", "elevenlabs", "piper", "kokoro", "windows"}:
+            return {"ok": False, "message": "Moteur vocal invalide."}
         definir(cle, valeur)
-        return {"ok": True, "message": "Enregistré. Redémarre Jarvis pour l'appliquer."}
+        if cle.startswith("tts.") or cle.startswith("elevenlabs."):
+            from core import tts
+            tts.reinitialiser()
+            return {"ok": True, "message": "Voix activee pour la prochaine reponse."}
+        return {"ok": True, "message": "Enregistre. Redemarre Jarvis pour l'appliquer."}
     except Exception as e:
         return {"ok": False, "message": str(e)[:120]}
 
@@ -578,6 +692,28 @@ def _hermes_texte(args, timeout=25, lignes=12):
         return ""
 
 
+def _taches():
+    """COMMAND CENTER : file des délégations Hermes (en cours / en attente de ta
+    validation / terminées), avec durée et tokens par tâche. Léger (mémoire)."""
+    try:
+        from tools.deleguer_a_hermes import taches_liste
+        taches = taches_liste()
+    except Exception:
+        taches = []
+    ordre = {"en_attente_validation": 0, "en_cours": 1, "terminee": 2, "echouee": 3}
+    taches = sorted(taches, key=lambda t: (ordre.get(t.get("statut"), 9),
+                                           -(t.get("debut") or 0)))
+    return {
+        "taches": taches[:30],
+        "compte": {
+            "en_cours": sum(1 for t in taches if t.get("statut") == "en_cours"),
+            "validation": sum(1 for t in taches if t.get("statut") == "en_attente_validation"),
+            "terminee": sum(1 for t in taches if t.get("statut") == "terminee"),
+            "echouee": sum(1 for t in taches if t.get("statut") == "echouee"),
+        },
+    }
+
+
 def _hermes_activite():
     """Crons + derniers runs + taches en cours + tokens (jour/mois). Lent (CLI Hermes)."""
     return {
@@ -714,6 +850,10 @@ def monter_routes(app):
     def api_hermes_activite(request: Request):
         return garde(request) or _hermes_activite()
 
+    @app.get("/api/panneau/taches")
+    def api_taches(request: Request):
+        return garde(request) or _taches()
+
     @app.get("/api/panneau/permissions")
     def api_permissions(request: Request):
         return garde(request) or _permissions()
@@ -774,7 +914,10 @@ def monter_routes(app):
         if (r := garde(request)):
             return r
         d = await _corps(request)
-        return _definir_actif(d.get("backend"), str(d.get("modele", "")).strip())
+        return _definir_actif(
+            d.get("backend"), str(d.get("modele", "")).strip(),
+            profil=str(d.get("profil", "hybride")).strip().lower(),
+            fournisseur=str(d.get("fournisseur", "")).strip().lower())
 
     @app.post("/api/panneau/reglage")
     async def api_reglage(request: Request):
@@ -782,6 +925,21 @@ def monter_routes(app):
             return r
         d = await _corps(request)
         return _definir_reglage(str(d.get("cle", "")).strip(), d.get("valeur"))
+
+    @app.post("/api/panneau/tester-voix")
+    def api_tester_voix(request: Request):
+        if (r := garde(request)):
+            return r
+        try:
+            from core import voix
+            threading.Thread(
+                target=voix.parler,
+                args=("Test de la voix Jarvis. La voix selectionnee est active.",),
+                daemon=True, name="test-voix").start()
+            return {"ok": True, "message": "Test vocal lance."}
+        except Exception as e:
+            LOG.exception("test voix panneau")
+            return {"ok": False, "message": str(e)[:120]}
 
     @app.post("/api/panneau/reconnecter-mcp")
     def api_reco(request: Request):

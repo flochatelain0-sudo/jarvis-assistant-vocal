@@ -1,12 +1,12 @@
 """Appels V2 : CONVERSATION temps reel via Twilio Media Streams.
 
 call_and_book(numero, objectif, contraintes) : Jarvis appelle, se presente
-honnetement, expose la demande, comprend les reponses (Whisper), repond (Claude,
+honnetement, expose la demande, comprend les reponses (Whisper), repond (LLM cloud,
 phrases courtes), negocie dans les limites donnees, et conclut (ElevenLabs en
 sortie ulaw 8 kHz, le format de Twilio).
 
 Chaine audio :
-  Twilio (mu-law 8kHz) --ws--> VAD/segmentation --> Whisper --> Claude --> ElevenLabs
+  Twilio (mu-law 8kHz) --ws--> VAD/segmentation --> Whisper --> LLM --> ElevenLabs
   (ulaw_8000) --ws--> Twilio.
 
 Twilio se connecte a un serveur websocket PUBLIC : soit twilio.public_url (que tu
@@ -100,20 +100,13 @@ def _tts_ulaw(texte):
         return b""
 
 
-# ------------------------------------------------------------------- Claude
+# ------------------------------------------------------------------- modele cloud
 
 def _client():
-    global _CLIENT
-    if _CLIENT is None:
-        try:
-            import truststore
-            truststore.inject_into_ssl()
-        except Exception:
-            pass
-        import anthropic
-        cle = reglage("anthropic.cle", "")
-        _CLIENT = anthropic.Anthropic(api_key=cle) if cle else None
-    return _CLIENT
+    """Compatibilite interne : client du fournisseur cloud actif."""
+    from core import cloud
+    return cloud.client_openai() if cloud.fournisseur() == "openai" \
+        else cloud.client_anthropic()
 
 
 def _systeme(prenom, objectif, contraintes):
@@ -136,17 +129,16 @@ def _systeme(prenom, objectif, contraintes):
         "Reponds UNIQUEMENT par ce que tu dois dire a voix haute, en francais.")
 
 
-def _repondre_claude(systeme, historique):
-    client = _client()
-    if client is None:
+def _repondre_cloud(systeme, historique):
+    from core import cloud
+    if not cloud.disponible():
         return "Desole, je dois raccrocher. [FIN]"
     try:
-        rep = client.messages.create(
-            model=reglage("appels.modele", reglage("anthropic.modele", "claude-haiku-4-5")),
-            max_tokens=150, system=systeme, messages=historique)
-        return "".join(b.text for b in rep.content if getattr(b, "type", None) == "text").strip()
+        return cloud.repondre_texte(
+            systeme, historique, max_tokens=150,
+            nom_modele=reglage("appels.modele", "") or "")
     except Exception:
-        LOG.exception("claude appel direct")
+        LOG.exception("modele cloud appel direct")
         return "Desole, je rencontre un souci, on vous rappelle. [FIN]"
 
 
@@ -209,7 +201,7 @@ class Conversation:
             return
         self.occupe = True
         try:
-            reponse = await asyncio.to_thread(_repondre_claude, self.systeme, self.historique)
+            reponse = await asyncio.to_thread(_repondre_cloud, self.systeme, self.historique)
             fin = "[FIN]" in reponse
             texte = reponse.replace("[FIN]", "").strip()
             if texte:

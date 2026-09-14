@@ -1,7 +1,7 @@
 """Statistiques systeme : GPU (temperature, usage, VRAM), CPU, RAM, disque.
 
 GPU via pynvml (nvidia-ml-py) pour la carte NVIDIA ; le reste via psutil.
-Le resultat complet est renvoye a Claude, qui repond de facon courte et
+Le resultat complet est renvoye au LLM, qui repond de facon courte et
 naturelle selon la question ("ma temperature GPU ?" -> juste le GPU).
 """
 from core.registre import outil

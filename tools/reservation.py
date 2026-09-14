@@ -1,4 +1,4 @@
-"""Reservation sur le WEB, pilotee par Claude (boucle agentique Playwright).
+"""Reservation sur le WEB, pilotee par le modele cloud (boucle agentique Playwright).
 
 Un navigateur Chromium **visible** et **persistant** (profil garde entre les
 sessions -> tu restes connecte a Doctolib/TheFork) est piloté par Claude : a
@@ -32,7 +32,7 @@ LOG = logging.getLogger("jarvis")
 _PW = None      # instance Playwright
 _CTX = None     # contexte persistant (le navigateur)
 _PAGE = None    # onglet actif
-_CLIENT = None  # client Anthropic dedie a la boucle vision
+_CLIENT = None  # conserve pour compatibilite avec les anciens imports
 
 # --- action de reservation en attente de confirmation vocale -----------------
 _RESUME_RESA = ""   # resume lu par l'annonce de confirmation
@@ -102,19 +102,10 @@ _JS_ELEMENTS = r"""() => {
 
 
 def _client():
-    global _CLIENT
-    if _CLIENT is None:
-        # Magasin de certificats Windows (Malwarebytes intercepte le TLS : sans ca,
-        # l'appel a Claude echoue en "Connection error").
-        try:
-            import truststore
-            truststore.inject_into_ssl()
-        except Exception:
-            pass
-        import anthropic
-        cle = reglage("anthropic.cle", "")
-        _CLIENT = anthropic.Anthropic(api_key=cle) if cle else None
-    return _CLIENT
+    """Compatibilite interne : client du fournisseur cloud actif."""
+    from core import cloud
+    return cloud.client_openai() if cloud.fournisseur() == "openai" \
+        else cloud.client_anthropic()
 
 
 def _demarrer_navigateur():
@@ -190,10 +181,10 @@ def _paiement_present(page):
 
 
 def _demander_action(page, objectif, dernier):
-    """Un tour de la boucle vision : renvoie le dict d'action decide par Claude."""
-    client = _client()
-    if client is None:
-        return {"action": "bloque", "raison": "pas de cle Claude"}
+    """Un tour de la boucle vision : renvoie le dict d'action du modele cloud."""
+    from core import cloud
+    if not cloud.disponible():
+        return {"action": "bloque", "raison": "pas de cle cloud configuree"}
     elements = page.evaluate(_JS_ELEMENTS)
     liste = "\n".join(
         f"[{e['index']}] {e['tag']}{('/' + e['type']) if e['type'] else ''} "
@@ -206,23 +197,10 @@ def _demander_action(page, objectif, dernier):
              f"URL actuelle : {page.url}\n"
              f"{('Resultat de la derniere action : ' + dernier) if dernier else ''}\n\n"
              f"Elements de la page :\n{liste}")
-    reponse = client.messages.create(
-        model=reglage("reservation.modele", reglage("anthropic.modele", "claude-haiku-4-5")),
-        max_tokens=600,
-        system=_SYSTEME,
-        tools=[{"name": "agir", "description": "Decide de la prochaine action.",
-                "input_schema": _ACTION}],
-        tool_choice={"type": "tool", "name": "agir"},
-        messages=[{"role": "user", "content": [
-            {"type": "image", "source": {"type": "base64",
-             "media_type": "image/jpeg", "data": _capture_b64(page)}},
-            {"type": "text", "text": infos},
-        ]}],
-    )
-    for bloc in reponse.content:
-        if getattr(bloc, "type", None) == "tool_use":
-            return bloc.input
-    return {"action": "bloque", "raison": "pas de reponse exploitable"}
+    return cloud.decider_action_vision(
+        _SYSTEME, infos, _capture_b64(page), _ACTION,
+        nom_outil="agir", description="Decide de la prochaine action.",
+        nom_modele=reglage("reservation.modele", "") or "")
 
 
 def _executer_action(page, act):

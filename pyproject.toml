@@ -1,7 +1,7 @@
 [project]
 name = "jarvis-vocal"
 version = "0.1.0"
-description = "Assistant vocal local en francais, pilote par Claude (outils domotique, PC, web, communication)."
+description = "Assistant vocal local en francais, pilote par OpenAI ou Ollama (domotique, PC, web, communication)."
 readme = "README.md"
 authors = [
     { name = "jarvis-vocal" }
@@ -34,6 +34,7 @@ dependencies = [
     "obsws-python>=1.8.0",
     "ollama>=0.6.2",
     "onnxruntime>=1.28.0",
+    "openai>=3.13.0",
     "openwakeword>=0.4.0",
     "pillow>=12.3.0",
     "piper-tts>=1.3.0",

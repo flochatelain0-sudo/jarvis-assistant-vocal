@@ -343,7 +343,7 @@ def browser_close_tabs(filtre: str = "") -> str:
     nom="browser_interact",
     description="Agit sur l'onglet actif de Chrome selon une instruction : 'accepte "
                 "les cookies', 'descends aux commentaires', 'mets la video en pause', "
-                "'clique sur le premier resultat'. Claude regarde la page et fait UNE "
+                "'clique sur le premier resultat'. Le modele cloud regarde la page et fait UNE "
                 "action. Refuse sur les sites proteges et pour les achats/paiements.",
     parametres={
         "type": "object",
@@ -367,10 +367,10 @@ def browser_interact(instruction: str) -> str:
         return ("On est sur un site protege (banque / impots / sante). Je peux le "
                 "lire, mais je n'y fais aucune action : fais-le toi-meme.")
 
-    from tools.reservation import _JS_ELEMENTS, _capture_b64, _client
-    client = _client()
-    if client is None:
-        return "Pas de cle Claude configuree."
+    from tools.reservation import _JS_ELEMENTS, _capture_b64
+    from core import cloud
+    if not cloud.disponible():
+        return "Pas de cle cloud configuree."
 
     schema = {
         "type": "object",
@@ -396,24 +396,11 @@ def browser_interact(instruction: str) -> str:
             "video en pause/lecture. Si l'instruction mene a un ACHAT ou un PAIEMENT : "
             "action 'achat' (l'utilisateur validera lui-meme). Ne tape jamais de mot de "
             "passe. Si impossible : 'bloque' avec raison.")
-        reponse = client.messages.create(
-            model=reglage("reservation.modele", reglage("anthropic.modele", "claude-haiku-4-5")),
-            max_tokens=500,
-            system=sys_prompt,
-            tools=[{"name": "agir", "description": "Une action sur la page.",
-                    "input_schema": schema}],
-            tool_choice={"type": "tool", "name": "agir"},
-            messages=[{"role": "user", "content": [
-                {"type": "image", "source": {"type": "base64",
-                 "media_type": "image/jpeg", "data": _capture_b64(page)}},
-                {"type": "text", "text": f"Instruction : {instruction}\n\nElements :\n{liste}"},
-            ]}],
-        )
-        act = {}
-        for bloc in reponse.content:
-            if getattr(bloc, "type", None) == "tool_use":
-                act = bloc.input
-                break
+        act = cloud.decider_action_vision(
+            sys_prompt, f"Instruction : {instruction}\n\nElements :\n{liste}",
+            _capture_b64(page), schema, nom_outil="agir",
+            description="Une action sur la page.",
+            nom_modele=reglage("reservation.modele", "") or "")
         a = act.get("action")
         if a == "achat":
             return "Ca ressemble a un achat ou un paiement : je te laisse valider toi-meme."

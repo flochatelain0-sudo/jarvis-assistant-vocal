@@ -1,7 +1,7 @@
 # Reservation sur le web
 
 Jarvis peut prendre un rendez-vous ou reserver une table a ta place, en pilotant
-un vrai navigateur. Claude regarde la page (capture + elements cliquables) et
+un vrai navigateur. Le modèle cloud regarde la page (capture + éléments cliquables) et
 agit etape par etape jusqu'au formulaire rempli — **puis il s'arrete et te
 demande ton accord vocal avant de valider**.
 

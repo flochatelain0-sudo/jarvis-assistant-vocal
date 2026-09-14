@@ -1,6 +1,6 @@
 """Budget : suivi de la consommation LLM de Jarvis, par jour et par fournisseur.
 
-Jarvis instrumente ses PROPRES appels Claude (tokens in/out + cache) et estime le
+Jarvis instrumente ses PROPRES appels cloud (OpenAI/Claude : tokens + cache) et estime le
 cout via une table de prix configurable (budget.prix), persiste dans budget.json
 (non versionne). La page Etat du panneau lit resume() (jour + mois), et croise avec
 le compteur Twilio (logs/calls/compteur.json) et les insights Hermes (CLI).
@@ -20,8 +20,12 @@ _RACINE = Path(__file__).resolve().parent.parent
 _VERROU = threading.Lock()
 
 # Prix par defaut ($ / million de tokens : entree, sortie). Surchargeables via
-# config budget.prix. Cle = sous-chaine du nom de modele (tarifs API Anthropic).
+# config budget.prix. Cle = sous-chaine du nom de modele.
 _PRIX_DEFAUT = {
+    "gpt-6-astra": (10.0, 50.0),
+    "gpt-5.6-sol": (4.0, 20.0),
+    "gpt-5.6-terra": (2.0, 12.0),
+    "gpt-5.6-luna": (0.2, 1.2),
     "haiku": (1.0, 5.0),
     "sonnet": (3.0, 15.0),
     "opus": (5.0, 25.0),
@@ -56,7 +60,7 @@ def _prix(modele):
 
 def enregistrer(fournisseur, modele, tin, tout, cache_read=0, cache_creation=0):
     """Ajoute la conso d'un appel LLM au budget du jour. Cout precis (cache read 0.1x,
-    cache creation 1.25x, tarifs Anthropic)."""
+    cache creation 1.25x quand elle existe)."""
     try:
         pin, pout = _prix(modele)
         cout = (int(tin or 0) * pin
@@ -98,7 +102,7 @@ def _agreger(data, prefixe):
 
 
 def resume():
-    """{jour: {fournisseur: {...}}, mois: {...}} de la conso Jarvis (Claude + voix)."""
+    """{jour: {fournisseur: {...}}, mois: {...}} de la conso Jarvis (LLM + voix)."""
     data = _charger()
     auj = dt.date.today()
     return {"jour": _agreger(data, auj.isoformat()),
@@ -156,7 +160,7 @@ def _total_llm(prefixe):
 
 
 def total(periode):
-    """Cout total Jarvis (Claude + voix) + Twilio (mois). periode = 'jour' | 'mois'."""
+    """Cout total Jarvis (LLM + voix) + Twilio (mois). periode = 'jour' | 'mois'."""
     prefixe = (dt.date.today().isoformat() if periode == "jour"
                else dt.date.today().strftime("%Y-%m"))
     t = _total_llm(prefixe)

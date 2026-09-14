@@ -7,8 +7,9 @@ retombe sur la voix Windows (SAPI) si le provider renvoie None.
   - ElevenLabsProvider : cloud (qualite max), voix configurable.
   - PiperProvider      : local, 100% offline, voix francaise Piper (.onnx).
 
-Choix par config.yaml (mode: cloud | local). En local sans modele Piper, ou en
-cloud sans cle ElevenLabs, on retombe proprement sur SAPI.
+Choix par config.yaml (`tts.moteur`) et par le mode local/hybride/qualite. En
+local sans modele Piper, ou en cloud sans cle ElevenLabs, on retombe proprement
+sur SAPI.
 
 Note honnete sur le TTS local francais : Piper est recommande (voix FR eprouvees
 comme fr_FR-siwis / fr_FR-tom, tres leger, temps reel sur CPU). Kokoro (kokoro-onnx)
@@ -43,6 +44,11 @@ class ProviderTTS:
     def synthetiser(self, texte):
         """Renvoie (numpy int16 mono, frequence_hz) ou None si indisponible."""
         return None
+
+
+class WindowsProvider(ProviderTTS):
+    """Demande volontairement le repli SAPI gere par jarvis14.dire()."""
+    nom = "Windows"
 
 
 # --------------------------------------------------------------- ElevenLabs
@@ -216,17 +222,31 @@ _TTS = None
 
 
 def tts():
-    """Provider TTS courant : local -> Piper/Kokoro (config voix_locale) ;
-    hybride/qualite -> ElevenLabs."""
+    """Provider TTS courant.
+
+    ``tts.moteur`` peut valoir auto/elevenlabs/piper/kokoro/windows. Le mode
+    local garde sa promesse de confidentialite : ElevenLabs y est ignore et un
+    moteur local est choisi.
+    """
     global _TTS
     if _TTS is None:
         from core.routage import mode_actuel
         m = mode_actuel()
+        moteur = (reglage("tts.moteur", "auto") or "auto").lower()
         if m == "local":
-            moteur = (reglage("voix_locale", "piper") or "piper").lower()
-            _TTS = KokoroProvider() if moteur == "kokoro" else PiperProvider()
+            if moteur in {"auto", "elevenlabs"}:
+                moteur = (reglage("voix_locale", "piper") or "piper").lower()
         else:
+            if moteur == "auto":
+                moteur = "elevenlabs"
+        if moteur == "elevenlabs":
             _TTS = ElevenLabsProvider()
+        elif moteur == "kokoro":
+            _TTS = KokoroProvider()
+        elif moteur == "piper":
+            _TTS = PiperProvider()
+        else:
+            _TTS = WindowsProvider()
         LOG.info("provider TTS : %s (mode %s)", _TTS.nom, m)
     return _TTS
 
