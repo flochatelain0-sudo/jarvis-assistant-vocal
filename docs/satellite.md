@@ -7,7 +7,7 @@ visage déportés dans une autre pièce (Raspberry Pi aujourd'hui, ESP32 demain)
 Hermes n'est pas concerné.
 
 Statut : **côté PC fait** (endpoint + protocole + multi-pièces + token + client de
-test). Client Raspberry Pi : voir [satellite_pi.md](satellite_pi.md) *(à venir)*.
+test). Client Raspberry Pi : voir [satellite_pi.md](satellite_pi.md).
 
 ## Le protocole (WebSocket `/satellite`)
 
@@ -61,9 +61,9 @@ contexte du LLM : « allume la lumière » depuis le satellite **cuisine** cible
 ## Sécurité
 
 - **LAN uniquement** : jamais exposé via ngrok (la garde X-Forwarded rejette le
-  trafic tunnelisé). Pour qu'un satellite du réseau atteigne le PC, mets
-  `serveur.host: "0.0.0.0"` — les **gardes IP-socket** gardent panneau/cockpit en
-  loopback, seul `/satellite` (authentifié) accepte le LAN.
+  trafic tunnelisé). Le serveur principal reste sur `127.0.0.1:8790`. Lorsqu'un
+  satellite est configuré, un listener dédié `0.0.0.0:8791` est lancé avec
+  **uniquement** `/satellite` ; panneau, cockpit, inbox et Twilio n'y existent pas.
 - **Token par satellite** (`satellites[].token`), comparé en **timing-safe**.
 - **Droits = commande vocale à la maison** : N1/N2 direct ; **N3 (mail, appel,
   extinction…) avec CONFIRMATION vocale sur le satellite** (le serveur passe en

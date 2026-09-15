@@ -107,6 +107,14 @@ def demarrer():
         if _port_ouvert(port):
             break
         time.sleep(0.15)
+    # Listener LAN séparé : il ne contient QUE /satellite. Le serveur unifié
+    # reste en loopback, donc panneau/cockpit/inbox/Twilio ne gagnent aucun accès
+    # réseau lorsqu'un Raspberry Pi est configuré.
+    try:
+        from core.satellite import demarrer_lan
+        demarrer_lan()
+    except Exception:
+        LOG.exception("demarrage du listener satellite LAN")
     # Ouvre le tunnel ngrok automatiquement (si authtoken configure et pas d'URL
     # manuelle) pour que l'endpoint soit joignable des le demarrage.
     try:

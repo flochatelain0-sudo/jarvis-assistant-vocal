@@ -37,8 +37,12 @@ réveillerait le PC via la Tapo (cf. wol.md). Rien ici ne le rend impossible :
 le dispatch est isolé (_traiter), la détection « PC éteint » se ferait côté Pi.
 """
 import json
+import ipaddress
 import logging
 import secrets
+import socket
+import threading
+import time
 
 from core.config import reglage
 
@@ -46,6 +50,30 @@ LOG = logging.getLogger("jarvis.satellite")
 
 TAUX = 16000                      # PCM entrant : 16 kHz mono 16-bit LE (comme le micro PC)
 _MAX_UTTERANCE = TAUX * 2 * 30    # garde-fou : 30 s d'audio max par énoncé (octets)
+_APP_LAN = None
+_SERVEUR_LAN = None
+
+
+def _origine_locale_ou_lan(ws) -> bool:
+    """Refuse les reverse proxies et les clients hors du réseau local.
+
+    Le tunnel ngrok termine sa connexion sur le PC en loopback, donc l'adresse
+    socket seule ne suffit pas : ses en-têtes ``Forwarded``/``X-Forwarded-*``
+    sont également bloqués. Un satellite réel arrive directement avec une
+    adresse privée du LAN.
+    """
+    entetes = getattr(ws, "headers", {}) or {}
+    for nom in ("forwarded", "x-forwarded-for", "x-forwarded-host",
+                "x-forwarded-proto", "x-real-ip"):
+        if entetes.get(nom):
+            return False
+    client = getattr(ws, "client", None)
+    hote = str(getattr(client, "host", "") or "").split("%", 1)[0]
+    try:
+        adresse = ipaddress.ip_address(hote)
+    except ValueError:
+        return False
+    return adresse.is_loopback or adresse.is_private or adresse.is_link_local
 
 
 def _satellites():
@@ -215,6 +243,10 @@ def monter_routes(app):
 
     @app.websocket("/satellite")
     async def satellite(ws: WebSocket):
+        if not _origine_locale_ou_lan(ws):
+            LOG.warning("satellite: connexion hors LAN refusee")
+            await ws.close(code=1008, reason="satellite accessible uniquement sur le LAN")
+            return
         await ws.accept()
         cfg = _satellites()
         sess = _Session()
@@ -311,3 +343,55 @@ def monter_routes(app):
             LOG.info("satellite déconnecté : %s", sess.satellite)
 
     LOG.info("satellite: route /satellite montée (LAN, token par satellite)")
+
+
+def _app_lan():
+    """Application FastAPI minimale exposée au LAN : `/satellite` seulement."""
+    global _APP_LAN
+    if _APP_LAN is None:
+        from fastapi import FastAPI
+        _APP_LAN = FastAPI(
+            title="Jarvis Satellite LAN",
+            docs_url=None,
+            redoc_url=None,
+            openapi_url=None,
+        )
+        monter_routes(_APP_LAN)
+    return _APP_LAN
+
+
+def demarrer_lan():
+    """Démarre le listener satellite dédié sans exposer le serveur unifié.
+
+    Le port n'est ouvert que lorsqu'au moins un satellite est configuré. Le
+    panneau, le cockpit, l'inbox iPhone et Twilio restent sur le listener
+    loopback principal.
+    """
+    global _SERVEUR_LAN
+    if not _satellites() or not bool(reglage("satellite_lan.actif", True)):
+        return
+    if _SERVEUR_LAN and _SERVEUR_LAN.is_alive():
+        return
+
+    import uvicorn
+    hote = str(reglage("satellite_lan.host", "0.0.0.0") or "0.0.0.0")
+    port = int(reglage("satellite_lan.port", 8791))
+    serveur = uvicorn.Server(uvicorn.Config(
+        _app_lan(), host=hote, port=port, log_level="warning"))
+
+    def run():
+        try:
+            serveur.run()
+        except Exception:
+            LOG.exception("satellite: serveur LAN")
+
+    _SERVEUR_LAN = threading.Thread(
+        target=run, daemon=True, name="satellite-lan")
+    _SERVEUR_LAN.start()
+    for _ in range(40):
+        try:
+            socket.create_connection(("127.0.0.1", port), 0.15).close()
+            break
+        except OSError:
+            time.sleep(0.15)
+    LOG.info("satellite: listener LAN actif sur %s:%d", hote, port)

@@ -48,15 +48,18 @@ pip install -r requirements.txt          # sounddevice, numpy, openwakeword, web
 
 ## 3. Côté PC (une fois)
 
-Dans `config.yaml` du PC, déclare le satellite et ouvre le serveur au réseau local :
+Dans `config.yaml` du PC, déclare le satellite. Jarvis ouvre automatiquement un
+listener LAN dédié qui ne contient **que** `/satellite` :
 ```yaml
-serveur:
-  host: "0.0.0.0"              # le Pi doit joindre le PC (les gardes gardent panneau/cockpit en loopback)
 satellites:
   - id: "cuisine"
     piece: "cuisine"
     token: "un-secret-long"    # python -c "import secrets;print(secrets.token_urlsafe(24))"
     wake: "appareil"
+satellite_lan:
+  actif: true
+  host: "0.0.0.0"
+  port: 8791
 ```
 Puis **relance Jarvis**. Récupère l'**IP du PC** sur le réseau (`ipconfig` → IPv4).
 
@@ -67,7 +70,7 @@ cp config.exemple.yaml config.yaml
 nano config.yaml
 ```
 Renseigne :
-- `pc_url: "ws://<IP-DU-PC>:8790/satellite"`
+- `pc_url: "ws://<IP-DU-PC>:8791/satellite"`
 - `satellite_id: "cuisine"` (le même qu'au PC)
 - `token: "<le même token qu'au PC>"`
 - `micro` / `haut_parleur` : lance
@@ -111,7 +114,9 @@ journalctl -u jarvis-satellite -f      # voir les logs
 - **Pas de son / micro** : vérifie les index (`sd.query_devices()`), et le volume ALSA
   (`alsamixer`). Un speakerphone USB s'auto-sélectionne souvent bien.
 - **« token invalide »** : le `token` du Pi doit être identique à celui du PC pour ce `satellite_id`.
-- **« injoignable »** : le PC doit avoir `serveur.host: "0.0.0.0"`, être allumé, et sur le même réseau ; teste `ping <IP-DU-PC>` depuis le Pi.
+- **« injoignable »** : le PC doit être allumé et sur le même réseau ; vérifie
+  `satellite_lan.actif`, puis teste `ping <IP-DU-PC>` depuis le Pi. Le pare-feu
+  Windows doit autoriser le port TCP 8791 sur le réseau privé.
 - **Latence** : normal ~2-3 s (transcription + LLM + voix). Le 1er échange après un
   démarrage du PC est plus lent (chargement des modèles).
 
