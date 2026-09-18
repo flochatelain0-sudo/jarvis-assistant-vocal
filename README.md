@@ -20,6 +20,12 @@ et le corps** — c'est toujours Jarvis qui exécute les actions, jamais Hermes,
 **aucun identifiant ne vit dans l'environnement d'Hermes** (il lit le Vault et les
 outils sûrs, écrit seulement des brouillons).
 
+**📡 Jarvis dans chaque pièce.** Ajoute un ou plusieurs **satellites Raspberry Pi**
+pour déporter le micro et le haut-parleur dans la cuisine, le salon ou une autre
+pièce. Le PC reste le cerveau central ; chaque satellite détecte *« Hey Jarvis »*
+sur place et communique avec lui sur le réseau local/Wi-Fi, **sans long câble
+jusqu'au PC** ([fonctionnement](docs/satellite.md) · [installation](docs/satellite_pi.md)).
+
 > Projet perso partagé tel quel. Cible **Windows 11**, nécessite un micro et (en mode
 > cloud) une clé API OpenAI Platform. L'abonnement ChatGPT est séparé de l'API. La plupart des intégrations sont **optionnelles** et se
 > désactivent proprement si non configurées.

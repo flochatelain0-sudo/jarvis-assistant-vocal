@@ -17,6 +17,12 @@ local [Hermes](docs/hermes.md) agent. The boundary is explicit: **Hermes orchest
 and thinks; Jarvis holds the keys and the body**. Jarvis alone performs actions, and
 credentials never enter the Hermes environment.
 
+**📡 Jarvis in every room.** Add one or more **Raspberry Pi satellites** to move
+the microphone and speaker into a kitchen, living room, or any other room. The PC
+remains the central brain; each satellite detects *"Hey Jarvis"* locally and talks
+to it over the local network/Wi-Fi, **with no long cable back to the PC**
+([how it works](docs/satellite.md) · [setup guide](docs/satellite_pi.md)).
+
 > Personal project shared as-is. Targets **Windows 11**, needs a microphone and (for
 > cloud mode) an OpenAI Platform API key. Most integrations are **optional** and disable
 > themselves cleanly when unconfigured.
