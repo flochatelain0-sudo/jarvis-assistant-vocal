@@ -129,13 +129,23 @@ _WHISPER = None
 
 
 def _whisper():
-    """Modèle Whisper partagé (chargé à la première utilisation)."""
+    """Whisper dédié au satellite.
+
+    Le Jarvis principal utilise déjà le GPU. Charger un second modèle dessus peut
+    faire échouer CTranslate2 avec ``CUDA failed`` ; le satellite privilégie donc
+    un petit modèle CPU/int8, stable et suffisamment rapide pour de courtes phrases.
+    """
     global _WHISPER
     if _WHISPER is None:
         try:
             from faster_whisper import WhisperModel
-            nom = reglage("whisper.modele", "small")
-            _WHISPER = WhisperModel(nom, device="auto", compute_type="int8")
+            nom = reglage("satellite_lan.whisper_modele", "small")
+            appareil = reglage("satellite_lan.whisper_device", "cpu")
+            calcul = reglage("satellite_lan.whisper_compute_type", "int8")
+            _WHISPER = WhisperModel(nom, device=appareil, compute_type=calcul)
+            LOG.info(
+                "satellite: Whisper %s sur %s (%s)", nom, appareil, calcul
+            )
         except Exception:
             LOG.exception("satellite: chargement Whisper")
             _WHISPER = None

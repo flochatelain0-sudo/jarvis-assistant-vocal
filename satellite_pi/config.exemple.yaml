@@ -7,6 +7,9 @@ micro: null                    # null = micro par defaut ; sinon l'index
 haut_parleur: null             # null = sortie par defaut ; sinon l'index
 # Reglages capture (facultatif)
 seuil_reveil: 0.5              # sensibilite "Hey Jarvis" (0.3 facile .. 0.7 strict)
+gain_reveil: 1.0               # amplification pour le wake uniquement (utile si micro faible)
+gain_audio: 1.0                # amplification de la question envoyee a Whisper
 seuil_silence: 0.010           # niveau en dessous duquel c'est du silence
 silence_fin: 1.0               # secondes de silence = fin de phrase
+attente_parole: 3.0            # délai pour commencer la question après le bip
 duree_max: 15                  # duree max d'un enonce (s)

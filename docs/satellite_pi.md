@@ -82,31 +82,27 @@ Renseigne :
 ```bash
 python jarvis_satellite.py
 ```
-Dis **« Hey Jarvis, quelle heure est-il »** → le Pi capte, le PC répond, le Pi parle.
+Dis **« Hey Jarvis »**, attends le bip, puis **« Quelle heure est-il ? »** → le Pi
+capte, le PC répond, le Pi parle.
 Si le PC est éteint : « Jarvis dort, rallume la tour » (reconnexion auto ensuite).
 
-## 6. Démarrage auto au boot (optionnel — systemd)
+## 6. Démarrage auto au boot (systemd utilisateur)
 
-`/etc/systemd/system/jarvis-satellite.service` :
-```ini
-[Unit]
-Description=Satellite Jarvis
-After=network-online.target sound.target
-Wants=network-online.target
+Le dépôt fournit `satellite_pi/jarvis-satellite.service`. Il emploie `%h`, donc il
+fonctionne quel que soit le nom de l'utilisateur du Pi.
 
-[Service]
-User=pi
-WorkingDirectory=/home/pi/satellite_pi
-ExecStart=/home/pi/satellite_pi/.venv/bin/python jarvis_satellite.py
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
 ```bash
-sudo systemctl enable --now jarvis-satellite
-journalctl -u jarvis-satellite -f      # voir les logs
+mkdir -p ~/.config/systemd/user
+cp ~/satellite_pi/jarvis-satellite.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now jarvis-satellite
+
+# Une seule fois : autoriser le service utilisateur à démarrer sans connexion SSH.
+sudo loginctl enable-linger "$USER"
+
+# Voir l'état et les logs.
+systemctl --user status jarvis-satellite
+journalctl --user -u jarvis-satellite -f
 ```
 
 ## Dépannage
