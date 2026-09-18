@@ -6,15 +6,14 @@ Piloter Jarvis d'un geste, en **temps réel** et **100 % en local**. Pensé pour
 
 > **Doctrine — Jarvis pur (physique, temps réel).** Aucun rôle pour Hermes ici.
 > Les gestes ne déclenchent que des actions **N1/N2** ; **jamais** de N3 (pas
-> d'extinction, d'appel, de réservation par geste — un faux pincement ne coûte
-> qu'une lumière).
+> d'extinction, d'appel, de réservation par geste.
 
 ## Pourquoi un sous-process séparé (Python 3.11)
 
 MediaPipe n'a **pas de wheel Python 3.13** (Jarvis tourne en 3.13). Le tracking
 tourne donc dans un **venv isolé Python 3.11** (`gestes/.venv-tracker`). C'est aussi
 la **frontière vie privée** : ce process est le **seul** à voir l'image ; il n'en
-sort que des *labels de gestes* (`"poing"`, `"pincement_haut"`…), envoyés à Jarvis
+sort que des *labels de gestes* (`"poing"`, `"mode_fenetres"`…), envoyés à Jarvis
 en **loopback** local. Bonus : process séparé = **il ne vole rien à Whisper** (CPU
 ordonnancé par l'OS).
 
@@ -38,42 +37,54 @@ Puis, à la voix : **« Jarvis, active les gestes »** / **« coupe les gestes �
 `gestes.actif: true` dans `config.yaml`, ou le **raccourci clavier** (défaut
 `Ctrl+Alt+G`).
 
-## Le vocabulaire (v1) et le mapping par défaut
+## Le vocabulaire (v2) et le mapping par défaut
 
 Des gestes **tenus** (pas d'instantané) pour éviter les faux positifs :
 
 | Geste | Action par défaut |
 |---|---|
-| **Pincement** (pouce-index) + **glisser vertical** | Luminosité de la pièce (± par pas) |
-| **Main ouverte** tenue ~1 s | Play / pause musique |
-| **Poing** tenu ~1 s | **Couper le TTS** en cours (le « stop » silencieux — pratique en call) |
-| **Swipe** gauche / droite | **Contextuel en cascade** (voir ci-dessous) |
+| **Main ouverte immobile** tenue | Pause (touche média lecture/pause) |
+| **Pouce levé** tenu | Lecture/reprise (touche média lecture/pause) |
+| **Poing** tenu | Coupe immédiatement le TTS et annule le mode courant |
+| **2 doigts** tenus | Arme le mode **Fenêtres** |
+| **3 doigts** tenus | Arme le mode **Audio** |
 
 Chaque geste reconnu = **feedback discret** (petit bip + flash HUD) pour savoir que
 c'est pris. Le mapping est **entièrement éditable** dans `config.yaml → gestes.mapping`.
 
-### Le swipe est contextuel (du plus spécifique au plus général)
+### Mode Fenêtres — 2 doigts
 
-Un swipe gauche/droite fait **une chose différente selon ce qui est au premier plan**,
-avec un **retour overlay** qui indique le mode :
+- tiens index + majeur environ 1 seconde → overlay `🪟 Mode fenêtres` ;
+- passe à la main entière ouverte et garde-la brièvement immobile ;
+- swipe gauche/droite → fenêtre précédente/suivante (`Alt+Shift+Tab` / `Alt+Tab`) ;
+- swipe haut/bas → défilement de la fenêtre active (`Page Up` / `Page Down`).
 
-1. **OBS actif / en live** → scène OBS précédente / suivante — 📺 « Scène OBS suivante ».
-2. **Une app vidéo au premier plan** (YouTube dans le navigateur, VLC, lecteur…) →
-   **seek −10 s / +10 s** (touches envoyées à l'app qui a le focus) — 🎬 « +10s ».
-3. **Sinon** → **bascule de fenêtre** style Alt+Tab (fenêtre précédente / suivante) —
-   🪟 « Fenêtre suivante ».
+### Mode Audio — 3 doigts
 
-*(Les pistes musicales ne sont plus sur le swipe — la voix s'en charge.)*
-**Backlog v2** : swipe à **deux doigts** = déplacer la fenêtre active vers l'autre écran.
+- tiens index + majeur + annulaire environ 1 seconde → overlay `🔊 Mode audio` ;
+- passe à la main entière ouverte et garde-la brièvement immobile ;
+- swipe haut/bas → volume +/− ;
+- swipe gauche/droite → piste précédente/suivante.
+
+Le pouce levé ne confirme **jamais** une action N3 : il sert uniquement à la
+lecture média. Une extinction, un appel ou une réservation reste soumis à la
+confirmation vocale locale.
 
 ## Anti-faux-positifs (le vrai défi)
 
-- **Gestes tenus** : un poing / une main ouverte doit être maintenu `tenue_s` (1 s).
-- **Zone morte** sur le glissement du pincement (`deadzone_lum`).
-- **Cooldown** entre deux commandes (`cooldown_s`, 1,5 s) — côté tracker *et* côté Jarvis.
-- **Swipe par vitesse** (amplitude mini `swipe_seuil` sur une fenêtre courte).
-- **Armement optionnel** (`gestes.armement.actif`) : les gestes n'agissent qu'après
-  une **main levée 2 s** (« Jarvis regarde »), pendant une fenêtre de quelques secondes.
+- **Gestes statiques tenus** : une pose accidentelle d'une seule image ne suffit pas.
+- **Modes explicites** : aucun swipe n'agit sans 2 ou 3 doigts tenus au préalable.
+- **Transition stabilisée** après la sélection : passer directement à la paume
+  ouverte suffit ; sortir la main du cadre reste accepté.
+- **Main hors cadre obligatoire après l'action** pour empêcher un deuxième ordre
+  involontaire.
+- **Une seule action par mode**, puis retour au neutre et nouvelle sélection obligatoire.
+- **Expiration** du mode après `mode_duree_s` secondes (30 s par défaut).
+- **Stabilisation** : la main déployée (3 ou 4 doigts visibles) doit rester presque immobile pendant
+  `swipe_pret_s` (0,35 s par défaut). Le changement de pose ou le trajet d'entrée
+  dans le cadre ne peut donc plus être interprété comme un swipe.
+- **Déplacement minimal + axe dominant** : un mouvement diagonal ambigu est ignoré.
+- **Cooldown** entre deux commandes côté tracker et côté Jarvis.
 
 ## Calibration (à l'arrivée de la webcam)
 
@@ -81,10 +92,12 @@ avec un **retour overlay** qui indique le mode :
 python scripts/gestes_calibrer.py
 ```
 
-Affiche la caméra + les landmarks + les métriques en direct. Règle les seuils au
-clavier — `+`/`-` (pincement), `t`/`T` (durée de maintien) — `s` **sauvegarde** vers
-`gestes/calibration.json` (prioritaire sur `config.yaml`), `q` quitte. **Aucune image
-n'est enregistrée** pendant la calibration.
+Affiche la caméra + les landmarks, la pose et le mode en direct. Réglages :
+`t/T` maintien −/+, `c/C` cooldown −/+, `w/W` swipe horizontal −/+,
+`v/V` swipe vertical −/+, `i` inverse haut/bas, `s` sauvegarde vers
+`gestes/calibration.json`, `q`
+quitte. Le fichier sauvegardé est rechargé à la prochaine ouverture. **Aucune
+image n'est enregistrée** pendant la calibration.
 
 ## Caméra : cycle de vie & cohabitation
 
@@ -93,11 +106,10 @@ n'est enregistrée** pendant la calibration.
 - **Choix du périphérique** : `gestes.device` (0 = première webcam USB).
 - **Statut** : `GET http://127.0.0.1:8790/api/gestes/status` → `{actif}` (repris dans
   `hermes-workspace/status-hermes.ps1` : *Tracker de gestes : UP/DOWN*).
-- **Cohabitation stream** : pendant un **direct OBS**, le swipe **change de scène**
-  (c'est le mode 1 de la cascade). Si OBS occupe déjà la webcam physique, sélectionne
-  une autre `device`, ou utilise la **caméra virtuelle OBS** comme source des gestes.
-  *(`gestes.pause_pendant_live` ne s'applique plus au swipe contextuel, seulement à
-  l'ancienne action `obs_scene` si tu la remets dans le mapping.)*
+- **Cohabitation stream** : si OBS occupe déjà la webcam physique, sélectionne une
+  autre `device`, ou utilise la **caméra virtuelle OBS** comme source des gestes.
+  L'ancien mapping contextuel OBS reste compatible s'il est conservé manuellement,
+  mais il n'est plus le mapping v2 par défaut.
 - **Indicateur** : la LED de la webcam s'allume quand la caméra est active — jamais
   de capture à ton insu.
 

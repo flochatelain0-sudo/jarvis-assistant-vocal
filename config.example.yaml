@@ -288,26 +288,34 @@ gestes:                        # controle par gestes de la main (webcam USB) ; v
   largeur: 640
   hauteur: 480
   raccourci: "ctrl+alt+g"      # raccourci clavier pour basculer les gestes ("" = desactive)
-  pause_pendant_live: true     # ignorer les swipes OBS quand un direct est en cours
+  pause_pendant_live: true     # compat anciens mappings OBS ; sans effet sur les modes v2
   python: ""                   # python du venv tracker ; vide = gestes/.venv-tracker/Scripts/python.exe
   seuils:                      # ajustables en calibration (gestes/calibration.json prime)
-    pincement: 0.06            # distance pouce-index max pour detecter un pincement
-    tenue_s: 1.0               # duree de maintien d'un geste tenu (poing / main ouverte)
-    cooldown_s: 1.5            # delai mini entre deux commandes (anti-faux-positif)
-    deadzone_lum: 0.06         # zone morte du glissement vertical (luminosite)
-    swipe_seuil: 0.22          # amplitude mini d'un swipe
-    swipe_fenetre_s: 0.4
-  armement:                    # geste d'armement optionnel ("Jarvis regarde")
-    actif: false               # true = les gestes n'agissent qu'apres une main levee 2 s
-    duree_s: 2.0
-    fenetre_s: 8.0             # duree d'activite des gestes apres l'armement
+    tenue_s: 1.4               # maintien main ouverte / pouce / poing
+    tenue_mode_s: 0.9          # maintien des 2 ou 3 doigts pour choisir un mode
+    cooldown_s: 2.0            # delai mini entre deux commandes
+    swipe_seuil: 0.28          # déplacement horizontal minimal de la paume
+    swipe_vertical_seuil: 0.22 # déplacement vertical minimal de la paume
+    swipe_fenetre_s: 0.7       # le mouvement doit tenir dans cette fenêtre
+    swipe_dominance: 1.2       # axe principal >= autre axe * cette valeur
+    swipe_pret_s: 0.35         # main immobile avant de commencer à mesurer
+    stabilite_seuil: 0.06      # mouvement max pendant cette stabilisation
+    inverser_vertical: false   # activer si haut/bas sont inversés par la caméra
+    mode_duree_s: 30.0         # expiration du mode si aucun swipe
   mapping:                     # geste -> action (N1/N2 UNIQUEMENT ; jamais N3)
-    pincement_haut: { action: luminosite, piece: salon, pas: 10 }
-    pincement_bas:  { action: luminosite, piece: salon, pas: -10 }
-    main_ouverte:   { action: play_pause }
-    poing:          { action: couper_tts }
-    swipe_droite:   { action: swipe, sens: suivant }    # cascade : OBS scene / seek +10s / fenetre suiv
-    swipe_gauche:   { action: swipe, sens: precedent }  #           OBS scene / seek -10s / fenetre prec
+    main_ouverte:     { action: media, commande: pause, label: "⏸ Pause" }
+    pouce_leve:       { action: media, commande: pause, label: "▶ Lecture" }
+    poing:            { action: couper_tts }
+    mode_fenetres:    { action: mode_feedback, label: "🪟 Mode fenêtres" }
+    fenetre_droite:   { action: fenetre, sens: suivant }
+    fenetre_gauche:   { action: fenetre, sens: precedent }
+    defilement_haut:  { action: defiler, sens: haut }
+    defilement_bas:   { action: defiler, sens: bas }
+    mode_audio:       { action: mode_feedback, label: "🔊 Mode audio" }
+    volume_haut:      { action: volume, sens: monter, crans: 4 }
+    volume_bas:       { action: volume, sens: baisser, crans: 4 }
+    piste_suivante:   { action: media, commande: suivant, label: "⏭ Piste suivante" }
+    piste_precedente: { action: media, commande: precedent, label: "⏮ Piste précédente" }
 
 musique:                       # reconnaissance musicale (Shazam-like) ; voir docs/musique.md
   secondes: 8                  # duree de capture par defaut (4-15). Aucune cle requise.

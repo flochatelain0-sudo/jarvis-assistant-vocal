@@ -27,22 +27,29 @@ _TOKEN = None          # jeton courant (None = gestes coupés) ; protège /api/g
 _PROC = None           # sous-process tracker
 _COUPER_TTS = None     # callback fourni par jarvis14 (couper_parole)
 _FEEDBACK = None       # callback fourni par jarvis14 (bip + flash HUD)
-_CURSEUR_LUM = {}      # piece -> luminosité courante (0..100), pour le pincement
+_CURSEUR_LUM = {}      # compatibilité des anciens mappings par pincement
 _DERNIER = 0.0         # anti-rebond côté Jarvis (en plus du cooldown du tracker)
 
 # Mapping par défaut geste -> action (surchargé par config.yaml gestes.mapping).
 # TOUTES les actions ici sont N1/N2 par construction.
 _MAPPING_DEFAUT = {
-    "pincement_haut": {"action": "luminosite", "piece": "salon", "pas": 10},
-    "pincement_bas":  {"action": "luminosite", "piece": "salon", "pas": -10},
-    "main_ouverte":   {"action": "play_pause"},
-    "poing":          {"action": "couper_tts"},
-    "swipe_droite":   {"action": "swipe", "sens": "suivant"},
-    "swipe_gauche":   {"action": "swipe", "sens": "precedent"},
+    "main_ouverte":     {"action": "media", "commande": "pause", "label": "⏸ Pause"},
+    "pouce_leve":       {"action": "media", "commande": "pause", "label": "▶ Lecture"},
+    "poing":            {"action": "couper_tts"},
+    "mode_fenetres":    {"action": "mode_feedback", "label": "🪟 Mode fenêtres"},
+    "fenetre_droite":   {"action": "fenetre", "sens": "suivant"},
+    "fenetre_gauche":   {"action": "fenetre", "sens": "precedent"},
+    "defilement_haut":  {"action": "defiler", "sens": "haut"},
+    "defilement_bas":   {"action": "defiler", "sens": "bas"},
+    "mode_audio":       {"action": "mode_feedback", "label": "🔊 Mode audio"},
+    "volume_haut":      {"action": "volume", "sens": "monter", "crans": 4},
+    "volume_bas":       {"action": "volume", "sens": "baisser", "crans": 4},
+    "piste_suivante":   {"action": "media", "commande": "suivant", "label": "⏭ Piste suivante"},
+    "piste_precedente": {"action": "media", "commande": "precedent", "label": "⏮ Piste précédente"},
 }
 # Actions autorisées par geste (garde-fou : rien d'autre ne peut être déclenché).
 _ACTIONS_SURES = {"luminosite", "play_pause", "couper_tts", "obs_scene", "swipe",
-                  "armement"}
+                  "armement", "media", "mode_feedback", "fenetre", "defiler", "volume"}
 
 
 def definir_hooks(couper_tts=None, feedback=None):
@@ -181,6 +188,7 @@ def _executer(action, spec):
     if action == "luminosite":
         piece = spec.get("piece", "salon")
         pas = int(spec.get("pas", 10))
+        # Compatibilité avec un ancien mapping personnalisé par pincement.
         cur = _CURSEUR_LUM.get(piece, 50) + pas
         cur = max(0, min(100, cur))
         _CURSEUR_LUM[piece] = cur
@@ -198,6 +206,31 @@ def _executer(action, spec):
         _obs_scene(spec.get("sens", "suivante"))
     elif action == "swipe":
         _swipe(spec.get("sens", "suivant"))
+    elif action == "mode_feedback":
+        _overlay_geste(spec.get("label", "Mode gestes"))
+    elif action == "media":
+        from tools.systeme import controler_media
+        _verifier_non_n3("controler_media")
+        controler_media(spec.get("commande", "pause"))
+        _overlay_geste(spec.get("label", "Média"))
+    elif action == "volume":
+        from tools.systeme import regler_volume
+        _verifier_non_n3("regler_volume")
+        sens = spec.get("sens", "monter")
+        regler_volume(sens, int(spec.get("crans", 4)))
+        _overlay_geste("🔊 Volume +" if sens == "monter" else "🔉 Volume −")
+    elif action == "fenetre":
+        sens = spec.get("sens", "suivant")
+        import keyboard
+        keyboard.send("alt+tab" if sens == "suivant" else "alt+shift+tab")
+        _overlay_geste("🪟 Fenêtre suivante" if sens == "suivant"
+                       else "🪟 Fenêtre précédente")
+    elif action == "defiler":
+        sens = spec.get("sens", "bas")
+        import keyboard
+        keyboard.send("pagedown" if sens == "bas" else "pageup")
+        _overlay_geste("📄 Défiler vers le bas" if sens == "bas"
+                       else "📄 Défiler vers le haut")
 
 
 def _verifier_non_n3(nom_outil):

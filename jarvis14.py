@@ -1023,7 +1023,7 @@ def traiter(audio, whisper, historique, flux, reveil):
 
 def _feedback_geste(geste):
     """Feedback discret quand un geste est reconnu : petit bip + flash HUD. Non bloquant."""
-    freq = 1200 if geste == "armement" else 900
+    freq = 1200 if geste == "armement" or geste.startswith("mode_") else 900
     try:
         threading.Thread(target=lambda: bip(freq, 0.05), daemon=True).start()
     except Exception:
