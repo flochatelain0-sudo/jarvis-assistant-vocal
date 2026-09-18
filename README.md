@@ -42,16 +42,19 @@ outils sûrs, écrit seulement des brouillons).
 - 📱 **Pont iPhone** — envoie idées/notes et commandes depuis l'app Raccourcis (Siri comme télécommande à distance)
 - 🎭 **Personnalités** — majordome sarcastique, neutre, concis — changeable à la voix
 - 🏠 **Présence** — ping ton téléphone, déclenche des scènes quand tu pars/reviens
+- 🚀 **Démarrage & scènes automatiques** — lance Jarvis et sa chaîne locale à l'ouverture de session, joue un brief météo/agenda au premier démarrage de la journée et prépare une extinction propre
 - 🌤️ **Utilitaires** — météo, minuteurs, heure/date
 - 🔌 **Serveur MCP** — expose les outils domotique/PC à tout client MCP (Claude Desktop, Hermes…)
 - 🎬 **Hub de contenu** — vault d'inspirations Insta/TikTok (télécharge, transcrit, indexe), idées & scripts générés, ingestion YouTube ([docs/hub_contenu.md](docs/hub_contenu.md))
 - 🗂️ **Suivi de contenus** — pipeline vidéo *idée → script → tournage → montage → publié*, croisé avec ton agenda ; « où j'en suis ? » ([docs/suivi_contenu.md](docs/suivi_contenu.md))
 - 🤝 **Délégation à Hermes** — confie la réflexion / recherche de fond à un agent délibératif **local** (doctrine : Jarvis tient les clés & le corps, Hermes pense) ([docs/hermes.md](docs/hermes.md))
-- 🧭 **Panneau web local** (`/panneau`) — modèles (LLM Ollama + Whisper, reco selon la VRAM), état de la chaîne, permissions — **accessible en local uniquement** ([docs/panneau.md](docs/panneau.md))
+- 🧭 **HUD & panneau web local** (`/panneau`) — commandes rapides de modèle/voix, état de la chaîne, réglages et permissions — **accessibles en local uniquement** ([docs/panneau.md](docs/panneau.md))
 - 🔐 **Sécurité graduée** — niveaux **N1/N2/N3** par outil, « toujours autoriser » révocable, budget LLM par fournisseur
 - 💸 **Routage & budgets** — 4 backends (local / hybride / qualité), suivi des coûts jour/mois par fournisseur (OpenAI, ElevenLabs, Twilio, Hermes), plafonds avec alerte vocale à 80 % et **bascule auto en local** au plafond ([docs/costs.md](docs/costs.md))
+- 📊 **Cockpit personnel local** — abonnements, échéances, détection par reçus Gmail et import CSV de transactions ; les données financières restent gitignorées et ne sont jamais exposées à Hermes/MCP ([docs/cockpit.md](docs/cockpit.md))
 - ⏻ **Extinction / réveil du PC** — extinction propre à la voix (confirmation N3, délai annulable) ; réveil par prise connectée ou Wake-on-LAN ([docs/wol.md](docs/wol.md))
-- ✋ **Gestes de la main** — pilote lumières / média / OBS d'un geste via webcam, **100 % local** (MediaPipe en sous-process isolé, aucune image ne sort) ([docs/gestes.md](docs/gestes.md))
+- ✋ **Contrôle par caméra et gestes** — via webcam, les modes **Fenêtres** (changer/défiler) et **Audio** (volume/pistes) complètent les actions configurables lumière/média/OBS ; traitement **100 % local**, aucune image ne sort ([docs/gestes.md](docs/gestes.md))
+- 📡 **Satellites multi-pièces** — déporte le micro et le haut-parleur de Jarvis sur un Raspberry Pi : wake word local, audio sur le LAN authentifié, contexte de la pièce et confirmations vocales N3 ([protocole](docs/satellite.md) · [installation Pi](docs/satellite_pi.md))
 - 🎵 **Reconnaissance musicale** — « c'est quoi cette musique ? » (micro de la pièce **ou** son d'une vidéo/reel via loopback), à la demande uniquement ([docs/musique.md](docs/musique.md))
 - 🪟 **Overlay de réponses** — mini-fenêtre flottante qui affiche à l'écrit ce que Jarvis dit, sans jamais voler le focus (topmost, clic-transparent, invisible en stream), 2e écran configurable + mode silencieux visuel ([docs/overlay.md](docs/overlay.md))
 - 🏠 **Google Home / Nest** — *(⚠️ expérimental)* liste des appareils Nest + état ([docs/google_home.md](docs/google_home.md))
@@ -71,6 +74,11 @@ flowchart LR
     LLM <-->|appels d'outils| TOOLS[🧰 Outils]
     LLM --> TTS{{TTS<br/>ElevenLabs ☁️ OU Piper 🏠}}
     TTS --> SPK([🔊 Haut-parleurs])
+
+    SAT([📡 Satellite Pi<br/>micro · haut-parleur]) -->|audio LAN authentifié| STT
+    TTS -->|audio LAN| SAT
+    CAM([📷 Webcam]) --> GEST[✋ Gestes locaux]
+    GEST --> TOOLS
 
     TOOLS -.-> HOME[💡 Hue / 🎬 OBS / 🖥️ PC]
     TOOLS -.-> NET[📅 Agenda / 📧 Mail / 💬 Discord / 📸 Instagram]
@@ -173,6 +181,7 @@ de contenus), `securite.toujours` (autorisations N2 mémorisées), `budget.prix`
 | **Panneau web (modèles · état · permissions)** | [docs/panneau.md](docs/panneau.md) |
 | **Extinction / Wake-on-LAN** | [docs/wol.md](docs/wol.md) |
 | **Gestes de la main (webcam)** | [docs/gestes.md](docs/gestes.md) |
+| **Satellite Raspberry Pi (multi-pièces)** | [docs/satellite.md](docs/satellite.md) · [docs/satellite_pi.md](docs/satellite_pi.md) |
 | **Reconnaissance musicale (Shazam-like)** | [docs/musique.md](docs/musique.md) |
 | **Spotify (playlist des musiques reconnues)** | [docs/spotify.md](docs/spotify.md) |
 | **Cockpit (tableau de bord perso, local)** | [docs/cockpit.md](docs/cockpit.md) |
@@ -201,7 +210,11 @@ La confiance est intégrée, pas rajoutée :
 - [x] **Hub de contenu** : Vault d'inspirations + génération d'idées/scripts + ingestion YouTube
 - [x] **Suivi de contenus** : pipeline idée → publié, croisé avec l'agenda
 - [x] **Panneau web local** : modèles · état de la chaîne · permissions **N1/N2/N3** · budget LLM
+- [x] **Démarrage automatique & scènes** : chaîne Jarvis/Hermes, brief quotidien météo/agenda et scène d'extinction
 - [x] **Extinction propre du PC** (N3, délai annulable) — réveil par prise connectée / Wake-on-LAN
+- [x] **Contrôle caméra/gestes v2** : modes Fenêtres et Audio, calibration locale et garde-fous anti-faux-positifs
+- [x] **Cockpit local — phase 1** : abonnements, détection par mail et transactions CSV
+- [x] **Logiciel satellite Raspberry Pi** : client audio, wake word, protocole LAN sécurisé et multi-pièces — installation physique à finaliser pièce par pièce
 - [ ] Contrôle des lampes vidéo Godox (aujourd'hui Hue seulement)
 - [x] Notes / idées (+ pont iPhone via Raccourcis) — rappels programmés à venir
 - [ ] Pilotage direct de la prise connectée par Jarvis (`rallumer_pc` avec garde-fou ping)

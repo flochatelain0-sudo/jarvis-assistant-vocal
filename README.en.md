@@ -9,11 +9,16 @@
 
 A French-speaking voice assistant that runs **on your own machine**. Say *"Hey Jarvis"*,
 speak naturally, and it reasons with an LLM, uses a growing toolbox (smart home, PC,
-web, phone…), and answers out loud. Runs in **cloud mode** (Claude + ElevenLabs) or
-fully **offline local mode** (Ollama + Piper) — your choice, one line of config.
+web, phone…), and answers out loud. Choose between **hybrid**, **quality**
+(OpenAI + ElevenLabs), or **fully offline local** mode (Ollama + Piper).
+
+**🧠 Jarvis + Hermes.** Jarvis delegates long-form research and planning to the
+local [Hermes](docs/hermes.md) agent. The boundary is explicit: **Hermes orchestrates
+and thinks; Jarvis holds the keys and the body**. Jarvis alone performs actions, and
+credentials never enter the Hermes environment.
 
 > Personal project shared as-is. Targets **Windows 11**, needs a microphone and (for
-> cloud mode) an Anthropic API key. Most integrations are **optional** and disable
+> cloud mode) an OpenAI Platform API key. Most integrations are **optional** and disable
 > themselves cleanly when unconfigured.
 
 ## ✨ Features
@@ -34,8 +39,23 @@ fully **offline local mode** (Ollama + Piper) — your choice, one line of confi
 - 📱 **iPhone bridge** — send ideas/notes and commands from the Shortcuts app (Siri as a remote control)
 - 🎭 **Personalities** — sarcastic butler, neutral, concise — switch by voice
 - 🏠 **Presence** — pings your phone, triggers scenes when you leave/return
+- 🚀 **Automatic startup & scenes** — starts Jarvis and its local chain at sign-in, runs a first-start daily weather/calendar brief, and prepares a clean shutdown
 - 🌤️ **Utilities** — weather, timers, time/date
 - 🔌 **MCP server** — exposes home/PC tools to any MCP client (Claude Desktop, Hermes…)
+- 🎬 **Content hub** — local inspiration vault, transcription/indexing, ideas and scripts, plus YouTube ingestion ([docs/hub_contenu.md](docs/hub_contenu.md))
+- 🗂️ **Content tracking** — video workflow from idea to published, linked to calendar deadlines ([docs/suivi_contenu.md](docs/suivi_contenu.md))
+- 🤝 **Hermes delegation** — delegates long-form thinking and research to a sandboxed local agent ([docs/hermes.md](docs/hermes.md))
+- 🧭 **Local HUD & control panel** (`/panneau`) — quick model/voice controls, chain status, settings and permissions; local access only ([docs/panneau.md](docs/panneau.md))
+- 🔐 **Graduated safety** — N1/N2/N3 permission levels, revocable remembered approvals, and hard confirmation boundaries for critical actions
+- 💸 **Routing & budgets** — local/hybrid/quality backends, provider cost tracking, alerts and automatic local fallback at the spending cap ([docs/costs.md](docs/costs.md))
+- 📊 **Private local cockpit** — subscriptions, upcoming charges, Gmail receipt detection, and CSV transaction import; financial data remains gitignored and unavailable to Hermes/MCP ([docs/cockpit.md](docs/cockpit.md))
+- ⏻ **Safe PC shutdown / wake-up** — voice-confirmed N3 shutdown with a cancellable delay; wake through a smart plug or Wake-on-LAN ([docs/wol.md](docs/wol.md))
+- ✋ **Camera and hand-gesture control** — webcam-based **Window** (switch/scroll) and **Audio** (volume/tracks) modes plus configurable light/media/OBS actions; processing stays 100% local and no image leaves the tracker ([docs/gestes.md](docs/gestes.md))
+- 📡 **Multi-room satellites** — move Jarvis's microphone and speaker to a Raspberry Pi with on-device wake word, authenticated LAN audio, room context, and spoken N3 confirmations ([protocol](docs/satellite.md) · [Pi setup](docs/satellite_pi.md))
+- 🎵 **Music recognition** — identify room audio or a video's system audio on demand ([docs/musique.md](docs/musique.md))
+- 🪟 **Response overlay** — a no-focus-steal floating text window, configurable display, OBS-safe capture behavior, and visual silent mode ([docs/overlay.md](docs/overlay.md))
+- 🏠 **Google Home / Nest** — *(experimental)* device listing and status ([docs/google_home.md](docs/google_home.md))
+- 🔵 **Alexa / Echo** — announcements, media, and device control through routines via an unofficial API ([docs/alexa.md](docs/alexa.md))
 
 ## 🎬 Demo
 
@@ -47,24 +67,32 @@ fully **offline local mode** (Ollama + Piper) — your choice, one line of confi
 flowchart LR
     Mic([🎙️ Mic]) --> WW[openWakeWord<br/>« Hey Jarvis »]
     WW --> STT[faster-whisper<br/>STT — local]
-    STT --> LLM{{LLM<br/>Claude ☁️ OR Ollama 🏠}}
+    STT --> LLM{{LLM<br/>OpenAI ☁️ OR Ollama 🏠}}
     LLM <-->|tool calls| TOOLS[🧰 Tools]
     LLM --> TTS{{TTS<br/>ElevenLabs ☁️ OR Piper 🏠}}
     TTS --> SPK([🔊 Speakers])
+
+    SAT([📡 Raspberry Pi satellite<br/>mic · speaker]) -->|authenticated LAN audio| STT
+    TTS -->|LAN audio| SAT
+    CAM([📷 Webcam]) --> GEST[✋ Local gestures]
+    GEST --> TOOLS
 
     TOOLS -.-> HOME[💡 Hue / 🎬 OBS / 🖥️ PC]
     TOOLS -.-> NET[📅 Calendar / 📧 Mail / 💬 Discord / 📸 Instagram]
     TOOLS -.-> CDP[🌐 Chrome via CDP]
     TOOLS -.-> TW[📞 Twilio calls]
+    TOOLS -.->|delegates thinking| HERMES[🧠 Hermes<br/>local deliberative agent]
     TOOLS -.-> MCP[[🔌 MCP server]]
-    MCP -.-> EXT[Hermes Agent / Claude Desktop]
+    HERMES -.->|reads safe tools| MCP
+    MCP -.-> EXT[Claude Desktop / other clients]
+    PANEL[🧭 Local control panel<br/>models · status · permissions] -.-> TOOLS
 ```
 
 ## ☁️ Cloud vs 🏠 Local
 
 | | **cloud** (default) | **local** (offline) |
 |---|---|---|
-| LLM | Claude (Anthropic API) | Ollama (`qwen3.5:4b`…) |
+| LLM | OpenAI Responses API (`gpt-5.6-terra` / `gpt-6-astra`) | Ollama (`qwen3.5:4b`…) |
 | Voice | ElevenLabs | Piper (French) |
 | Transcription | faster-whisper (local) | faster-whisper (local) |
 | Quality | highest | good (model-dependent) |
@@ -72,7 +100,7 @@ flowchart LR
 | Privacy | API calls | **nothing leaves the machine** |
 | Hardware | light | GPU recommended |
 
-Switch with a single line: `mode: cloud` or `mode: local`. See [docs/local.md](docs/local.md)
+Switch with a single line: `mode: local`, `hybride` (default), or `qualite`. See [docs/local.md](docs/local.md) and [docs/costs.md](docs/costs.md)
 for the honest reliability breakdown (a 7B model handles the core home/PC tools well;
 **vision-based features like the browser & web reservations stay cloud-recommended**).
 
@@ -91,7 +119,7 @@ copy config.example.yaml config.yaml      # then fill in what you need
 uv run python jarvis14.py
 ```
 
-Say **"Hey Jarvis"**. The only strictly required setting is `anthropic.cle` (cloud mode)
+Say **"Hey Jarvis"**. The only strictly required setting is `openai.cle` (cloud mode)
 or a local model (local mode). Everything else is optional.
 
 Complete beginner? See **[INSTALL_WITH_AI.en.md](INSTALL_WITH_AI.en.md)** — paste it into
@@ -135,6 +163,20 @@ Everything lives in a single **untracked** `config.yaml` (copy from
 | Instagram | [docs/instagram.md](docs/instagram.md) |
 | MCP server | [docs/mcp.md](docs/mcp.md) |
 | iPhone bridge (Shortcuts) | [docs/iphone.md](docs/iphone.md) |
+| **OpenAI / cloud models** | [docs/openai.md](docs/openai.md) |
+| **Hermes delegation and isolation** | [docs/hermes.md](docs/hermes.md) |
+| **Content hub** | [docs/hub_contenu.md](docs/hub_contenu.md) |
+| **Content tracking** | [docs/suivi_contenu.md](docs/suivi_contenu.md) |
+| **Local control panel** | [docs/panneau.md](docs/panneau.md) |
+| **Routing, costs and budgets** | [docs/costs.md](docs/costs.md) |
+| **Safe shutdown / wake-up** | [docs/wol.md](docs/wol.md) |
+| **Camera hand gestures** | [docs/gestes.md](docs/gestes.md) |
+| **Raspberry Pi satellite** | [docs/satellite.md](docs/satellite.md) · [docs/satellite_pi.md](docs/satellite_pi.md) |
+| **Music recognition** | [docs/musique.md](docs/musique.md) |
+| **Private local cockpit** | [docs/cockpit.md](docs/cockpit.md) |
+| **Response overlay** | [docs/overlay.md](docs/overlay.md) |
+| **Google Home / Nest** *(experimental)* | [docs/google_home.md](docs/google_home.md) |
+| **Alexa / Echo** *(unofficial API)* | [docs/alexa.md](docs/alexa.md) |
 | **Perceived latency (UX)** | [docs/latency.md](docs/latency.md) |
 
 ## 🛡️ Ethics & Safety
@@ -147,9 +189,17 @@ Trust is built in, not bolted on:
 - **Protected domains** (banking, taxes, health) on your real browser are **read-only** — Jarvis refuses to act there.
 - **Secrets & personal data are never committed** (`config.yaml`, memory, logs, call transcripts, OAuth tokens — all gitignored).
 - The assistant only confirms, by phone, what you validated **before** the call.
+- **N1/N2/N3 permissions** keep safe reads separate from sensitive and critical actions; N3 always requires a fresh local spoken confirmation and is never remotely executable.
+- **Hermes isolation** allows read-only safe tools and bounded draft output, never credentials or direct physical control.
 
 ## 🗺️ Roadmap
 
+- [x] Hermes delegation, local content hub, and content tracking
+- [x] Local control panel with model/status/permission controls and LLM budgets
+- [x] Automatic startup, daily brief, and clean shutdown scenes
+- [x] Camera hand gestures v2 with Window and Audio modes
+- [x] Private local cockpit phase 1 (subscriptions, receipt detection, CSV transactions)
+- [x] Raspberry Pi satellite software (audio client, wake word, authenticated LAN protocol, multi-room); physical installs remain room-by-room
 - [ ] Godox video-light control (currently Hue only)
 - [x] Notes / ideas (+ iPhone bridge via Shortcuts) — scheduled reminders next
 - [ ] Sentence-by-sentence streaming TTS (see [docs/latency.md](docs/latency.md))
