@@ -385,6 +385,19 @@ def controler_spotify(action: str, piece: str) -> str:
         if not appareil:
             return (f"Je ne vois pas encore {attendu}. Sélectionne-le une première "
                     "fois dans les appareils Spotify.")
+        actif = bool(appareil.get("is_active"))
+        if not actif and action == "pause":
+            return f"La musique est déjà en pause sur {attendu}."
+        if not actif:
+            # Un appareil Connect connu peut rester visible tout en étant inactif.
+            # Les commandes /play, next et previous échouent alors souvent avec
+            # 404 : on transfère d'abord la session vers la pièce demandée.
+            r = _transferer_lecture(appareil["id"], lecture=True)
+            if r.status_code != 204:
+                return f"Spotify n'a pas pu activer {attendu}."
+            if action == "reprendre":
+                return "Je reprends la musique."
+            time.sleep(0.2)
         if action == "reprendre":
             r = _reprendre_lecture(appareil["id"])
         else:

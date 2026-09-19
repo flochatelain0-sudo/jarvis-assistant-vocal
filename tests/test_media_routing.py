@@ -115,6 +115,43 @@ class MediaRoutingTests(unittest.TestCase):
         transferer.assert_called_once_with("device-cuisine", lecture=True)
         ouvrir.assert_not_called()
 
+    def test_reprendre_sur_enceinte_inactive_transfere_d_abord(self):
+        appareil = {
+            "id": "device-cuisine", "name": "Jarvis Cuisine",
+            "is_active": False,
+        }
+        with patch("tools.spotify._configure", return_value=True), \
+                patch("tools.spotify._appareil_piece",
+                      return_value=(appareil, "Jarvis Cuisine")), \
+                patch("tools.spotify._transferer_lecture",
+                      return_value=SimpleNamespace(status_code=204)) as transferer, \
+                patch("tools.spotify._reprendre_lecture") as reprendre:
+            resultat = spotify.controler_spotify("reprendre", "cuisine")
+
+        self.assertEqual(resultat, "Je reprends la musique.")
+        transferer.assert_called_once_with("device-cuisine", lecture=True)
+        reprendre.assert_not_called()
+
+    def test_suivant_sur_enceinte_inactive_transfere_puis_commande(self):
+        appareil = {
+            "id": "device-cuisine", "name": "Jarvis Cuisine",
+            "is_active": False,
+        }
+        with patch("tools.spotify._configure", return_value=True), \
+                patch("tools.spotify._appareil_piece",
+                      return_value=(appareil, "Jarvis Cuisine")), \
+                patch("tools.spotify._transferer_lecture",
+                      return_value=SimpleNamespace(status_code=204)) as transferer, \
+                patch("tools.spotify._commande_lecture",
+                      return_value=SimpleNamespace(status_code=204)) as commander, \
+                patch("tools.spotify.time.sleep") as dormir:
+            resultat = spotify.controler_spotify("suivant", "cuisine")
+
+        self.assertEqual(resultat, "Je passe au morceau suivant.")
+        transferer.assert_called_once_with("device-cuisine", lecture=True)
+        dormir.assert_called_once_with(0.2)
+        commander.assert_called_once_with("device-cuisine", "suivant")
+
     def test_titre_spotify_depuis_cuisine_cible_l_appareil(self):
         appareil = {"id": "device-cuisine", "name": "Jarvis Cuisine"}
         with patch("tools.spotify._configure", return_value=True), \
