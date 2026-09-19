@@ -345,7 +345,7 @@ def _landmarks_np(res):
     return [(p.x, p.y) for p in res.hand_landmarks[0]]
 
 
-def boucle(conf, calibrer=False):
+def boucle(conf, calibrer=False, demo=False):
     device = int(conf.get("device", 0))
     fps = int(conf.get("fps", 24))
     url = conf.get("url", "http://127.0.0.1:8790/api/gestes")
@@ -395,11 +395,12 @@ def boucle(conf, calibrer=False):
                 historique_gestes.append(fsm.debug_evenement)
                 historique_gestes[:] = historique_gestes[-4:]
                 fsm.debug_evenement = ""
-            if geste and not calibrer:
+            if geste and (not calibrer or demo):
                 _envoyer(url, token, geste)
 
             if calibrer:
-                _afficher_calibration(frame, lm, fsm, historique_gestes, t0)
+                _afficher_calibration(
+                    frame, lm, fsm, historique_gestes, t0, demo=demo)
                 k = cv2.waitKey(1) & 0xFF
                 if not _touches_calibration(k, fsm):
                     break
@@ -416,7 +417,8 @@ def boucle(conf, calibrer=False):
 
 # --------------------------------------------------------- mode calibration
 
-def _afficher_calibration(frame, lm, fsm, historique_gestes, maintenant):
+def _afficher_calibration(frame, lm, fsm, historique_gestes, maintenant,
+                          demo=False):
     h, w = frame.shape[:2]
     if lm is not None:
         for x, y in lm:
@@ -435,12 +437,22 @@ def _afficher_calibration(frame, lm, fsm, historique_gestes, maintenant):
               f"V:{fsm.swipe_vertical_seuil:.2f}  axe V:{'inverse' if fsm.inverser_vertical else 'normal'}",
               "[t/T] tenue -/+  [c/C] cooldown -/+  [w/W] swipe H -/+",
               "[v/V] swipe V -/+  [i] inverser V  [s] sauver  [q] quitter"]
+    if demo:
+        infos.insert(0, ">>> MODE DEMO : ACTIONS PC ACTIVES")
     if historique_gestes:
         infos.insert(0, ">>> HIST : " + " > ".join(historique_gestes))
     for i, ligne in enumerate(infos):
         cv2.putText(frame, ligne, (10, 24 + i * 22), cv2.FONT_HERSHEY_SIMPLEX,
                     0.55, (0, 255, 255), 1, cv2.LINE_AA)
-    cv2.imshow("Jarvis — calibration gestes", frame)
+    titre = ("Jarvis — démo gestes (actions PC actives)" if demo
+             else "Jarvis — calibration gestes")
+    cv2.imshow(titre, frame)
+    if demo and not getattr(fsm, "_fenetre_demo_epinglee", False):
+        try:
+            cv2.setWindowProperty(titre, cv2.WND_PROP_TOPMOST, 1)
+        except Exception:
+            pass
+        fsm._fenetre_demo_epinglee = True
 
 
 def _touches_calibration(k, fsm):
@@ -487,8 +499,9 @@ def _touches_calibration(k, fsm):
 
 def main():
     conf = json.loads(os.environ.get("GESTES_CONF", "{}"))
-    calibrer = "--calibrate" in sys.argv
-    boucle(conf, calibrer=calibrer)
+    demo = "--demo" in sys.argv
+    calibrer = "--calibrate" in sys.argv or demo
+    boucle(conf, calibrer=calibrer, demo=demo)
 
 
 if __name__ == "__main__":

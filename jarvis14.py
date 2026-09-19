@@ -113,7 +113,8 @@ SYSTEME_BASE = (
     "recherche web, utilise browser_open. Pour un logiciel configure, utilise "
     "launch_app. N'utilise ouvrir_application que pour les utilitaires Windows. "
     "Pour ouvrir la calibration de la webcam et des mains, utilise "
-    "lancer_calibration_gestes. "
+    "lancer_calibration_gestes. Pour afficher les repères tout en exécutant "
+    "réellement les gestes pendant une démonstration, utilise lancer_demo_gestes. "
     "Si une demande exige plusieurs clics ou saisies dans une interface et qu'aucun "
     "outil direct ne suffit, appelle controle_pc_astra : le systeme demandera alors "
     "l'autorisation avant de laisser Astra piloter le PC. Pour un vrai travail de "
@@ -664,15 +665,22 @@ def _repondre_route_calibration_gestes(historique):
     question = next((m.get("content") for m in reversed(historique)
                      if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
     try:
-        from tools.gestes import demande_calibration_gestes, lancer_calibration_gestes
-        if not demande_calibration_gestes(question):
+        from tools.gestes import (demande_calibration_gestes, demande_demo_gestes,
+                                  lancer_calibration_gestes, lancer_demo_gestes)
+        if demande_demo_gestes(question):
+            texte = lancer_demo_gestes()
+            outil_nom = "lancer_demo_gestes"
+        elif demande_calibration_gestes(question):
+            texte = lancer_calibration_gestes()
+            outil_nom = "lancer_calibration_gestes"
+        else:
             return None
-        texte = lancer_calibration_gestes()
     except Exception:
         LOG.exception("routage calibration gestes")
         texte = "Je n'ai pas pu ouvrir la calibration des gestes."
+        outil_nom = "lancer_calibration_gestes"
     historique.append({"role": "assistant", "content": texte})
-    _hud("outil", "lancer_calibration_gestes", texte[:60])
+    _hud("outil", outil_nom, texte[:60])
     _hud("etat", "parole")
     if not _INTERRUPTION.is_set():
         dire(texte)
@@ -1186,7 +1194,8 @@ def _feedback_geste(geste):
 def _installer_raccourci_gestes():
     """Raccourci clavier global pour basculer les gestes (optionnel, via 'keyboard')."""
     combo = config.reglage("gestes.raccourci", "ctrl+alt+g")
-    if not combo:
+    combo_demo = config.reglage("gestes.raccourci_demo", "ctrl+alt+d")
+    if not combo and not combo_demo:
         return
     try:
         import keyboard
@@ -1197,9 +1206,16 @@ def _installer_raccourci_gestes():
     def _toggle():
         print(gestes.arreter() if gestes.actif() else gestes.demarrer())
 
+    def _demo():
+        print(gestes.demarrer_demo())
+
     try:
-        keyboard.add_hotkey(combo, _toggle)
-        print(f"Raccourci gestes : {combo}")
+        if combo:
+            keyboard.add_hotkey(combo, _toggle)
+            print(f"Raccourci gestes : {combo}")
+        if combo_demo:
+            keyboard.add_hotkey(combo_demo, _demo)
+            print(f"Raccourci démo gestes : {combo_demo}")
     except Exception:
         LOG.exception("gestes: raccourci clavier")
 

@@ -298,6 +298,7 @@ gestes:                        # controle par gestes de la main (webcam USB) ; v
   largeur: 640
   hauteur: 480
   raccourci: "ctrl+alt+g"      # raccourci clavier pour basculer les gestes ("" = desactive)
+  raccourci_demo: "ctrl+alt+d" # repères visibles + actions réelles, pour une démonstration
   pause_pendant_live: true     # compat anciens mappings OBS ; sans effet sur les modes v2
   python: ""                   # python du venv tracker ; vide = gestes/.venv-tracker/Scripts/python.exe
   seuils:                      # ajustables en calibration (gestes/calibration.json prime)

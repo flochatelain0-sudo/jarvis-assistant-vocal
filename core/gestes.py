@@ -26,6 +26,7 @@ _RACINE = Path(__file__).resolve().parent.parent
 
 _TOKEN = None          # jeton courant (None = gestes coupés) ; protège /api/gestes
 _PROC = None           # sous-process tracker
+_MODE_DEMO = False     # tracker visible + actions réelles (pour démonstration locale)
 _PROC_CALIBRATION = None  # fenêtre de calibration locale, lancée à la voix
 _COUPER_TTS = None     # callback fourni par jarvis14 (couper_parole)
 _FEEDBACK = None       # callback fourni par jarvis14 (bip + flash HUD)
@@ -102,11 +103,9 @@ def actif():
     return _PROC is not None and _PROC.poll() is None
 
 
-def demarrer():
-    """Lance le sous-process tracker (idempotent). Renvoie un message vocal."""
-    global _TOKEN, _PROC
-    if actif():
-        return "Les gestes sont déjà actifs."
+def _demarrer_tracker(demo=False):
+    """Lance l'unique tracker, invisible normalement ou visible en mode démo."""
+    global _TOKEN, _PROC, _MODE_DEMO
     py = _python_tracker()
     if not py.exists():
         return ("L'environnement des gestes n'est pas installé "
@@ -121,30 +120,61 @@ def demarrer():
         LOG.exception("gestes: démarrage serveur loopback")
     _TOKEN = secrets.token_urlsafe(24)
     env = dict(os.environ, GESTES_CONF=json.dumps(_conf_tracker(_TOKEN)))
+    commande = [str(py), str(_RACINE / "gestes" / "tracker.py")]
+    if demo:
+        commande.append("--demo")
     try:
-        _PROC = subprocess.Popen([str(py), str(_RACINE / "gestes" / "tracker.py")],
-                                 env=env, cwd=str(_RACINE))
+        _PROC = subprocess.Popen(commande, env=env, cwd=str(_RACINE))
     except Exception as e:
         _TOKEN = None
+        _MODE_DEMO = False
         LOG.exception("gestes: démarrage tracker")
         return f"Je n'ai pas pu démarrer les gestes ({e})."
-    LOG.info("gestes: tracker lancé (pid %s)", _PROC.pid)
+    _MODE_DEMO = bool(demo)
+    LOG.info("gestes: tracker lancé (pid %s, demo=%s)", _PROC.pid, demo)
+    if demo:
+        return ("Mode démo des gestes activé. La caméra et les repères restent "
+                "visibles, et les gestes contrôlent réellement le PC.")
     return "Contrôle par gestes activé. La webcam est allumée."
 
 
+def demarrer():
+    """Lance le sous-process tracker invisible (idempotent)."""
+    if actif():
+        return "Les gestes sont déjà actifs."
+    return _demarrer_tracker(demo=False)
+
+
+def demarrer_demo():
+    """Remplace le tracker courant par une fenêtre visible qui agit vraiment."""
+    if actif():
+        arreter()
+    return _demarrer_tracker(demo=True)
+
+
 def arreter():
-    global _TOKEN, _PROC
+    global _TOKEN, _PROC, _MODE_DEMO
     _TOKEN = None
     if _PROC is not None:
         try:
-            _PROC.terminate()
-            _PROC.wait(timeout=3)          # attendre la vraie sortie (libère la webcam cv2)
+            if os.name == "nt":
+                # Le lanceur Python peut créer un second interpréteur. Fermer
+                # l'arbre entier évite un tracker orphelin qui garderait la webcam.
+                subprocess.run(
+                    ["taskkill", "/PID", str(_PROC.pid), "/T", "/F"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    timeout=5, check=False,
+                )
+            else:
+                _PROC.terminate()
+                _PROC.wait(timeout=3)
         except Exception:
             try:
                 _PROC.kill()               # de secours si terminate n'a pas suffi
             except Exception:
                 pass
         _PROC = None
+    _MODE_DEMO = False
     return "Contrôle par gestes coupé. La webcam est éteinte."
 
 
@@ -173,7 +203,9 @@ def lancer_calibration():
 
 
 def statut():
-    return {"actif": actif(), "tracker_vivant": actif()}
+    vivant = actif()
+    return {"actif": vivant, "tracker_vivant": vivant,
+            "demo": bool(vivant and _MODE_DEMO)}
 
 
 # ---------------------------------------------------------------- dispatch
@@ -402,7 +434,7 @@ def _local(request):
 
 
 def monter_routes(app):
-    """Monte /api/gestes (réception des labels) et /api/gestes/status."""
+    """Monte les routes locales de réception et de statut."""
     from fastapi import Request
     from fastapi.responses import JSONResponse
 

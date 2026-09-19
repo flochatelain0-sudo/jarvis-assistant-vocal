@@ -37,6 +37,33 @@ def demande_calibration_gestes(phrase: str) -> bool:
     return calibration and cible
 
 
+def demande_demo_gestes(phrase: str) -> bool:
+    """Vrai pour un ordre explicite de démo visible avec actions réelles."""
+    mots = re.sub(
+        r"[^a-z0-9]+", " ", sans_accents((phrase or "").lower())
+    ).split()
+    prefixes = (
+        ("est", "ce", "que", "tu", "peux"), ("peux", "tu"), ("tu", "peux"),
+        ("s", "il", "te", "plait"), ("stp",),
+    )
+    change = True
+    while mots and change:
+        change = False
+        for prefixe in prefixes:
+            if tuple(mots[:len(prefixe)]) == prefixe:
+                del mots[:len(prefixe)]
+                change = True
+                break
+    if not mots or mots[0] not in {
+            "lance", "lancer", "ouvre", "ouvrir", "demarre", "demarrer",
+            "active", "activer", "montre", "montrer", "teste", "tester"}:
+        return False
+    cible = any(m in mots for m in ("geste", "gestes", "main", "mains", "webcam"))
+    visible = ("demo" in mots or "video" in mots
+               or ("calibration" in mots and "action" in mots))
+    return cible and visible
+
+
 @outil(
     nom="controler_gestes",
     description="Active ou coupe le contrôle par gestes de la main (webcam). A utiliser "
@@ -66,3 +93,17 @@ def controler_gestes(actif: bool) -> str:
 def lancer_calibration_gestes() -> str:
     from core import gestes
     return gestes.lancer_calibration()
+
+
+@outil(
+    nom="lancer_demo_gestes",
+    description="Ouvre la caméra avec les repères et les diagnostics visibles, tout "
+                "en appliquant réellement les gestes sur le PC. Pour 'ouvre la démo "
+                "des gestes', 'lance les gestes visibles pour ma vidéo' ou "
+                "'calibration avec actions actives'. Local uniquement.",
+    parametres={"type": "object", "properties": {}},
+    mcp_expose=False,
+)
+def lancer_demo_gestes() -> str:
+    from core import gestes
+    return gestes.demarrer_demo()

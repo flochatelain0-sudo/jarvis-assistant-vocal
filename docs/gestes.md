@@ -105,6 +105,16 @@ Affiche la caméra + les landmarks, la pose et le mode en direct. Réglages :
 quitte. Le fichier sauvegardé est rechargé à la prochaine ouverture. **Aucune
 image n'est enregistrée** pendant la calibration.
 
+### Mode démo visible
+
+Dis « ouvre la démo des gestes », « lance les gestes visibles pour ma vidéo », ou
+utilise `Ctrl+Alt+D`.
+Un seul tracker utilise la webcam : la fenêtre montre les points, la pose et
+l'historique comme en calibration, mais chaque geste reconnu agit aussi réellement
+sur Windows. Le bandeau `MODE DEMO : ACTIONS PC ACTIVES` évite toute ambiguïté et
+la fenêtre reste au premier plan pendant la démonstration. `Q` ferme la démo ; le
+raccourci `Ctrl+Alt+G` ou la commande vocale « coupe les gestes » coupe le tracker.
+
 ## Caméra : cycle de vie & cohabitation
 
 - **On/off** : à la voix (`controler_gestes`), au raccourci clavier, ou `gestes.actif`.
