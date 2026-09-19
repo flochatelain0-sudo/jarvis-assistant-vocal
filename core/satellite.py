@@ -13,10 +13,12 @@ PROTOCOLE (volontairement simple et transport-agnostique -> un ESP32 l'utilise
 Client -> serveur :
   {"type":"hello","satellite":"cuisine","token":"..."}   (auth + identité)
   <frames binaires PCM>                                   (pendant une phrase)
+  {"type":"reveil","score":0.84}                         (arbitrage multi-micros)
   {"type":"fin_parole"}                                   (fin d'énoncé -> traiter)
   {"type":"ping"}
 Serveur -> client :
   {"type":"pret","piece":"cuisine"}
+  {"type":"reveil_accepte|reveil_refuse","id":1}
   {"type":"etat","etat":"ecoute|reflexion|parole|attente_confirmation|veille"}
   {"type":"texte","texte":"..."}                          (réponse affichable)
   {"type":"audio_debut","freq":24000}                     (puis frames binaires)
@@ -88,6 +90,7 @@ def _satellites():
                 "piece": str(s.get("piece", "") or ""),
                 "token": str(s.get("token", "") or ""),
                 "wake": str(s.get("wake", "appareil") or "appareil"),  # "appareil" | "serveur"
+                "priorite_micro": float(s.get("priorite_micro", 1.0) or 1.0),
             }
     return out
 
@@ -262,12 +265,39 @@ def traiter_texte(session, phrase):
     maison (N1/N2 direct, N3 -> mis en attente de confirmation). Renvoie un dict
     {reponse, attente_confirmation(bool)}."""
     from core import registre
+    session.historique.append({"role": "user", "content": phrase})
+
+    # Les commandes Alexa explicites et domestiques ne dépendent pas du choix du
+    # LLM : la destination est décidée ici de façon déterministe.
+    try:
+        from tools.alexa import router_commande
+        route = router_commande(phrase, piece=session.piece)
+    except Exception:
+        LOG.exception("satellite: routage Alexa prioritaire")
+        route = None
+    if route:
+        nom, args = route
+        o = registre.get(nom)
+        if o is not None and o.confirmation and not registre.est_autorise(nom):
+            session.en_attente = (nom, args)
+            try:
+                annonce = o.annonce(args) if o.annonce else None
+            except Exception:
+                annonce = None
+            return {
+                "reponse": (annonce or f"Je vais exécuter {nom}.")
+                            + " Tu confirmes ? (oui / non)",
+                "attente_confirmation": True,
+            }
+        resultat = _executer_outil(nom, args)
+        session.historique.append({"role": "assistant", "content": resultat})
+        return {"reponse": resultat, "attente_confirmation": False}
+
     from core.llm import llm
     P = llm()
     if not P.disponible():
         return {"reponse": "Le cerveau de Jarvis n'est pas disponible.", "attente_confirmation": False}
 
-    session.historique.append({"role": "user", "content": phrase})
     faits = []
     for _ in range(5):
         try:
@@ -411,6 +441,23 @@ def monter_routes(app):
                     LOG.info("satellite connecté : %s (pièce %s)", sid, sess.piece or "?")
                     await envoyer({"type": "pret", "piece": sess.piece})
                     await etat("veille")
+
+                elif typ == "reveil" and sess.satellite:
+                    from core.arbitrage_micro import reserver_reveil
+                    try:
+                        score = float(data.get("score", 0.0))
+                    except (TypeError, ValueError):
+                        score = 0.0
+                    priorite = cfg[sess.satellite].get("priorite_micro", 1.0)
+                    accepte = await asyncio.to_thread(
+                        reserver_reveil,
+                        f"satellite:{sess.satellite}",
+                        score * priorite,
+                    )
+                    await envoyer({
+                        "type": "reveil_accepte" if accepte else "reveil_refuse",
+                        "id": data.get("id"),
+                    })
 
                 elif typ == "fin_parole" and sess.satellite:
                     audio = bytes(sess.audio)

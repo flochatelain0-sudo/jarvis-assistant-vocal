@@ -84,6 +84,10 @@ interruption:                  # couper Jarvis quand tu dis "attends/stop/arrete
 
 assistant:
   duree_suite: 10              # secondes d'ecoute apres une reponse
+  arbitrage_micro: true        # plusieurs micros entendent Hey Jarvis : seul le meilleur score repond
+  arbitrage_fenetre: 0.18      # secondes laissees aux micros pour comparer leur detection
+  arbitrage_verrou: 4.0        # evite une seconde reponse au meme wake word
+  priorite_micro: 1.0          # multiplicateur du micro principal (laisser 1.0 normalement)
   piece_nuit: "chambre"        # piece allumee au demarrage s'il fait nuit ("" pour desactiver)
   personnalite: "jarvis_sarcastique"   # jarvis_sarcastique | neutre | concis
                                # (modifiable a la voix : "passe en mode neutre")
@@ -369,6 +373,7 @@ alexa:                         # EXPERIMENTAL (via alexapy, non officiel) ; voir
   url: "amazon.fr"             # domaine Amazon (amazon.fr, amazon.com, amazon.de...)
   dossier: "logs/alexa"        # cookie de session (sous logs/, gitignore)
   proxy_port: 3000             # port du proxy de connexion (scripts/alexa_login.py)
+  routage_prioritaire: true    # commandes domotiques/routines -> Alexa avant le LLM (false = choix du LLM)
 
 meteo:
   ville: ""                     # "" = auto par IP (localisation) ; mets ta ville si l'IP se trompe (ex. "Yerres", "Paris")
@@ -380,6 +385,7 @@ satellites:                    # Jarvis dans d'autres pieces (Raspberry Pi, futu
   #   piece: "cuisine"         # piece par defaut (contexte : "allume la lumiere" -> cuisine)
   #   token: "un-secret-long-par-satellite"   # genere : python -c "import secrets;print(secrets.token_urlsafe(24))"
   #   wake: "appareil"         # "appareil" (wake word sur le satellite) | "serveur" (flux continu, openWakeWord PC)
+  #   priorite_micro: 1.0      # ajustement optionnel du score si ce micro gagne trop/pas assez souvent
 
 satellite_lan:
   actif: true

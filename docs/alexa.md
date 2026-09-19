@@ -95,6 +95,12 @@ Ensuite, **deux façons** de la déclencher :
   les lumières du salon »** → Jarvis retrouve la routine (`alexa_appareil`).
 - **Explicite** : **« Jarvis, lance la routine clim on »** (`alexa_routine`).
 
+Avec `alexa.routage_prioritaire: true` (valeur par défaut), ces formulations sont
+reconnues **avant le LLM** : Jarvis ne peut donc plus choisir Hue ou répondre en
+texte à la place. Les noms et énoncés des routines sont préchargés au démarrage ;
+une routine peut aussi être prononcée directement, par exemple « bonne nuit ».
+Mettre ce réglage à `false` rend le choix au modèle.
+
 > **⚠️ La routine doit exister** avec un nom qui matche. `alexapy` échoue **en
 > silence** si aucune routine ne correspond — Jarvis te le dit maintenant
 > honnêtement (« Aucune routine … ; tes routines : … ») au lieu de faire semblant.

@@ -22,6 +22,7 @@ l'identique**. Deux types de trames :
 | Message | Rôle |
 |---|---|
 | `{"type":"hello","satellite":"cuisine","token":"..."}` | Authentification + identité. **Obligatoire en premier.** |
+| `{"type":"reveil","id":1,"score":0.84}` | Propose la détection locale du wake word à l'arbitrage multi-micros. |
 | *(trames binaires)* | Audio PCM capté, envoyé au fil de la parole. |
 | `{"type":"fin_parole"}` | Fin de l'énoncé → le serveur transcrit et traite. |
 | `{"type":"ping"}` | Keep-alive (réponse `pong`). |
@@ -30,6 +31,7 @@ l'identique**. Deux types de trames :
 | Message | Rôle |
 |---|---|
 | `{"type":"pret","piece":"cuisine"}` | Auth acceptée ; pièce du satellite. |
+| `{"type":"reveil_accepte","id":1}` / `reveil_refuse` | Autorise un seul micro à biper, capter et répondre. |
 | `{"type":"etat","etat":"..."}` | État pour le visage/HUD : `veille`, `ecoute`, `reflexion`, `parole`, `attente_confirmation`. |
 | `{"type":"transcription","texte":"..."}` | Ce que le serveur a entendu. |
 | `{"type":"progression","texte":"..."}` | Accusé ou étape vocale pendant une transcription/recherche longue. |
@@ -60,6 +62,12 @@ annule également toute confirmation sensible encore en attente.
 Chaque satellite a une `piece` (config `satellites[].piece`) injectée dans le
 contexte du LLM : « allume la lumière » depuis le satellite **cuisine** cible la
 **cuisine** par défaut, sans que tu aies à le préciser.
+
+Si le micro principal et un satellite entendent le même « Hey Jarvis », ils
+comparent pendant une très courte fenêtre leur score openWakeWord. Seul le meilleur
+score poursuit la capture ; l'autre ne bipe pas et ne répond pas. Les multiplicateurs
+`assistant.priorite_micro` et `satellites[].priorite_micro` permettent un ajustement
+si deux matériels ont des gains très différents.
 
 ## Wake word — deux modes (config `satellites[].wake`)
 

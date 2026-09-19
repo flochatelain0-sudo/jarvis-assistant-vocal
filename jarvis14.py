@@ -570,6 +570,59 @@ def _executer_outils(blocs):
     return resultats
 
 
+def _repondre_route_alexa(historique):
+    """Exécute les commandes Alexa non ambiguës avant de solliciter le LLM."""
+    question = next((m.get("content") for m in reversed(historique)
+                     if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
+    try:
+        from tools.alexa import router_commande
+        route = router_commande(question)
+    except Exception:
+        LOG.exception("routage Alexa prioritaire")
+        return None
+    if not route:
+        return None
+
+    from types import SimpleNamespace
+    nom, arguments = route
+    outil = registre.get(nom)
+    if outil is None:
+        return None
+
+    # Un petit retour immédiat masque le délai de l'API Alexa. Pour une action à
+    # confirmer, on prononce directement la demande de confirmation à la place.
+    fil_accuse = None
+    confirmation = outil.confirmation and not registre.est_autorise(nom)
+    if outil.lent and outil.phrase_attente and not confirmation:
+        _hud("etat", "parole")
+        fil_accuse = threading.Thread(
+            target=dire, args=(outil.phrase_attente,), daemon=True)
+        fil_accuse.start()
+
+    bloc = SimpleNamespace(
+        type="tool_use", name=nom, input=arguments, id="route-alexa-prioritaire")
+    resultats = _executer_outils([bloc])
+    if fil_accuse:
+        fil_accuse.join()
+
+    annonce = registre.annonce_en_attente()
+    if annonce:
+        _hud("etat", "parole")
+        phrase = annonce + " Tu confirmes ?"
+        if registre.niveau(nom) == "N2":
+            phrase += " Tu peux dire oui, toujours."
+        if not _INTERRUPTION.is_set():
+            dire(phrase, interruptible=False)
+        return SENTINEL_CONFIRM
+
+    texte = str(resultats[0]["content"] if resultats else "C'est fait.")
+    historique.append({"role": "assistant", "content": texte})
+    _hud("etat", "parole")
+    if texte and not _INTERRUPTION.is_set():
+        dire(texte)
+    return texte
+
+
 def repondre(historique):
     """Interroge le LLM actif et boucle sur les appels d'outils jusqu'a la reponse.
 
@@ -577,6 +630,10 @@ def repondre(historique):
     les outils a confirmation, prononce l'annonce et renvoie SENTINEL_CONFIRM
     (la suite est geree par traiter, qui capture la reponse oui/non).
     """
+    prioritaire = _repondre_route_alexa(historique)
+    if prioritaire is not None:
+        return prioritaire
+
     from core.llm import llm
     fournisseur = llm()
     if not fournisseur.disponible():
@@ -1074,6 +1131,11 @@ def main():
 
     registre.charger_outils()
     voix.definir_parleur(dire)
+    try:
+        from tools.alexa import precharger_routines
+        precharger_routines()
+    except Exception:
+        LOG.exception("Alexa: préchargement des routines")
 
     reveil = WakeModel(wakeword_model_paths=[str(
         Path(openwakeword.__file__).parent / "resources" / "models" / "hey_jarvis_v0.1.onnx"
@@ -1268,9 +1330,15 @@ def main():
                 _hud("niveau", _niv_hud(bloc))
 
                 scores = reveil.predict((bloc * 32767).astype(np.int16))
-                if max(scores.values()) < SEUIL_REVEIL:
+                score_reveil = max(scores.values())
+                if score_reveil < SEUIL_REVEIL:
                     continue
                 reveil.reset()
+                from core.arbitrage_micro import reserver_reveil
+                priorite = float(config.reglage("assistant.priorite_micro", 1.0) or 1.0)
+                if not reserver_reveil("principal", score_reveil * priorite):
+                    print("  [micro] Wake ignoré : un micro plus proche a répondu.")
+                    continue
 
             enchainer = False
             _hud("etat", "ecoute")

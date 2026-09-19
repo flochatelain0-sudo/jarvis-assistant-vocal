@@ -64,6 +64,10 @@ class Micro:
         self.sortie = conf.get("haut_parleur", None)
         self._relance_jusqua = 0.0
         self._relance_lock = threading.Lock()
+        self._reveil_lock = threading.Lock()
+        self._reveil_event = threading.Event()
+        self._reveil_id = 0
+        self._reveil_accepte = False
         try:
             info = sd.query_devices(self.device, "input")
             self.taux_capture = int(round(info.get("default_samplerate") or TAUX))
@@ -110,6 +114,31 @@ class Micro:
     def _relance_restante(self):
         with self._relance_lock:
             return max(0.0, self._relance_jusqua - time.monotonic())
+
+    def _demander_reveil(self, score):
+        """Demande au PC si ce micro est le mieux placé pour répondre."""
+        with self._reveil_lock:
+            self._reveil_id += 1
+            identifiant = self._reveil_id
+            self._reveil_accepte = False
+            self._reveil_event.clear()
+        self.file.put({
+            "type": "reveil",
+            "id": identifiant,
+            "score": float(score),
+            "_cree": time.monotonic(),
+        })
+        if not self._reveil_event.wait(timeout=1.5):
+            return False
+        with self._reveil_lock:
+            return self._reveil_id == identifiant and self._reveil_accepte
+
+    def resoudre_reveil(self, identifiant, accepte):
+        with self._reveil_lock:
+            if identifiant != self._reveil_id:
+                return
+            self._reveil_accepte = bool(accepte)
+            self._reveil_event.set()
 
     def _capturer_enonce(self, flux, attente, message_vide):
         """Attend le début de la voix, puis capture jusqu'au silence."""
@@ -194,9 +223,13 @@ class Micro:
                     continue
                 bloc_reveil = np.clip(bloc * self.gain_reveil, -1, 1)
                 scores = reveil.predict((bloc_reveil * 32767).astype(np.int16))
-                if max(scores.values()) < self.seuil_reveil:
+                score_reveil = max(scores.values())
+                if score_reveil < self.seuil_reveil:
                     continue
                 reveil.reset()
+                if not self._demander_reveil(score_reveil):
+                    print("  [wake] ignoré — un micro plus proche a répondu")
+                    continue
                 print("  [wake] Hey Jarvis — j'écoute")
                 self._bip()
                 # Le micro continue de tourner pendant le bip. Purge son écho
@@ -260,11 +293,20 @@ async def _session(url, satellite, token, file_audio, occupe, micro):
         async def emetteur():
             while True:
                 try:
-                    pcm = file_audio.get_nowait()
+                    element = file_audio.get_nowait()
                 except queue.Empty:
                     # Évite de laisser un thread bloqué lors d'un arrêt systemd.
                     await asyncio.sleep(0.05)
                     continue
+                if isinstance(element, dict):
+                    message = dict(element)
+                    cree = float(message.pop("_cree", time.monotonic()))
+                    if time.monotonic() - cree > 2.0:
+                        micro.resoudre_reveil(message.get("id"), False)
+                        continue
+                    await ws.send(json.dumps(message))
+                    continue
+                pcm = element
                 for i in range(0, len(pcm), 4096):
                     await ws.send(pcm[i:i + 4096])
                 await ws.send(json.dumps({"type": "fin_parole"}))
@@ -282,6 +324,8 @@ async def _session(url, satellite, token, file_audio, occupe, micro):
                     print(f"  [état] {d.get('etat')}")
                     if d.get("etat") == "veille":
                         occupe.clear()
+                elif t in ("reveil_accepte", "reveil_refuse"):
+                    micro.resoudre_reveil(d.get("id"), t == "reveil_accepte")
                 elif t == "transcription":
                     print(f"  [entendu] {d.get('texte')}")
                 elif t == "progression":

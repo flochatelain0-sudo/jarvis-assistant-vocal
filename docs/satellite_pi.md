@@ -119,6 +119,10 @@ Dire « Hey Jarvis », attendre le signal sonore, puis poser une question. Le te
 affiche la connexion, la détection du mot d'activation, la transcription et les
 éventuelles erreurs audio ou réseau.
 
+Quand plusieurs micros entendent le même mot d'activation, le satellite demande au
+PC l'autorisation de répondre. Seul le micro ayant le meilleur score de détection
+émet le bip ; les autres affichent `wake ignoré` et retournent en veille.
+
 Après chaque réponse, le satellite garde par défaut une fenêtre de conversation de
 8 secondes : on peut enchaîner une question sans répéter « Hey Jarvis ». La clé
 `fenetre_relance` de `config.yaml` règle cette durée (`0` la désactive). Pendant une

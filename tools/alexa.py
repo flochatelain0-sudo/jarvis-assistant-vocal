@@ -18,7 +18,9 @@ Niveaux : etat/media/annoncer = N1 ; routine = N2 (une routine peut être impact
 import asyncio
 import json
 import logging
+import re
 import threading
+import time
 from pathlib import Path
 
 from core.config import reglage
@@ -30,6 +32,9 @@ _RACINE = Path(__file__).resolve().parent.parent
 _LOOP = None
 _LOGIN = None            # AlexaLogin connecté (réutilisé)
 _VERROU = threading.Lock()
+_ROUTINES_CACHE = []
+_ROUTINES_CACHE_A = 0.0
+_ROUTINES_CHARGEMENT = False
 
 
 # ------------------------------------------------------ pont async -> sync
@@ -227,15 +232,24 @@ async def _routine(nom):
 
 # ---- contrôle naturel : « allume la clim » -> routine Alexa correspondante ----
 
-_MOTS_ON = {"on", "allume", "allumer", "active", "activer", "marche", "ouvre",
-            "ouvrir", "demarre", "demarrer", "lance", "monte"}
-_MOTS_OFF = {"off", "eteins", "eteindre", "eteint", "coupe", "couper", "arrete",
-             "arreter", "desactive", "desactiver", "ferme", "fermer", "stop", "baisse"}
+_MOTS_ON = {"on", "allume", "allumes", "allumez", "allumer", "active", "actives",
+            "activez", "activer", "marche", "ouvre", "ouvres", "ouvrez", "ouvrir",
+            "demarre", "demarres", "demarrez", "demarrer", "lance", "lances",
+            "lancez", "monte"}
+_MOTS_OFF = {"off", "eteins", "eteignez", "eteindre", "eteint", "coupe", "coupes",
+             "coupez", "couper", "arrete", "arretes", "arretez", "arreter",
+             "desactive", "desactives", "desactivez", "desactiver", "ferme", "fermes",
+             "fermez", "fermer", "stop", "baisse"}
 
 
 async def _automations(login):
+    global _ROUTINES_CACHE, _ROUTINES_CACHE_A
     from alexapy import AlexaAPI
-    return await AlexaAPI.get_automations(login) or []
+    autos = await AlexaAPI.get_automations(login) or []
+    with _VERROU:
+        _ROUTINES_CACHE = list(autos)
+        _ROUTINES_CACHE_A = time.monotonic()
+    return autos
 
 
 def _phrases_routine(a):
@@ -262,6 +276,12 @@ def _nom_routine(a):
     return None
 
 
+def _normaliser_commande(texte):
+    return " ".join(re.sub(
+        r"[^a-z0-9]+", " ", sans_accents(str(texte or "").lower())
+    ).split())
+
+
 def _mot_present(mot, blob, blob_mots):
     """Présence tolérante (sous-chaîne, ou même préfixe 4+ : lumiere ~ lumieres)."""
     if mot in blob:
@@ -279,6 +299,120 @@ _SYNONYMES = [
     {"volet", "volets", "store", "stores"},
     {"prise", "prises"},
 ]
+
+_MOTS_APPAREILS = {mot for groupe in _SYNONYMES for mot in groupe} | {
+    "chauffage", "radiateur", "thermostat", "portail", "garage", "serrure",
+    "aspirateur", "robot", "bouilloire", "cafetiere", "four", "hotte",
+    "humidificateur", "purificateur", "diffuseur", "rideau", "rideaux",
+}
+_IGNORES_APPAREIL = {
+    "le", "la", "les", "l", "un", "une", "des", "du", "de", "d", "au", "aux",
+    "mon", "ma", "mes", "notre", "nos", "stp", "svp", "s", "il", "te", "plait",
+    "jarvis", "alexa", "suis", "moi", "pour", "peux", "tu", "peut", "vous",
+}
+_PREFIXES_ROUTINE = {
+    "lance", "lances", "lancez", "active", "actives", "activez", "declenche",
+    "declenches", "declenchez", "execute", "executes", "executez", "demarre",
+    "demarres", "demarrez", "joue", "fais",
+}
+
+
+def _analyser_commande(phrase, piece="", automations=()):
+    """Traduit une phrase naturelle en appel Alexa déterministe, ou None.
+
+    Cette fonction est pure : elle ne se connecte pas à Amazon et sert aussi aux
+    tests. Le LLM ne décide donc plus entre Hue et Alexa pour ces formulations.
+    """
+    p = _normaliser_commande(phrase)
+    if not p:
+        return None
+    mots = p.split()
+    while mots and mots[0] in {"hey", "jarvis"}:
+        mots.pop(0)
+    if not mots:
+        return None
+
+    # « lance la routine bonne nuit » / « routine bonne nuit ».
+    if "routine" in mots:
+        i = mots.index("routine")
+        nom = " ".join(mots[i + 1:]).strip()
+        if nom:
+            return "alexa_routine", {"nom": nom}
+
+    # Commande domestique : action claire + appareil connecté connu, ou mention
+    # explicite d'Alexa. Les commandes PC/musique ne sont donc pas détournées.
+    action_i = next((i for i, mot in enumerate(mots)
+                     if mot in _MOTS_ON or mot in _MOTS_OFF), None)
+    if action_i is not None:
+        voisinage = mots[max(0, action_i - 2):action_i + 3]
+        if "pas" not in voisinage:
+            appareil_mots = [m for m in mots[action_i + 1:]
+                              if m not in _IGNORES_APPAREIL
+                              and m not in _MOTS_ON and m not in _MOTS_OFF]
+            connu = bool(set(mots) & _MOTS_APPAREILS)
+            if appareil_mots and (connu or "alexa" in mots):
+                appareil = " ".join(appareil_mots)
+                if (piece and set(appareil_mots) &
+                        {"lumiere", "lumieres", "lampe", "lampes", "eclairage"}):
+                    piece_norm = _normaliser_commande(piece)
+                    if piece_norm and piece_norm not in appareil:
+                        appareil += " " + piece_norm
+                action = "eteindre" if mots[action_i] in _MOTS_OFF else "allumer"
+                return "alexa_appareil", {"appareil": appareil, "action": action}
+
+    # Une routine peut aussi être prononcée directement (« bonne nuit ») ou avec
+    # un verbe (« lance bonne nuit »). Le cache est préchargé au démarrage.
+    candidats = [" ".join(mots)]
+    if mots[0] in _PREFIXES_ROUTINE and len(mots) > 1:
+        candidats.append(" ".join(mots[1:]))
+    for a in automations or ():
+        if not isinstance(a, dict):
+            continue
+        libelles = {_normaliser_commande(x) for x in _phrases_routine(a)}
+        if any(c in libelles for c in candidats):
+            nom = _nom_routine(a)
+            if nom:
+                return "alexa_routine", {"nom": nom}
+    return None
+
+
+async def _charger_cache_routines():
+    login = await _assurer_login()
+    await _automations(login)
+
+
+def precharger_routines():
+    """Rafraîchit les noms de routines en arrière-plan, sans ralentir la voix."""
+    global _ROUTINES_CHARGEMENT
+    if not _configure() or not bool(reglage("alexa.routage_prioritaire", True)):
+        return
+    with _VERROU:
+        frais = _ROUTINES_CACHE and time.monotonic() - _ROUTINES_CACHE_A < 300
+        if frais or _ROUTINES_CHARGEMENT:
+            return
+        _ROUTINES_CHARGEMENT = True
+
+    def travail():
+        global _ROUTINES_CHARGEMENT
+        try:
+            _run(_charger_cache_routines())
+        except Exception:
+            LOG.debug("préchargement des routines Alexa impossible", exc_info=True)
+        finally:
+            with _VERROU:
+                _ROUTINES_CHARGEMENT = False
+
+    threading.Thread(target=travail, daemon=True, name="alexa-routines").start()
+
+
+def router_commande(phrase, piece=""):
+    """Route prioritairement une commande domestique vers Alexa si configuré."""
+    if not _configure() or not bool(reglage("alexa.routage_prioritaire", True)):
+        return None
+    precharger_routines()
+    with _VERROU:
+        autos = list(_ROUTINES_CACHE)
+    return _analyser_commande(phrase, piece=piece, automations=autos)
 
 
 def _variantes(mot):
@@ -445,6 +579,8 @@ def alexa_routine(nom: str) -> str:
         },
         "required": ["appareil", "action"],
     },
+    lent=True,
+    phrase_attente="Je passe par Alexa.",
 )
 def alexa_appareil(appareil: str, action: str = "allumer") -> str:
     if not _configure():
