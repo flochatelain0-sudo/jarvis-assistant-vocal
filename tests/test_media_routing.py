@@ -48,12 +48,39 @@ class MediaRoutingTests(unittest.TestCase):
                 self.assertIsNone(media.router_commande_media(phrase))
 
     def test_outils_media_ne_demandent_pas_confirmation(self):
-        for nom in ("controler_media", "lire_spotify", "lire_netflix"):
+        for nom in ("controler_media", "lancer_spotify", "lire_spotify", "lire_netflix"):
             with self.subTest(nom=nom):
                 outil = registre.get(nom)
                 self.assertIsNotNone(outil)
                 self.assertFalse(outil.confirmation)
                 self.assertEqual(registre.niveau(nom), "N1")
+
+    def test_lancer_spotify_ouvre_et_reprend_la_lecture(self):
+        with patch("tools.spotify._configure", return_value=True), \
+                patch("tools.spotify._etat_lecture", return_value={
+                    "is_playing": False, "device": {"id": "bureau"}}), \
+                patch("tools.spotify._reprendre_lecture",
+                      return_value=SimpleNamespace(status_code=204)) as reprendre, \
+                patch("tools.spotify._ouvrir_application_spotify") as ouvrir, \
+                patch("tools.spotify.time.sleep") as dormir:
+            resultat = spotify.lancer_spotify()
+
+        self.assertEqual(resultat, "Spotify est lancé et la lecture a repris.")
+        ouvrir.assert_called_once_with()
+        reprendre.assert_called_once_with()
+        dormir.assert_not_called()
+
+    def test_lancer_spotify_ne_met_pas_en_pause_si_ca_joue_deja(self):
+        with patch("tools.spotify._configure", return_value=True), \
+                patch("tools.spotify._etat_lecture", return_value={
+                    "is_playing": True, "device": {"id": "bureau"}}), \
+                patch("tools.spotify._reprendre_lecture") as reprendre, \
+                patch("tools.spotify._ouvrir_application_spotify") as ouvrir:
+            resultat = spotify.lancer_spotify()
+
+        self.assertEqual(resultat, "Spotify est ouvert et déjà en lecture.")
+        ouvrir.assert_called_once_with()
+        reprendre.assert_not_called()
 
     def test_spotify_connect_lance_le_resultat_exact(self):
         with patch("tools.spotify._configure", return_value=True), \

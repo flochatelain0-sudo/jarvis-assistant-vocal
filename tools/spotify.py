@@ -147,6 +147,30 @@ def _demarrer_lecture(uri, type_media):
                         data=json.dumps(corps), timeout=15)
 
 
+def _etat_lecture():
+    """État Spotify Connect courant, ou {} lorsqu'aucun lecteur n'est actif."""
+    r = requests.get(f"{_API}/me/player", headers=_h(), timeout=15)
+    if r.status_code == 204:
+        return {}
+    r.raise_for_status()
+    return r.json() or {}
+
+
+def _reprendre_lecture():
+    """Reprend la file Spotify courante sans imposer de titre."""
+    return requests.put(f"{_API}/me/player/play", headers=_h(), timeout=15)
+
+
+def _ouvrir_application_spotify():
+    """Ouvre Spotify avec le chemin configuré, sinon via son protocole Windows."""
+    cible = "spotify:"
+    for nom, chemin in (reglage("apps", {}) or {}).items():
+        if sans_accents(str(nom).strip()) == "spotify":
+            cible = chemin
+            break
+    os.startfile(cible)
+
+
 def _deja_present(pid, uri):
     """Évite les doublons : l'URI est-elle déjà dans la playlist ?"""
     try:
@@ -199,6 +223,70 @@ def auto_ajouter(titre, artiste):
 
 
 # ------------------------------------------------------ outils
+
+@outil(
+    nom="lancer_spotify",
+    description="Ouvre Spotify puis reprend immédiatement la lecture en cours. "
+                "Pour « lance Spotify » ou « ouvre Spotify ». N'utilise pas Astra.",
+    parametres={"type": "object", "properties": {}},
+    mcp_expose=False,
+    affichage="jamais",
+)
+def lancer_spotify() -> str:
+    """Ouvre l'app et reprend la lecture, sans basculer une musique déjà active."""
+    configure = _configure()
+    etat_avant = {}
+
+    if configure:
+        try:
+            etat_avant = _etat_lecture()
+        except Exception:
+            # L'ouverture locale reste possible même si Spotify Connect répond mal.
+            etat_avant = {}
+
+    try:
+        _ouvrir_application_spotify()
+    except Exception as e:
+        return f"Impossible de lancer Spotify : {str(e)[:120]}."
+
+    if etat_avant.get("is_playing"):
+        return "Spotify est ouvert et déjà en lecture."
+
+    # Si un lecteur est déjà connu, la reprise est immédiate. Sinon Spotify doit
+    # d'abord avoir le temps d'enregistrer l'application comme appareil actif.
+    if configure and (etat_avant.get("device") or {}).get("id"):
+        try:
+            r = _reprendre_lecture()
+            if r.status_code == 204:
+                return "Spotify est lancé et la lecture a repris."
+        except Exception:
+            pass
+
+    delai = float(reglage(
+        "spotify.lancement_delai", reglage("scenes.spotify_delai", 3.0)
+    ))
+    time.sleep(max(0.5, min(delai, 8.0)))
+
+    if configure:
+        try:
+            etat = _etat_lecture()
+            if etat.get("is_playing"):
+                return "Spotify est lancé et déjà en lecture."
+            if (etat.get("device") or {}).get("id"):
+                r = _reprendre_lecture()
+                if r.status_code == 204:
+                    return "Spotify est lancé et la lecture a repris."
+        except Exception:
+            pass
+
+    # Mode sans OAuth (ou Spotify Connect indisponible) : le raccourci média est
+    # le seul repli universel. Il n'est utilisé qu'après l'ouverture et le délai.
+    try:
+        from tools.systeme import controler_media
+        controler_media("pause")
+        return "Spotify est lancé et j'ai envoyé la commande lecture."
+    except Exception:
+        return "Spotify est lancé, mais je n'ai pas pu démarrer la lecture."
 
 @outil(
     nom="ajouter_a_playlist",

@@ -40,7 +40,7 @@ class WebRoutingTests(unittest.TestCase):
         with patch("tools.apps._apps", return_value={"spotify": "spotify:"}):
             self.assertEqual(
                 apps.router_ouverture_simple("Hey Jarvis, ouvre Spotify"),
-                ("launch_app", {"nom": "spotify"}),
+                ("lancer_spotify", {}),
             )
         self.assertEqual(
             apps.router_ouverture_simple("Ouvre Netflix s'il te plaît"),
@@ -52,7 +52,7 @@ class WebRoutingTests(unittest.TestCase):
         )
         self.assertEqual(
             apps.router_ouverture_simple("Tu peux m'ouvrir Spotify ?"),
-            ("launch_app", {"nom": "spotify"}),
+            ("lancer_spotify", {}),
         )
 
     def test_ouverture_inconnue_utilise_le_lanceur_pas_astra(self):

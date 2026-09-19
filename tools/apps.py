@@ -109,6 +109,11 @@ def router_ouverture_simple(phrase):
     if cible in _CIBLES_GENERIQUES:
         return None
 
+    # Spotify a son propre lanceur : il ouvre l'application puis reprend la
+    # lecture sans passer par Astra (et sans risquer un Play/Pause aveugle).
+    if cible == "spotify":
+        return "lancer_spotify", {}
+
     from tools.navigateur import est_demande_web
     if est_demande_web(cible):
         return "browser_open", {"url": cible}
