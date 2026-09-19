@@ -50,6 +50,7 @@ import threading
 import time
 
 from core.config import reglage
+from core.util import nettoyer_reponse_vocale, sans_accents
 
 LOG = logging.getLogger("jarvis.satellite")
 
@@ -99,7 +100,10 @@ def _systeme(piece):
     """Prompt système du satellite : Jarvis, avec le contexte de pièce."""
     base = ("Tu es Jarvis, assistant vocal, répondant depuis un satellite dans une "
             "pièce de la maison. Réponds en UNE à deux phrases courtes, en français, "
-            "avec ta personnalité. Utilise les outils quand c'est utile. Si une tâche "
+            "avec ta personnalité. Ne commence jamais une réponse finale par "
+            "« attends », « un instant », « je regarde » ou « je cherche » : le "
+            "système annonce lui-même les vraies recherches lentes. Utilise les "
+            "outils quand c'est utile. Si une tâche "
             "exige plusieurs clics ou saisies sur le PC et qu'aucun outil direct ne "
             "suffit, appelle controle_pc_astra afin de demander l'autorisation. Pour "
             "un vrai travail de création de contenu — script, hooks, idées vidéo, "
@@ -203,11 +207,11 @@ def _progression_initiale(phrase):
     Les échanges simples (salutation, heure, conversation) renvoient None : ils
     ne doivent jamais être précédés d'un « attends » ou d'un « je cherche ».
     """
-    from core.util import sans_accents
     p = sans_accents((phrase or "").lower())
     if any(m in p for m in ("mail", "mails", "email", "courriel", "boite de reception")):
         return "Je regarde tes mails."
-    if "recette" in p:
+    if "recette" in p and any(m in p for m in (
+            "cherche", "trouve", "propose", "donne-moi", "donne moi", "recommande")):
         return "Je cherche une recette adaptée."
     if any(m in p for m in (
             "cherche", "recherche", "sur internet", "sur le web", "trouve-moi",
@@ -219,20 +223,16 @@ def _progression_initiale(phrase):
         return "Je regarde la météo."
     if any(m in p for m in ("facture", "recu", "recus", "depense", "budget")):
         return "Je vérifie tes informations."
-    if any(m in p for m in (
-            "analyse", "explique en detail", "en detail", "synthese",
-            "resume ce", "fais le point")):
-        return "Je réfléchis à ta demande."
     return None
 
 
 def _phrase_progression(phrase):
     """Seconde étape, seulement pour une intention lente déjà reconnue."""
-    from core.util import sans_accents
     p = sans_accents((phrase or "").lower())
     if any(m in p for m in ("mail", "mails", "email", "courriel", "boite de reception")):
         return "Je parcours les messages."
-    if "recette" in p:
+    if "recette" in p and any(m in p for m in (
+            "cherche", "trouve", "propose", "donne-moi", "donne moi", "recommande")):
         return "Je vérifie les propositions."
     if any(m in p for m in (
             "cherche", "recherche", "sur internet", "sur le web", "trouve-moi",
@@ -244,10 +244,6 @@ def _phrase_progression(phrase):
         return "Je vérifie les prévisions."
     if any(m in p for m in ("facture", "recu", "recus", "depense", "budget")):
         return "Je termine la vérification."
-    if any(m in p for m in (
-            "analyse", "explique en detail", "en detail", "synthese",
-            "resume ce", "fais le point")):
-        return "Je poursuis l'analyse."
     if any(m in p for m in (
             "allume", "eteins", "éteins", "ouvre", "ferme", "augmente", "baisse")):
         return "La commande est en cours."
@@ -381,6 +377,7 @@ def traiter_texte(session, phrase):
         if getattr(rep, "stop_reason", None) != "tool_use":
             texte = " ".join(b.text for b in rep.content
                              if getattr(b, "type", None) == "text").strip()
+            texte = nettoyer_reponse_vocale(texte)
             session.historique.append({"role": "assistant", "content": texte or "C'est fait."})
             return {"reponse": texte or ("C'est fait." if faits else "D'accord."),
                     "attente_confirmation": False}
@@ -534,19 +531,11 @@ def monter_routes(app):
                     audio = bytes(sess.audio)
                     sess.audio = bytearray()
                     await etat("reflexion")
-                    transcription = asyncio.create_task(
-                        asyncio.to_thread(_transcrire, audio))
-                    try:
-                        attente_stt = float(reglage(
-                            "satellite_lan.progression_transcription_apres", 5.0))
-                    except (TypeError, ValueError):
-                        attente_stt = 5.0
-                    try:
-                        phrase = await asyncio.wait_for(
-                            asyncio.shield(transcription), timeout=max(0.1, attente_stt))
-                    except asyncio.TimeoutError:
-                        await progresser("Je t'ai bien entendue, je traite ça.")
-                        phrase = await transcription
+                    # On ne connaît pas encore l'intention pendant Whisper : toute
+                    # phrase d'attente ici serait nécessairement générique et peut
+                    # parasiter une simple salutation. La progression ne commence
+                    # qu'après transcription, lorsque la demande le justifie.
+                    phrase = await asyncio.to_thread(_transcrire, audio)
                     if not phrase:
                         await parler("Je n'ai rien entendu.")
                         await proposer_relance()

@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 from core.satellite import (_demande_veille, _origine_locale_ou_lan,
                             _phrase_progression, _progression_initiale)
+from core.util import nettoyer_reponse_vocale
 
 
 def _ws(hote, **entetes):
@@ -40,9 +41,24 @@ class SatelliteSecurityTests(unittest.TestCase):
                          "La commande est en cours.")
 
     def test_questions_simples_sans_mots_inutiles(self):
-        for phrase in ("Comment ça va ?", "Quelle heure est-il ?", "Merci Jarvis"):
+        for phrase in ("Comment ça va ?", "Quelle heure est-il ?", "Merci Jarvis",
+                       "Explique-moi la relativité", "C'est quoi une recette ?"):
             self.assertIsNone(_progression_initiale(phrase))
             self.assertIsNone(_phrase_progression(phrase))
+
+    def test_amorces_parasites_retires_des_reponses_finales(self):
+        self.assertEqual(
+            nettoyer_reponse_vocale("Attends, je regarde ça. Je vais très bien."),
+            "Je vais très bien.",
+        )
+        self.assertEqual(
+            nettoyer_reponse_vocale("Un instant... Il est quinze heures."),
+            "Il est quinze heures.",
+        )
+        self.assertEqual(
+            nettoyer_reponse_vocale("Je vais bien, merci."),
+            "Je vais bien, merci.",
+        )
 
     def test_demande_de_veille_explicite(self):
         self.assertTrue(_demande_veille("Hey Jarvis, mets-toi en veille"))

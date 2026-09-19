@@ -37,7 +37,7 @@ from faster_whisper import WhisperModel
 from openwakeword.model import Model as WakeModel
 
 from core import config, journal, memoire, personnalite, registre, voix
-from core.util import sans_accents
+from core.util import nettoyer_reponse_vocale, sans_accents
 from tools.lumieres import allumer_si_nuit, charger_pieces_hue
 
 # ---------------------------------------------------------------- reglages
@@ -98,6 +98,9 @@ SYSTEME_BASE = (
     "(une seule si possible), sans listes, sans titres, sans asterisques ni emoji. "
     "Parle naturellement, en francais. Va a l'essentiel. Ne pose jamais deux fois "
     "la meme question et ne redemande pas une confirmation deja demandee. "
+    "Ne commence jamais une reponse finale par une phrase d'attente comme "
+    "'attends', 'un instant', 'je regarde' ou 'je cherche'. Le systeme annonce "
+    "lui-meme une progression uniquement lorsqu'un outil lent est vraiment lance. "
     "Tu disposes d'outils pour agir sur l'ordinateur : utilise-les quand "
     "l'utilisateur demande une action, et confirme brievement ce que tu as fait. "
     "Quand l'utilisateur exprime une preference, mentionne un proche ou parle d'un "
@@ -788,6 +791,7 @@ def repondre(historique):
         texte = " ".join(
             b.text for b in reponse.content if getattr(b, "type", None) == "text"
         ).strip()
+        texte = nettoyer_reponse_vocale(texte)
         historique.append({"role": "assistant", "content": texte})
         _hud("etat", "parole")
         if texte and not _INTERRUPTION.is_set():
