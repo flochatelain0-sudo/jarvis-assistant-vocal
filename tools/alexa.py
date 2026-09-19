@@ -352,8 +352,10 @@ def _analyser_commande(phrase, piece="", automations=()):
             connu = bool(set(mots) & _MOTS_APPAREILS)
             if appareil_mots and (connu or "alexa" in mots):
                 appareil = " ".join(appareil_mots)
-                if (piece and set(appareil_mots) &
-                        {"lumiere", "lumieres", "lampe", "lampes", "eclairage"}):
+                mots_lumiere = {"lumiere", "lumieres", "lampe", "lampes", "eclairage"}
+                # La pièce du satellite ne complète que « allume la lumière ».
+                # Si « salon » ou une autre pièce est déjà dite, elle gagne.
+                if piece and appareil_mots and all(m in mots_lumiere for m in appareil_mots):
                     piece_norm = _normaliser_commande(piece)
                     if piece_norm and piece_norm not in appareil:
                         appareil += " " + piece_norm

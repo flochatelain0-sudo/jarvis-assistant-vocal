@@ -23,6 +23,12 @@ class AlexaRoutingTests(unittest.TestCase):
             ("alexa_appareil", {"appareil": "lumiere cuisine", "action": "allumer"}),
         )
 
+    def test_piece_dite_gagne_sur_la_piece_du_satellite(self):
+        self.assertEqual(
+            _analyser_commande("Allume les lumières du salon", piece="cuisine"),
+            ("alexa_appareil", {"appareil": "lumieres salon", "action": "allumer"}),
+        )
+
     def test_routine_explicite(self):
         self.assertEqual(
             _analyser_commande("Lance la routine bonne nuit"),
