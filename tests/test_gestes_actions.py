@@ -1,7 +1,7 @@
 """Tests purs des raccourcis déclenchés par les gestes."""
 import unittest
 
-from core.gestes import _navigation_horizontale
+from core.gestes import _navigation_horizontale, _raccourci_zoom
 
 
 class NavigationGestesTests(unittest.TestCase):
@@ -23,6 +23,16 @@ class NavigationGestesTests(unittest.TestCase):
         self.assertEqual(
             _navigation_horizontale("precedent", "alt_tab"),
             ("alt+shift+tab", "🪟 Application précédente"),
+        )
+
+    def test_zoom_utilise_les_raccourcis_de_application_active(self):
+        self.assertEqual(
+            _raccourci_zoom("agrandir"),
+            ("ctrl+=", "🔎 Zoom avant"),
+        )
+        self.assertEqual(
+            _raccourci_zoom("reduire"),
+            ("ctrl+-", "🔍 Zoom arrière"),
         )
 
 

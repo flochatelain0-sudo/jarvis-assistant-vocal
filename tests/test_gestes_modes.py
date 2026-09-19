@@ -71,6 +71,9 @@ def _fsm():
         "swipe_pret_s": 0.3,
         "stabilite_seuil": 0.06,
         "mode_duree_s": 5.0,
+        "zoom_seuil": 0.12,
+        "zoom_tenue_s": 0.4,
+        "zoom_stabilite_seuil": 0.03,
     }})
 
 
@@ -90,6 +93,46 @@ class ClassifieursTests(unittest.TestCase):
 
 
 class ModesTests(unittest.TestCase):
+    def test_deux_mains_ouvertes_ecartees_zoom_avant(self):
+        fsm = _fsm()
+        mains = [_main(4, x=0.30), _main(4, x=0.60)]
+        self.assertIsNone(fsm.alimenter_plusieurs(mains, 0.0))
+        self.assertIsNone(fsm.alimenter_plusieurs(mains, 0.45))
+        self.assertEqual(fsm.etat_zoom, "PRET - ecarte ou rapproche")
+        self.assertIsNone(fsm.alimenter_plusieurs(
+            [_main(4, x=0.26), _main(4, x=0.64)], 0.55))
+        self.assertEqual(fsm.alimenter_plusieurs(
+            [_main(4, x=0.20), _main(4, x=0.75)], 0.65), "zoom_agrandir")
+        self.assertEqual(fsm.etat_zoom, "retire au moins une main")
+
+    def test_deux_mains_rapprochees_zoom_arriere_et_exigent_une_absence(self):
+        fsm = _fsm()
+        mains = [_main(4, x=0.20), _main(4, x=0.80)]
+        fsm.alimenter_plusieurs(mains, 0.0)
+        fsm.alimenter_plusieurs(mains, 0.45)
+        self.assertEqual(fsm.alimenter_plusieurs(
+            [_main(4, x=0.32), _main(4, x=0.68)], 0.60), "zoom_reduire")
+        # Garder deux mains, même sans deux paumes ouvertes, ne réarme pas le zoom.
+        self.assertIsNone(fsm.alimenter_plusieurs(
+            [_main(2, x=0.32), _main(4, x=0.68)], 1.20))
+        self.assertEqual(fsm.etat_zoom, "retire au moins une main")
+        # Une main sortie du cadre autorise ensuite une nouvelle stabilisation.
+        self.assertIsNone(fsm.alimenter_plusieurs([_main(4, x=0.3)], 1.30))
+        self.assertEqual(fsm.etat_zoom, "montre 2 mains ouvertes")
+
+    def test_deux_mains_non_ouvertes_ne_declenchent_pas_le_zoom(self):
+        fsm = _fsm()
+        for t in (0.0, 0.5, 1.0):
+            self.assertIsNone(fsm.alimenter_plusieurs(
+                [_main(2, x=0.2), _main(4, x=0.8)], t))
+        self.assertEqual(fsm.etat_zoom, "montre 2 mains ouvertes")
+
+    def test_poing_reste_prioritaire_avec_deux_mains_visibles(self):
+        fsm = _fsm()
+        mains = [_main(0, x=0.3), _main(4, x=0.7)]
+        self.assertIsNone(fsm.alimenter_plusieurs(mains, 0.0))
+        self.assertEqual(fsm.alimenter_plusieurs(mains, 1.1), "poing")
+
     def test_main_ouverte_et_pouce_sont_tenus_une_seule_fois(self):
         fsm = _fsm()
         self.assertIsNone(fsm.alimenter(_main(4), 0.0))

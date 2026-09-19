@@ -314,6 +314,9 @@ gestes:                        # controle par gestes de la main (webcam USB) ; v
     stabilite_seuil: 0.06      # mouvement max pendant cette stabilisation
     inverser_vertical: false   # activer si haut/bas sont inversés par la caméra
     mode_duree_s: 30.0         # expiration du mode si aucun swipe
+    zoom_seuil: 0.12           # variation minimale de distance entre deux paumes
+    zoom_tenue_s: 0.45         # stabilité des deux mains avant d'armer le zoom
+    zoom_stabilite_seuil: 0.035 # mouvement toléré pendant cette stabilisation
   mapping:                     # geste -> action (N1/N2 UNIQUEMENT ; jamais N3)
     main_ouverte:     { action: media, commande: pause, label: "⏸ Pause" }
     pouce_leve:       { action: media, commande: pause, label: "▶ Lecture" }
@@ -323,6 +326,8 @@ gestes:                        # controle par gestes de la main (webcam USB) ; v
     fenetre_gauche:   { action: fenetre, sens: precedent }
     defilement_haut:  { action: defiler, sens: haut }
     defilement_bas:   { action: defiler, sens: bas }
+    zoom_agrandir:    { action: zoom, sens: agrandir, crans: 1 }
+    zoom_reduire:     { action: zoom, sens: reduire, crans: 1 }
     mode_audio:       { action: mode_feedback, label: "🔊 Mode audio" }
     volume_haut:      { action: volume, sens: monter, crans: 4 }
     volume_bas:       { action: volume, sens: baisser, crans: 4 }

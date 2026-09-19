@@ -44,6 +44,8 @@ _MAPPING_DEFAUT = {
     "fenetre_gauche":   {"action": "fenetre", "sens": "precedent"},
     "defilement_haut":  {"action": "defiler", "sens": "haut"},
     "defilement_bas":   {"action": "defiler", "sens": "bas"},
+    "zoom_agrandir":    {"action": "zoom", "sens": "agrandir", "crans": 1},
+    "zoom_reduire":     {"action": "zoom", "sens": "reduire", "crans": 1},
     "mode_audio":       {"action": "mode_feedback", "label": "🔊 Mode audio"},
     "volume_haut":      {"action": "volume", "sens": "monter", "crans": 4},
     "volume_bas":       {"action": "volume", "sens": "baisser", "crans": 4},
@@ -52,7 +54,8 @@ _MAPPING_DEFAUT = {
 }
 # Actions autorisées par geste (garde-fou : rien d'autre ne peut être déclenché).
 _ACTIONS_SURES = {"luminosite", "play_pause", "couper_tts", "obs_scene", "swipe",
-                  "armement", "media", "mode_feedback", "fenetre", "defiler", "volume"}
+                  "armement", "media", "mode_feedback", "fenetre", "defiler", "volume",
+                  "zoom"}
 
 
 def definir_hooks(couper_tts=None, feedback=None):
@@ -229,6 +232,11 @@ def _traiter(geste):
 
     mapping = reglage("gestes.mapping", None) or _MAPPING_DEFAUT
     spec = mapping.get(geste)
+    # Les anciennes configurations contiennent souvent une copie complète du
+    # mapping antérieur. Le zoom intégré reste alors disponible sans toucher au
+    # config.yaml local ; une entrée explicite continue de pouvoir le surcharger.
+    if spec is None and geste in {"zoom_agrandir", "zoom_reduire"}:
+        spec = _MAPPING_DEFAUT[geste]
     if not spec:
         return
     action = spec.get("action")
@@ -254,6 +262,15 @@ def _navigation_horizontale(sens, mode="onglets"):
     return (
         "ctrl+tab" if suivant else "ctrl+shift+tab",
         "🗂 Onglet suivant" if suivant else "🗂 Onglet précédent",
+    )
+
+
+def _raccourci_zoom(sens):
+    """Raccourci de zoom compatible navigateurs, PDF et applications courantes."""
+    agrandir = str(sens).lower() in {"agrandir", "avant", "+", "plus"}
+    return (
+        "ctrl+=" if agrandir else "ctrl+-",
+        "🔎 Zoom avant" if agrandir else "🔍 Zoom arrière",
     )
 
 
@@ -305,6 +322,12 @@ def _executer(action, spec):
         keyboard.send("pagedown" if sens == "bas" else "pageup")
         _overlay_geste("📄 Défiler vers le bas" if sens == "bas"
                        else "📄 Défiler vers le haut")
+    elif action == "zoom":
+        raccourci, label = _raccourci_zoom(spec.get("sens", "agrandir"))
+        import keyboard
+        for _ in range(max(1, min(5, int(spec.get("crans", 1))))):
+            keyboard.send(raccourci)
+        _overlay_geste(label)
 
 
 def _verifier_non_n3(nom_outil):

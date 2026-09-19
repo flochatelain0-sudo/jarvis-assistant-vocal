@@ -51,8 +51,9 @@ Des gestes **tenus** (pas d'instantané) pour éviter les faux positifs :
 | **Main ouverte immobile** tenue | Pause (touche média lecture/pause) |
 | **Pouce levé** tenu | Lecture/reprise (touche média lecture/pause) |
 | **Poing** tenu | Coupe immédiatement le TTS et annule le mode courant |
-| **2 doigts** tenus | Arme le mode **Fenêtres** |
+| **2 doigts** tenus | Arme le mode **Onglets** |
 | **3 doigts** tenus | Arme le mode **Audio** |
+| **Deux mains ouvertes** | Écarter = zoom avant ; rapprocher = zoom arrière |
 
 Chaque geste reconnu = **feedback discret** (petit bip + flash HUD) pour savoir que
 c'est pris. Le mapping est **entièrement éditable** dans `config.yaml → gestes.mapping`.
@@ -83,6 +84,17 @@ Le pouce levé ne confirme **jamais** une action N3 : il sert uniquement à la
 lecture média. Une extinction, un appel ou une réservation reste soumis à la
 confirmation vocale locale.
 
+### Zoom à deux mains
+
+- présente deux paumes ouvertes et stabilise-les brièvement ;
+- écarte-les pour zoomer, rapproche-les pour dézoomer ;
+- retire au moins une main du cadre avant le zoom suivant.
+
+Le zoom envoie `Ctrl+=` ou `Ctrl+-` à l'application active. Il fonctionne donc
+dans les navigateurs, les lecteurs PDF et la plupart des applications qui
+utilisent ces raccourcis. Aucun mode à un doigt n'est déclenché tant que deux
+mains sont visibles.
+
 ## Anti-faux-positifs (le vrai défi)
 
 - **Gestes statiques tenus** : une pose accidentelle d'une seule image ne suffit pas.
@@ -107,7 +119,8 @@ python scripts/gestes_calibrer.py
 
 Affiche la caméra + les landmarks, la pose et le mode en direct. Réglages :
 `t/T` maintien −/+, `c/C` cooldown −/+, `w/W` swipe horizontal −/+,
-`v/V` swipe vertical −/+, `i` inverse haut/bas, `s` sauvegarde vers
+`v/V` swipe vertical −/+, `z/Z` seuil du zoom −/+, `x/X` temps de stabilisation
+du zoom −/+, `i` inverse haut/bas, `s` sauvegarde vers
 `gestes/calibration.json`, `q`
 quitte. Le fichier sauvegardé est rechargé à la prochaine ouverture. **Aucune
 image n'est enregistrée** pendant la calibration.

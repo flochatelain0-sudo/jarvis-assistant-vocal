@@ -12,8 +12,9 @@ Vocabulaire v2 (gestes FIABLES, tenus) :
   main ouverte immobile -> pause ; pouce leve -> lecture ; poing -> couper Jarvis
   2 doigts -> mode fenetres, puis main ouverte + swipe horizontal/vertical
   3 doigts -> mode audio, puis main ouverte + swipe horizontal/vertical
+  2 mains ouvertes -> ecarter pour zoomer, rapprocher pour dezoomer
 Chaque mode attend une paume ouverte brièvement stable après la pose de sélection
-et ne permet qu'une action avant de se fermer.
+et exige une sortie du cadre entre deux actions.
 """
 import json
 import os
@@ -149,6 +150,9 @@ class MachineGestes:
         self.stabilite_seuil = float(s.get("stabilite_seuil", 0.06))
         self.inverser_vertical = bool(s.get("inverser_vertical", False))
         self.mode_duree_s = float(s.get("mode_duree_s", 30.0))
+        self.zoom_seuil = float(s.get("zoom_seuil", 0.12))
+        self.zoom_tenue_s = float(s.get("zoom_tenue_s", 0.45))
+        self.zoom_stabilite_seuil = float(s.get("zoom_stabilite_seuil", 0.035))
 
         self._geste_courant = None      # geste tenu en cours d'observation
         self._depuis = 0.0              # depuis quand il est tenu
@@ -161,6 +165,11 @@ class MachineGestes:
         self._pret_depuis = 0.0         # début de l'immobilité avant un swipe
         self._pret_position = None      # position de référence pendant l'immobilité
         self._pret_confirme = False     # le trajet de retour n'est jamais un swipe
+        self._zoom_reference = None     # distance des paumes après stabilisation
+        self._zoom_depuis = 0.0         # début de la stabilisation à deux mains
+        self._zoom_pret = False
+        self._zoom_attend_absence = False
+        self.zoom_distance = None       # diagnostic local pour la calibration
         self.debug_evenement = ""       # diagnostic local affiché en calibration
 
     def _cooldown_ok(self, t):
@@ -182,6 +191,14 @@ class MachineGestes:
         self._attend_relachement = False
         self._reinitialiser_pret()
 
+    def _reinitialiser_zoom(self, garder_absence=False):
+        self._zoom_reference = None
+        self._zoom_depuis = 0.0
+        self._zoom_pret = False
+        self.zoom_distance = None
+        if not garder_absence:
+            self._zoom_attend_absence = False
+
     @property
     def etat_swipe(self):
         """État lisible par l'écran de calibration, sans exposer de landmarks."""
@@ -194,6 +211,17 @@ class MachineGestes:
         if not self._pret_confirme:
             return "stabilise la main ouverte"
         return "PRET - swipe maintenant"
+
+    @property
+    def etat_zoom(self):
+        """État lisible du geste à deux mains pour l'écran de calibration."""
+        if self._zoom_attend_absence:
+            return "retire au moins une main"
+        if self.zoom_distance is None:
+            return "montre 2 mains ouvertes"
+        if not self._zoom_pret:
+            return "stabilise les 2 mains"
+        return "PRET - ecarte ou rapproche"
 
     def _tenir(self, instant, t, duree=None, marquer_cooldown=True):
         """True une seule fois quand une pose est restée stable assez longtemps."""
@@ -327,6 +355,68 @@ class MachineGestes:
             self._reinitialiser_tenue()
         return None
 
+    def alimenter_plusieurs(self, mains, t):
+        """Route une ou deux mains et reconnaît le zoom à deux mains.
+
+        Deux paumes ouvertes doivent d'abord rester stables. Leur écartement
+        relatif déclenche ensuite un seul zoom, puis au moins une main doit
+        quitter le cadre avant de pouvoir recommencer.
+        """
+        mains = list(mains or [])
+        if len(mains) < 2:
+            self._reinitialiser_zoom()
+            return self.alimenter(mains[0] if mains else None, t)
+
+        # Le poing reste prioritaire même si une deuxième main est visible.
+        poing = next((lm for lm in mains if est_poing(lm)), None)
+        if poing is not None:
+            self._reinitialiser_zoom()
+            return self.alimenter(poing, t)
+
+        # À deux mains, on neutralise les poses/swipes à une main. Le zoom exige
+        # deux paumes franchement déployées pour ne pas partir en discutant.
+        self._reinitialiser_tenue()
+        self._reinitialiser_pret()
+        if self._zoom_attend_absence:
+            return None
+        if not all(est_main_deployee(lm) for lm in mains[:2]):
+            self._reinitialiser_zoom()
+            return None
+
+        if self.mode:
+            self._fermer_mode()
+
+        c1, c2 = centre_main(mains[0]), centre_main(mains[1])
+        distance = _d(c1, c2)
+        self.zoom_distance = distance
+
+        if self._zoom_reference is None:
+            self._zoom_reference = distance
+            self._zoom_depuis = t
+            return None
+
+        if not self._zoom_pret:
+            if abs(distance - self._zoom_reference) > self.zoom_stabilite_seuil:
+                self._zoom_reference = distance
+                self._zoom_depuis = t
+                return None
+            if (t - self._zoom_depuis) < self.zoom_tenue_s:
+                return None
+            self._zoom_pret = True
+            self._zoom_reference = distance
+            self.debug_evenement = "zoom_pret"
+            return None
+
+        delta = distance - self._zoom_reference
+        if abs(delta) < self.zoom_seuil or not self._cooldown_ok(t):
+            return None
+
+        resultat = "zoom_agrandir" if delta > 0 else "zoom_reduire"
+        self._dernier_envoi = t
+        self._zoom_attend_absence = True
+        self._reinitialiser_zoom(garder_absence=True)
+        return resultat
+
 
 # ==================================================================== I/O
 
@@ -338,11 +428,9 @@ def _envoyer(url, token, geste):
         pass  # Jarvis occupe / injoignable : on ignore, jamais de blocage
 
 
-def _landmarks_np(res):
-    """Extrait la 1re main en liste de (x,y) normalises, ou None."""
-    if not res.hand_landmarks:
-        return None
-    return [(p.x, p.y) for p in res.hand_landmarks[0]]
+def _mains_np(res):
+    """Extrait jusqu'à deux mains en listes de (x,y) normalisés."""
+    return [[(p.x, p.y) for p in main] for main in (res.hand_landmarks or [])]
 
 
 def boucle(conf, calibrer=False, demo=False):
@@ -356,7 +444,7 @@ def boucle(conf, calibrer=False, demo=False):
     conf_track = float(conf.get("confiance_suivi", 0.7))
     base = mp_python.BaseOptions(model_asset_path=modele)
     options = mp_vision.HandLandmarkerOptions(
-        base_options=base, num_hands=1,
+        base_options=base, num_hands=2,
         running_mode=mp_vision.RunningMode.VIDEO,
         min_hand_detection_confidence=conf_det, min_tracking_confidence=conf_track)
     landmarker = mp_vision.HandLandmarker.create_from_options(options)
@@ -385,9 +473,9 @@ def boucle(conf, calibrer=False, demo=False):
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
             res = landmarker.detect_for_video(image, int(t0 * 1000))
-            lm = _landmarks_np(res)
+            mains = _mains_np(res)
 
-            geste = fsm.alimenter(lm, t0)
+            geste = fsm.alimenter_plusieurs(mains, t0)
             if geste:
                 historique_gestes.append(geste)
                 historique_gestes[:] = historique_gestes[-4:]
@@ -400,7 +488,7 @@ def boucle(conf, calibrer=False, demo=False):
 
             if calibrer:
                 _afficher_calibration(
-                    frame, lm, fsm, historique_gestes, t0, demo=demo)
+                    frame, mains, fsm, historique_gestes, t0, demo=demo)
                 k = cv2.waitKey(1) & 0xFF
                 if not _touches_calibration(k, fsm):
                     break
@@ -417,26 +505,37 @@ def boucle(conf, calibrer=False, demo=False):
 
 # --------------------------------------------------------- mode calibration
 
-def _afficher_calibration(frame, lm, fsm, historique_gestes, maintenant,
+def _afficher_calibration(frame, mains, fsm, historique_gestes, maintenant,
                           demo=False):
     h, w = frame.shape[:2]
-    if lm is not None:
-        for x, y in lm:
-            cv2.circle(frame, (int(x * w), int(y * h)), 4, (0, 255, 0), -1)
-        infos = [f"pose : {pose(lm) or '-'}  doigts : {doigts_tendus(lm)}",
-                 f"ouverte:{est_main_ouverte(lm)}  pouce:{est_pouce_leve(lm)}  "
+    if mains:
+        couleurs = ((0, 255, 0), (255, 180, 0))
+        for numero, lm in enumerate(mains[:2]):
+            for x, y in lm:
+                cv2.circle(frame, (int(x * w), int(y * h)), 4,
+                           couleurs[numero], -1)
+        poses = " | ".join(
+            f"M{i + 1}:{pose(lm) or '-'} ({doigts_tendus(lm)} doigts)"
+            for i, lm in enumerate(mains[:2]))
+        lm = mains[0]
+        infos = [f"mains:{len(mains)}  {poses}",
+                 f"M1 ouverte:{est_main_ouverte(lm)}  pouce:{est_pouce_leve(lm)}  "
                  f"2:{est_deux_doigts(lm)}  3:{est_trois_doigts(lm)}  poing:{est_poing(lm)}",
                  f"main deployee pour swipe:{est_main_deployee(lm)}"]
     else:
         infos = ["aucune main detectee"]
     restant = max(0.0, fsm._mode_jusqu - maintenant) if fsm.mode else 0.0
+    distance_zoom = "-" if fsm.zoom_distance is None else f"{fsm.zoom_distance:.3f}"
     infos += [f"mode:{fsm.mode or '-'} ({restant:.1f}s)  etape:{fsm.etat_swipe}",
+              f"zoom:{fsm.etat_zoom}  distance:{distance_zoom}",
               f"tenue:{fsm.tenue_s:.2f}  mode tenue:{fsm.tenue_mode_s:.2f} "
               f"pret:{fsm.swipe_pret_s:.2f}",
               f"cooldown:{fsm.cooldown_s:.2f}  swipe H:{fsm.swipe_seuil:.2f} "
               f"V:{fsm.swipe_vertical_seuil:.2f}  axe V:{'inverse' if fsm.inverser_vertical else 'normal'}",
+              f"zoom seuil:{fsm.zoom_seuil:.2f}  zoom tenue:{fsm.zoom_tenue_s:.2f}",
               "[t/T] tenue -/+  [c/C] cooldown -/+  [w/W] swipe H -/+",
-              "[v/V] swipe V -/+  [i] inverser V  [s] sauver  [q] quitter"]
+              "[v/V] swipe V -/+  [z/Z] zoom -/+  [x/X] tenue zoom -/+",
+              "[i] inverser V  [s] sauver  [q] quitter"]
     if demo:
         infos.insert(0, ">>> MODE DEMO : ACTIONS PC ACTIVES")
     if historique_gestes:
@@ -474,6 +573,14 @@ def _touches_calibration(k, fsm):
         fsm.swipe_vertical_seuil = max(0.10, fsm.swipe_vertical_seuil - 0.01)
     elif k == ord("V"):
         fsm.swipe_vertical_seuil = min(0.60, fsm.swipe_vertical_seuil + 0.01)
+    elif k == ord("z"):
+        fsm.zoom_seuil = max(0.05, fsm.zoom_seuil - 0.01)
+    elif k == ord("Z"):
+        fsm.zoom_seuil = min(0.40, fsm.zoom_seuil + 0.01)
+    elif k == ord("x"):
+        fsm.zoom_tenue_s = max(0.20, fsm.zoom_tenue_s - 0.05)
+    elif k == ord("X"):
+        fsm.zoom_tenue_s = min(2.0, fsm.zoom_tenue_s + 0.05)
     elif k == ord("i"):
         fsm.inverser_vertical = not fsm.inverser_vertical
     elif k == ord("s"):
@@ -489,6 +596,9 @@ def _touches_calibration(k, fsm):
             "stabilite_seuil": round(fsm.stabilite_seuil, 3),
             "inverser_vertical": fsm.inverser_vertical,
             "mode_duree_s": round(fsm.mode_duree_s, 2),
+            "zoom_seuil": round(fsm.zoom_seuil, 3),
+            "zoom_tenue_s": round(fsm.zoom_tenue_s, 2),
+            "zoom_stabilite_seuil": round(fsm.zoom_stabilite_seuil, 3),
         }
         chemin = os.path.join(os.path.dirname(os.path.abspath(__file__)), "calibration.json")
         with open(chemin, "w", encoding="utf-8") as f:
