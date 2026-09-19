@@ -53,6 +53,7 @@ Des gestes **tenus** (pas d'instantané) pour éviter les faux positifs :
 | **Poing** tenu | Coupe immédiatement le TTS et annule le mode courant |
 | **2 doigts** tenus | Arme le mode **Onglets** |
 | **3 doigts** tenus | Arme le mode **Audio** |
+| **4 doigts, pouce replié** | Arme le mode **Souris** |
 | **Deux mains ouvertes** | Écarter = zoom avant ; rapprocher = zoom arrière |
 
 Chaque geste reconnu = **feedback discret** (petit bip + flash HUD) pour savoir que
@@ -95,6 +96,18 @@ dans les navigateurs, les lecteurs PDF et la plupart des applications qui
 utilisent ces raccourcis. Aucun mode à un doigt n'est déclenché tant que deux
 mains sont visibles.
 
+### Mode Souris — 4 doigts
+
+- tiens quatre doigts avec le pouce replié jusqu'à voir `🖱 Mode souris` ;
+- baisse majeur, annulaire et auriculaire : le bout de l'index pilote le curseur ;
+- écarte d'abord le pouce, puis pince pouce-index pour cliquer si le clic est actif ;
+- tiens le poing pour quitter immédiatement, ou attends l'expiration du mode.
+
+Le pointeur reste strictement local. Aucune image ne sort du tracker : seul un
+couple `(x,y)` normalisé est envoyé sur le loopback authentifié. Par sécurité, le
+clic est désactivé dans la configuration publique (`souris_clic: false`) ; la
+calibration locale permet de l'activer avec `p`, puis de sauvegarder avec `s`.
+
 ## Anti-faux-positifs (le vrai défi)
 
 - **Gestes statiques tenus** : une pose accidentelle d'une seule image ne suffit pas.
@@ -121,7 +134,7 @@ Affiche la caméra + les landmarks, la pose et le mode en direct. Réglages :
 `t/T` maintien −/+, `c/C` cooldown −/+, `w/W` swipe horizontal −/+,
 `v/V` swipe vertical −/+, `z/Z` seuil du zoom avant −/+, `r/R` seuil du zoom
 arrière −/+, `x/X` temps de stabilisation du zoom −/+, `i` inverse haut/bas,
-`s` sauvegarde vers
+`p` active/coupe le clic par pincement, `k/K` règle son seuil, `s` sauvegarde vers
 `gestes/calibration.json`, `q`
 quitte. Le fichier sauvegardé est rechargé à la prochaine ouverture. **Aucune
 image n'est enregistrée** pendant la calibration.
@@ -156,7 +169,8 @@ Tu peux aussi dire « quitte le mode visio » pour fermer la fenêtre et libére
 - **Traitement 100 % local.** Aucune image n'est **stockée**, **loggée** ni
   **transmise**. Seules des **coordonnées de landmarks** existent en mémoire du
   sous-process, et elles ne sont **même pas écrites dans les logs**.
-- Ce qui traverse vers Jarvis : **uniquement un label de geste** (une chaîne).
+- Ce qui traverse vers Jarvis : un **label de geste** et, seulement en mode
+  souris, la position normalisée du pointeur. Jamais une image ni les landmarks.
 - La caméra n'est **JAMAIS** exposée en **MCP** ni accessible à **Hermes**
   (`controler_gestes` est `mcp_expose=False`).
 - L'endpoint `/api/gestes` est **loopback + token** : un process local malveillant ne

@@ -2,6 +2,7 @@
 import unittest
 
 from core.gestes import _navigation_horizontale, _raccourci_zoom
+from tools.souris import _coordonnees_pointeur
 
 
 class NavigationGestesTests(unittest.TestCase):
@@ -34,6 +35,13 @@ class NavigationGestesTests(unittest.TestCase):
             _raccourci_zoom("reduire"),
             ("ctrl+-", "🔍 Zoom arrière"),
         )
+
+    def test_position_normalisee_respecte_geometrie_du_moniteur(self):
+        moniteur = {"left": -1920, "top": 0, "width": 1920, "height": 1080}
+        self.assertEqual(_coordonnees_pointeur(0, 0, moniteur), (-1920, 0))
+        self.assertEqual(_coordonnees_pointeur(1, 1, moniteur), (-1, 1079))
+        with self.assertRaises(ValueError):
+            _coordonnees_pointeur(1.1, 0.5, moniteur)
 
 
 if __name__ == "__main__":

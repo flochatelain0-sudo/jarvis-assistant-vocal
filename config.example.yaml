@@ -300,6 +300,7 @@ gestes:                        # controle par gestes de la main (webcam USB) ; v
   raccourci: "ctrl+alt+g"      # raccourci clavier pour basculer les gestes ("" = desactive)
   raccourci_demo: "ctrl+alt+d" # repères visibles + actions réelles, pour une démonstration
   navigation_horizontale: onglets # onglets/vues de l'app active ; "applications" restaure Alt+Tab
+  souris_moniteur: 1           # écran piloté par l'index : 1=principal, 2=second écran
   pause_pendant_live: true     # compat anciens mappings OBS ; sans effet sur les modes v2
   python: ""                   # python du venv tracker ; vide = gestes/.venv-tracker/Scripts/python.exe
   seuils:                      # ajustables en calibration (gestes/calibration.json prime)
@@ -318,6 +319,10 @@ gestes:                        # controle par gestes de la main (webcam USB) ; v
     zoom_reduire_seuil: 0.08   # rapprochement plus sensible (amplitude naturelle plus courte)
     zoom_tenue_s: 0.45         # stabilité des deux mains avant d'armer le zoom
     zoom_stabilite_seuil: 0.035 # mouvement toléré pendant cette stabilisation
+    souris_marge: 0.10         # bord caméra ignoré puis étendu à tout l'écran
+    souris_lissage: 0.32       # 0.05 très doux, 1.0 très direct
+    souris_pincement_seuil: 0.55 # pouce-index ; augmenter rend le clic plus facile
+    souris_clic: false         # sûr par défaut ; activer localement ou avec [p] + [s]
   mapping:                     # geste -> action (N1/N2 UNIQUEMENT ; jamais N3)
     main_ouverte:     { action: media, commande: pause, label: "⏸ Pause" }
     pouce_leve:       { action: media, commande: pause, label: "▶ Lecture" }
@@ -327,6 +332,7 @@ gestes:                        # controle par gestes de la main (webcam USB) ; v
     fenetre_gauche:   { action: fenetre, sens: precedent }
     defilement_haut:  { action: defiler, sens: haut }
     defilement_bas:   { action: defiler, sens: bas }
+    mode_souris:      { action: mode_feedback, label: "🖱 Mode souris" }
     zoom_agrandir:    { action: zoom, sens: agrandir, crans: 1 }
     zoom_reduire:     { action: zoom, sens: reduire, crans: 1 }
     mode_audio:       { action: mode_feedback, label: "🔊 Mode audio" }

@@ -5,8 +5,9 @@ les labels de gestes en loopback (POST /api/gestes, protégé par un token), et 
 mappe à des actions **N1/N2 uniquement** (jamais N3 : pas d'extinction, d'appel, de
 réservation par geste — un faux positif ne coûte qu'une lumière).
 
-Frontière vie privée : aucune image ne transite ici ; seul un label ("poing"…)
-arrive. La caméra n'est JAMAIS exposée au MCP ni accessible à Hermes.
+Frontière vie privée : aucune image ne transite ici ; seuls un label ("poing"…)
+ou, en mode souris, un point normalisé (x,y) arrivent en loopback. La caméra
+n'est JAMAIS exposée au MCP ni accessible à Hermes.
 """
 import json
 import logging
@@ -44,6 +45,7 @@ _MAPPING_DEFAUT = {
     "fenetre_gauche":   {"action": "fenetre", "sens": "precedent"},
     "defilement_haut":  {"action": "defiler", "sens": "haut"},
     "defilement_bas":   {"action": "defiler", "sens": "bas"},
+    "mode_souris":      {"action": "mode_feedback", "label": "🖱 Mode souris"},
     "zoom_agrandir":    {"action": "zoom", "sens": "agrandir", "crans": 1},
     "zoom_reduire":     {"action": "zoom", "sens": "reduire", "crans": 1},
     "mode_audio":       {"action": "mode_feedback", "label": "🔊 Mode audio"},
@@ -235,7 +237,7 @@ def _traiter(geste):
     # Les anciennes configurations contiennent souvent une copie complète du
     # mapping antérieur. Le zoom intégré reste alors disponible sans toucher au
     # config.yaml local ; une entrée explicite continue de pouvoir le surcharger.
-    if spec is None and geste in {"zoom_agrandir", "zoom_reduire"}:
+    if spec is None and geste in {"zoom_agrandir", "zoom_reduire", "mode_souris"}:
         spec = _MAPPING_DEFAUT[geste]
     if not spec:
         return
@@ -272,6 +274,21 @@ def _raccourci_zoom(sens):
         "ctrl+=" if agrandir else "ctrl+-",
         "🔎 Zoom avant" if agrandir else "🔍 Zoom arrière",
     )
+
+
+def _traiter_pointeur(evenement):
+    """Déplace la souris depuis un événement local borné et authentifié."""
+    try:
+        x = float(evenement.get("x"))
+        y = float(evenement.get("y"))
+        if not (0.0 <= x <= 1.0 and 0.0 <= y <= 1.0):
+            return
+        clic = bool(evenement.get("clic", False))
+        moniteur = int(reglage("gestes.souris_moniteur", 1))
+        from tools.souris import controler_pointeur_geste
+        controler_pointeur_geste(x, y, clic=clic, moniteur=moniteur)
+    except Exception:
+        LOG.exception("gestes: événement pointeur")
 
 
 def _executer(action, spec):
@@ -493,6 +510,9 @@ def monter_routes(app):
         except Exception:
             data = {}
         geste = str(data.get("geste", "")).strip()
+        pointeur = data.get("pointeur")
+        if isinstance(pointeur, dict):
+            _traiter_pointeur(pointeur)
         if geste:
             threading.Thread(target=_traiter, args=(geste,), daemon=True).start()
         return {"ok": True}

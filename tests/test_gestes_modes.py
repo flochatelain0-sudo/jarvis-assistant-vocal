@@ -28,11 +28,14 @@ mp_python.vision = vision
 from gestes.tracker import (  # noqa: E402
     MachineGestes,
     est_deux_doigts,
+    est_index_seul,
     est_main_deployee,
     est_main_ouverte,
     est_poing,
     est_pouce_leve,
+    est_quatre_doigts,
     est_trois_doigts,
+    pose,
 )
 
 
@@ -75,17 +78,25 @@ def _fsm():
         "zoom_reduire_seuil": 0.08,
         "zoom_tenue_s": 0.4,
         "zoom_stabilite_seuil": 0.03,
+        "souris_marge": 0.10,
+        "souris_lissage": 0.32,
+        "souris_pincement_seuil": 0.55,
+        "souris_clic": True,
     }})
 
 
 class ClassifieursTests(unittest.TestCase):
     def test_cinq_poses_sont_distinctes(self):
         self.assertTrue(est_main_ouverte(_main(4)))
+        self.assertTrue(est_quatre_doigts(_main(4)))
+        self.assertTrue(est_index_seul(_main(1)))
         self.assertTrue(est_deux_doigts(_main(2)))
         self.assertTrue(est_trois_doigts(_main(3)))
         self.assertTrue(est_pouce_leve(_main(0, pouce=True)))
         self.assertTrue(est_poing(_main(0)))
         self.assertTrue(est_main_deployee(_main(3)))
+        self.assertEqual(pose(_main(4)), "mode_souris")
+        self.assertEqual(pose(_main(4, pouce=True)), "main_ouverte")
 
     def test_main_ouverte_reste_ouverte_a_l_horizontale(self):
         horizontale = _tourner(_main(4), math.pi / 2)
@@ -94,6 +105,34 @@ class ClassifieursTests(unittest.TestCase):
 
 
 class ModesTests(unittest.TestCase):
+    def test_quatre_doigts_arment_la_souris_et_index_deplace_le_pointeur(self):
+        fsm = _fsm()
+        quatre = _main(4)
+        self.assertIsNone(fsm.alimenter(quatre, 0.0))
+        self.assertEqual(fsm.alimenter(quatre, 0.6), "mode_souris")
+        self.assertEqual(fsm.mode, "souris")
+
+        index = _main(1, x=0.45, y=0.55)
+        self.assertIsNone(fsm.alimenter(index, 0.7))
+        self.assertIsNotNone(fsm.evenement_pointeur)
+        self.assertFalse(fsm.evenement_pointeur["clic"])
+        self.assertEqual(fsm.etat_souris, "POINTEUR ACTIF")
+
+        # Après une position pouce écarté, le pincement produit un seul clic.
+        pince = _main(1, x=0.45, y=0.55)
+        pince[4] = (pince[8][0] + 0.005, pince[8][1] + 0.005)
+        self.assertIsNone(fsm.alimenter(pince, 0.9))
+        self.assertTrue(fsm.evenement_pointeur["clic"])
+        self.assertIsNone(fsm.alimenter(pince, 1.0))
+        self.assertFalse(fsm.evenement_pointeur["clic"])
+
+    def test_main_ouverte_avec_pouce_ne_declenche_pas_mode_souris(self):
+        fsm = _fsm()
+        ouverte = _main(4, pouce=True)
+        self.assertIsNone(fsm.alimenter(ouverte, 0.0))
+        self.assertEqual(fsm.alimenter(ouverte, 1.1), "main_ouverte")
+        self.assertIsNone(fsm.mode)
+
     def test_deux_mains_ouvertes_ecartees_zoom_avant(self):
         fsm = _fsm()
         mains = [_main(4, x=0.30), _main(4, x=0.60)]
@@ -152,9 +191,10 @@ class ModesTests(unittest.TestCase):
 
     def test_main_ouverte_et_pouce_sont_tenus_une_seule_fois(self):
         fsm = _fsm()
-        self.assertIsNone(fsm.alimenter(_main(4), 0.0))
-        self.assertEqual(fsm.alimenter(_main(4), 1.1), "main_ouverte")
-        self.assertIsNone(fsm.alimenter(_main(4), 2.5))
+        ouverte = _main(4, pouce=True)
+        self.assertIsNone(fsm.alimenter(ouverte, 0.0))
+        self.assertEqual(fsm.alimenter(ouverte, 1.1), "main_ouverte")
+        self.assertIsNone(fsm.alimenter(ouverte, 2.5))
         fsm.alimenter(None, 2.6)
         self.assertIsNone(fsm.alimenter(_main(0, pouce=True), 3.0))
         self.assertEqual(fsm.alimenter(_main(0, pouce=True), 4.1), "pouce_leve")

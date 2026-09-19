@@ -33,6 +33,7 @@ _BOUTONS = {
     "droite": (0x0008, 0x0010),   # RIGHTDOWN, RIGHTUP
     "milieu": (0x0020, 0x0040),   # MIDDLEDOWN, MIDDLEUP
 }
+_MONITEURS_GESTE = {}
 
 
 def _placer_curseur(x, y):
@@ -46,6 +47,46 @@ def _placer_curseur(x, y):
         return bool(_user32.SetCursorPos(int(x), int(y)))
     except Exception:
         return False
+
+
+def _coordonnees_pointeur(x, y, moniteur):
+    """Coordonnées normalisées [0,1] -> pixels physiques d'un moniteur."""
+    x, y = float(x), float(y)
+    if not (0.0 <= x <= 1.0 and 0.0 <= y <= 1.0):
+        raise ValueError("coordonnees-normalisees-invalides")
+    return (round(moniteur["left"] + x * max(0, moniteur["width"] - 1)),
+            round(moniteur["top"] + y * max(0, moniteur["height"] - 1)))
+
+
+def _moniteur_geste(numero=1):
+    """Géométrie mise en cache ; 1=principal, 2=second écran."""
+    numero = max(1, int(numero or 1))
+    if numero not in _MONITEURS_GESTE:
+        import mss
+        with mss.mss() as sct:
+            moniteurs = sct.monitors
+            cible = moniteurs[numero] if numero < len(moniteurs) else moniteurs[1]
+            _MONITEURS_GESTE[numero] = dict(cible)
+    return _MONITEURS_GESTE[numero]
+
+
+def controler_pointeur_geste(x, y, clic=False, moniteur=1):
+    """Déplace le pointeur depuis le tracker local authentifié.
+
+    Ce n'est volontairement pas un outil LLM/MCP. Le clic éventuel est produit
+    uniquement par un pincement physique lorsque cette option locale est active.
+    """
+    try:
+        ex, ey = _coordonnees_pointeur(x, y, _moniteur_geste(moniteur))
+    except Exception:
+        return False
+    if not _placer_curseur(ex, ey):
+        return False
+    if clic:
+        down, up = _BOUTONS["gauche"]
+        _user32.mouse_event(down, 0, 0, 0, 0)
+        _user32.mouse_event(up, 0, 0, 0, 0)
+    return True
 
 
 def _vers_ecran(x, y):
