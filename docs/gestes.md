@@ -62,7 +62,8 @@ c'est pris. Le mapping est **entièrement éditable** dans `config.yaml → gest
 - tiens index + majeur environ 1 seconde → overlay `🪟 Mode fenêtres` ;
 - passe à la main entière ouverte et garde-la brièvement immobile ;
 - swipe gauche/droite → fenêtre précédente/suivante (`Alt+Shift+Tab` / `Alt+Tab`) ;
-- swipe haut/bas → défilement de la fenêtre active (`Page Up` / `Page Down`).
+- swipe haut/bas → défilement de la fenêtre active (`Page Up` / `Page Down`) ;
+- sors brièvement la main du cadre entre deux swipes ; le mode reste actif.
 
 ### Mode Audio — 3 doigts
 
@@ -81,10 +82,10 @@ confirmation vocale locale.
 - **Modes explicites** : aucun swipe n'agit sans 2 ou 3 doigts tenus au préalable.
 - **Transition stabilisée** après la sélection : passer directement à la paume
   ouverte suffit ; sortir la main du cadre reste accepté.
-- **Main hors cadre obligatoire après l'action** pour empêcher un deuxième ordre
-  involontaire.
-- **Une seule action par mode**, puis retour au neutre et nouvelle sélection obligatoire.
-- **Expiration** du mode après `mode_duree_s` secondes (30 s par défaut).
+- **Main hors cadre obligatoire entre deux actions** pour empêcher un deuxième
+  ordre involontaire. Le même mode accepte ensuite plusieurs swipes successifs.
+- **Expiration** du mode après `mode_duree_s` secondes sans nouvelle action
+  (30 s par défaut), ou immédiatement avec un poing tenu.
 - **Stabilisation** : la main déployée (3 ou 4 doigts visibles) doit rester presque immobile pendant
   `swipe_pret_s` (0,35 s par défaut). Le changement de pose ou le trajet d'entrée
   dans le cadre ne peut donc plus être interprété comme un swipe.

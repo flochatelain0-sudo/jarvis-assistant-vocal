@@ -303,10 +303,10 @@ gestes:                        # controle par gestes de la main (webcam USB) ; v
   seuils:                      # ajustables en calibration (gestes/calibration.json prime)
     tenue_s: 1.4               # maintien main ouverte / pouce / poing
     tenue_mode_s: 0.9          # maintien des 2 ou 3 doigts pour choisir un mode
-    cooldown_s: 2.0            # delai mini entre deux commandes
-    swipe_seuil: 0.28          # déplacement horizontal minimal de la paume
-    swipe_vertical_seuil: 0.22 # déplacement vertical minimal de la paume
-    swipe_fenetre_s: 0.7       # le mouvement doit tenir dans cette fenêtre
+    cooldown_s: 0.8            # delai mini entre deux commandes
+    swipe_seuil: 0.20          # déplacement horizontal minimal de la paume
+    swipe_vertical_seuil: 0.18 # déplacement vertical minimal de la paume
+    swipe_fenetre_s: 1.0       # le mouvement doit tenir dans cette fenêtre
     swipe_dominance: 1.2       # axe principal >= autre axe * cette valeur
     swipe_pret_s: 0.35         # main immobile avant de commencer à mesurer
     stabilite_seuil: 0.06      # mouvement max pendant cette stabilisation

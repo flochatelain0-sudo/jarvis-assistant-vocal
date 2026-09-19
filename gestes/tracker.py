@@ -134,16 +134,16 @@ def pose(lm):
 # ==================================================================== FSM
 
 class MachineGestes:
-    """Machine à états anti-faux-positifs avec modes explicites et one-shot."""
+    """Machine à états anti-faux-positifs avec modes explicites temporaires."""
 
     def __init__(self, conf):
         s = conf.get("seuils", {})
         self.tenue_s = float(s.get("tenue_s", 1.4))
         self.tenue_mode_s = float(s.get("tenue_mode_s", 0.9))
-        self.cooldown_s = float(s.get("cooldown_s", 2.0))
-        self.swipe_seuil = float(s.get("swipe_seuil", 0.28))
-        self.swipe_vertical_seuil = float(s.get("swipe_vertical_seuil", 0.22))
-        self.swipe_fenetre_s = float(s.get("swipe_fenetre_s", 0.7))
+        self.cooldown_s = float(s.get("cooldown_s", 0.8))
+        self.swipe_seuil = float(s.get("swipe_seuil", 0.20))
+        self.swipe_vertical_seuil = float(s.get("swipe_vertical_seuil", 0.18))
+        self.swipe_fenetre_s = float(s.get("swipe_fenetre_s", 1.0))
         self.swipe_dominance = float(s.get("swipe_dominance", 1.20))
         self.swipe_pret_s = float(s.get("swipe_pret_s", 0.35))
         self.stabilite_seuil = float(s.get("stabilite_seuil", 0.06))
@@ -187,6 +187,8 @@ class MachineGestes:
         """État lisible par l'écran de calibration, sans exposer de landmarks."""
         if not self.mode:
             return "-"
+        if self._attend_absence:
+            return "sors la main du cadre"
         if self._attend_relachement:
             return "ouvre la main"
         if not self._pret_confirme:
@@ -219,13 +221,13 @@ class MachineGestes:
                 self._attend_relachement = False
             return None
 
-        if self._attend_absence:
-            return None
-
         if self.mode and t >= self._mode_jusqu:
             ancien_mode = self.mode
             self._fermer_mode()
             self.debug_evenement = f"mode_{ancien_mode}_expire"
+
+        if self._attend_absence:
+            return None
 
         instant = pose(lm)
 
@@ -301,7 +303,11 @@ class MachineGestes:
                 else:
                     resultat = "volume_bas" if vers_bas else "volume_haut"
             self._dernier_envoi = t
-            self._fermer_mode()          # one-shot : re-sélection obligatoire
+            # Le mode reste actif pour permettre plusieurs swipes successifs.
+            # Une sortie complète de la main reste obligatoire entre deux
+            # actions afin qu'un seul mouvement ne soit jamais compté deux fois.
+            self._reinitialiser_pret()
+            self._mode_jusqu = t + self.mode_duree_s
             self._attend_absence = True
             return resultat
 

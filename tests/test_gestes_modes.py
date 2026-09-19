@@ -99,7 +99,7 @@ class ModesTests(unittest.TestCase):
         self.assertIsNone(fsm.alimenter(_main(0, pouce=True), 3.0))
         self.assertEqual(fsm.alimenter(_main(0, pouce=True), 4.1), "pouce_leve")
 
-    def test_mode_fenetres_est_one_shot(self):
+    def test_mode_fenetres_accepte_plusieurs_swipes(self):
         fsm = _fsm()
         self.assertIsNone(fsm.alimenter(_main(2), 0.0))
         self.assertEqual(fsm.alimenter(_main(2), 0.6), "mode_fenetres")
@@ -108,7 +108,24 @@ class ModesTests(unittest.TestCase):
         self.assertIsNone(fsm.alimenter(_main(4, x=0.2), 1.05))
         self.assertIsNone(fsm.alimenter(_main(4, x=0.3), 1.15))
         self.assertEqual(fsm.alimenter(_main(4, x=0.55), 1.25), "fenetre_droite")
+        self.assertEqual(fsm.mode, "fenetres")
+        self.assertEqual(fsm.etat_swipe, "sors la main du cadre")
+
+        # La même main ne peut pas déclencher deux fois sans quitter le cadre.
         self.assertIsNone(fsm.alimenter(_main(4, x=0.2), 1.4))
+        self.assertIsNone(fsm.alimenter(None, 1.5))
+        self.assertIsNone(fsm.alimenter(_main(4, x=0.60), 1.6))
+        self.assertIsNone(fsm.alimenter(_main(4, x=0.60), 1.95))
+        self.assertIsNone(fsm.alimenter(_main(4, x=0.50), 2.05))
+        self.assertEqual(fsm.alimenter(_main(4, x=0.25), 2.15), "fenetre_gauche")
+        self.assertEqual(fsm.mode, "fenetres")
+
+        # On peut encore repartir dans le même sens sans réarmer les 2 doigts.
+        self.assertIsNone(fsm.alimenter(None, 2.25))
+        self.assertIsNone(fsm.alimenter(_main(4, x=0.60), 2.35))
+        self.assertIsNone(fsm.alimenter(_main(4, x=0.60), 2.70))
+        self.assertIsNone(fsm.alimenter(_main(4, x=0.50), 2.80))
+        self.assertEqual(fsm.alimenter(_main(4, x=0.25), 2.90), "fenetre_gauche")
 
     def test_mode_audio_vertical_regle_le_volume(self):
         fsm = _fsm()
