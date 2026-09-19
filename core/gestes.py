@@ -39,7 +39,7 @@ _MAPPING_DEFAUT = {
     "main_ouverte":     {"action": "media", "commande": "pause", "label": "⏸ Pause"},
     "pouce_leve":       {"action": "media", "commande": "pause", "label": "▶ Lecture"},
     "poing":            {"action": "couper_tts"},
-    "mode_fenetres":    {"action": "mode_feedback", "label": "🪟 Mode fenêtres"},
+    "mode_fenetres":    {"action": "mode_feedback", "label": "🗂 Mode onglets"},
     "fenetre_droite":   {"action": "fenetre", "sens": "suivant"},
     "fenetre_gauche":   {"action": "fenetre", "sens": "precedent"},
     "defilement_haut":  {"action": "defiler", "sens": "haut"},
@@ -242,6 +242,21 @@ def _traiter(geste):
         LOG.exception("gestes: exécution %s", action)
 
 
+def _navigation_horizontale(sens, mode="onglets"):
+    """Raccourci et libellé pour naviguer sans quitter l'application active."""
+    suivant = str(sens).lower().startswith("suiv")
+    mode = str(mode or "onglets").strip().lower().replace("_", "-")
+    if mode in {"application", "applications", "alt-tab"}:
+        return (
+            "alt+tab" if suivant else "alt+shift+tab",
+            "🪟 Application suivante" if suivant else "🪟 Application précédente",
+        )
+    return (
+        "ctrl+tab" if suivant else "ctrl+shift+tab",
+        "🗂 Onglet suivant" if suivant else "🗂 Onglet précédent",
+    )
+
+
 def _executer(action, spec):
     if action == "luminosite":
         piece = spec.get("piece", "salon")
@@ -279,10 +294,11 @@ def _executer(action, spec):
         _overlay_geste("🔊 Volume +" if sens == "monter" else "🔉 Volume −")
     elif action == "fenetre":
         sens = spec.get("sens", "suivant")
+        raccourci, label = _navigation_horizontale(
+            sens, reglage("gestes.navigation_horizontale", "onglets"))
         import keyboard
-        keyboard.send("alt+tab" if sens == "suivant" else "alt+shift+tab")
-        _overlay_geste("🪟 Fenêtre suivante" if sens == "suivant"
-                       else "🪟 Fenêtre précédente")
+        keyboard.send(raccourci)
+        _overlay_geste(label)
     elif action == "defiler":
         sens = spec.get("sens", "bas")
         import keyboard
@@ -320,7 +336,7 @@ def _obs_scene(sens, force=False):
         LOG.info("gestes: OBS indisponible (%s)", e)
 
 
-# ----- swipe CONTEXTUEL : OBS -> app vidéo (seek) -> Alt+Tab (du + spécifique au + général)
+# ----- swipe CONTEXTUEL : OBS -> app vidéo (seek) -> onglets (du + spécifique au + général)
 
 _LECTEURS = ("vlc", "mpv", "wmplayer", "mpc-hc", "mpc-be", "potplayer", "smplayer",
              "kmplayer", "movies", "films")
@@ -388,7 +404,7 @@ def _overlay_geste(label):
 
 def _swipe(sens):
     """Cascade : (1) OBS actif -> scène ; (2) app vidéo au 1er plan -> seek ±10s ;
-    (3) défaut -> bascule de fenêtre (Alt+Tab). Feedback overlay du mode choisi."""
+    (3) défaut -> onglet/vue de l'application active. Feedback overlay du mode choisi."""
     suivant = str(sens).startswith("suiv") or sens in ("droite", "avant", "+")
     # 1) OBS
     if _obs_actif():
@@ -410,13 +426,17 @@ def _swipe(sens):
             pass
         _overlay_geste("🎬 +10s" if suivant else "🎬 -10s")
         return
-    # 3) défaut -> Alt+Tab
+    # 3) défaut -> onglet/vue de l'application active (configurable)
+    raccourci, label = _navigation_horizontale(
+        "suivant" if suivant else "precedent",
+        reglage("gestes.navigation_horizontale", "onglets"),
+    )
     try:
         import keyboard
-        keyboard.send("alt+tab" if suivant else "alt+shift+tab")
+        keyboard.send(raccourci)
     except Exception:
         pass
-    _overlay_geste("🪟 Fenêtre " + ("suivante" if suivant else "précédente"))
+    _overlay_geste(label)
 
 
 # ---------------------------------------------------------------- routes

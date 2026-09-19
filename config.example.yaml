@@ -299,6 +299,7 @@ gestes:                        # controle par gestes de la main (webcam USB) ; v
   hauteur: 480
   raccourci: "ctrl+alt+g"      # raccourci clavier pour basculer les gestes ("" = desactive)
   raccourci_demo: "ctrl+alt+d" # repères visibles + actions réelles, pour une démonstration
+  navigation_horizontale: onglets # onglets/vues de l'app active ; "applications" restaure Alt+Tab
   pause_pendant_live: true     # compat anciens mappings OBS ; sans effet sur les modes v2
   python: ""                   # python du venv tracker ; vide = gestes/.venv-tracker/Scripts/python.exe
   seuils:                      # ajustables en calibration (gestes/calibration.json prime)
@@ -317,7 +318,7 @@ gestes:                        # controle par gestes de la main (webcam USB) ; v
     main_ouverte:     { action: media, commande: pause, label: "⏸ Pause" }
     pouce_leve:       { action: media, commande: pause, label: "▶ Lecture" }
     poing:            { action: couper_tts }
-    mode_fenetres:    { action: mode_feedback, label: "🪟 Mode fenêtres" }
+    mode_fenetres:    { action: mode_feedback, label: "🗂 Mode onglets" }
     fenetre_droite:   { action: fenetre, sens: suivant }
     fenetre_gauche:   { action: fenetre, sens: precedent }
     defilement_haut:  { action: defiler, sens: haut }

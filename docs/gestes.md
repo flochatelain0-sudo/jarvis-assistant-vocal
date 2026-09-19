@@ -57,13 +57,20 @@ Des gestes **tenus** (pas d'instantané) pour éviter les faux positifs :
 Chaque geste reconnu = **feedback discret** (petit bip + flash HUD) pour savoir que
 c'est pris. Le mapping est **entièrement éditable** dans `config.yaml → gestes.mapping`.
 
-### Mode Fenêtres — 2 doigts
+### Mode Onglets — 2 doigts
 
-- tiens index + majeur environ 1 seconde → overlay `🪟 Mode fenêtres` ;
+- tiens index + majeur environ 1 seconde → overlay `🗂 Mode onglets` ;
 - passe à la main entière ouverte et garde-la brièvement immobile ;
-- swipe gauche/droite → fenêtre précédente/suivante (`Alt+Shift+Tab` / `Alt+Tab`) ;
+- clique d'abord dans le navigateur ou l'application à piloter ;
+- swipe gauche/droite → onglet ou vue précédente/suivante de cette application
+  (`Ctrl+Shift+Tab` / `Ctrl+Tab`) ;
 - swipe haut/bas → défilement de la fenêtre active (`Page Up` / `Page Down`) ;
 - sors brièvement la main du cadre entre deux swipes ; le mode reste actif.
+
+Le nom interne `mode_fenetres` est conservé pour la compatibilité des anciennes
+calibrations. Les applications sans onglets peuvent ignorer `Ctrl+Tab`, mais Jarvis
+ne quitte plus l'application active. Pour retrouver l'ancien changement entre
+applications, règle `gestes.navigation_horizontale: applications`.
 
 ### Mode Audio — 3 doigts
 
