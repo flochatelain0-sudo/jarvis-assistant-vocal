@@ -1,4 +1,4 @@
-"""Routage à 4 backends + garde-fous budgétaires — l'implémentation de la doctrine
+"""Routage à 3 modes + garde-fous budgétaires — l'implémentation de la doctrine
 (Hermes pense, Jarvis détient les clés/le corps ; le routage EST le partage).
 
 Modes (config.yaml `mode`) :

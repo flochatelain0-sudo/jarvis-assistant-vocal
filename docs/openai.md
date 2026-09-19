@@ -1,4 +1,11 @@
-# OpenAI et GPT-6 dans Jarvis
+# Fournisseurs cloud : OpenAI et Claude/Anthropic
+
+Jarvis sépare le **mode de routage** du **fournisseur cloud**. OpenAI et
+Claude/Anthropic sont intégrés aujourd'hui. Gemini n'a pas encore de connecteur
+natif ; il ne faut donc pas le présenter comme disponible tant que ce connecteur
+n'est pas ajouté.
+
+## OpenAI
 
 Jarvis utilise l'API **Responses** d'OpenAI pour la conversation, la vision et les
 appels d'outils. Le modèle recommandé au quotidien est `gpt-5.6-terra` ;
@@ -59,9 +66,11 @@ Modèles proposés :
 - conversations téléphoniques ;
 - comptage des tokens et estimation du coût dans le panneau État.
 
-Anthropic reste disponible comme **repli de compatibilité** pour une ancienne
-configuration (`cloud.fournisseur: anthropic`), mais OpenAI est le chemin
-recommandé.
+## Claude / Anthropic
+
+Claude/Anthropic est une **alternative cloud prise en charge** : choisir
+`cloud.fournisseur: anthropic`, puis renseigner `anthropic.cle`,
+`anthropic.modele` et `anthropic.modele_qualite` dans le fichier local.
 
 ## Voix ElevenLabs
 

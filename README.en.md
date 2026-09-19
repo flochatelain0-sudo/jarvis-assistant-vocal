@@ -5,12 +5,16 @@
 ![Python](https://img.shields.io/badge/python-3.13-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
-![Mode](https://img.shields.io/badge/mode-cloud%20%7C%20local-orange)
+![Mode](https://img.shields.io/badge/modes-hybrid%20%7C%20quality%20%7C%20local-orange)
 
 A French-speaking voice assistant that runs **on your own machine**. Say *"Hey Jarvis"*,
 speak naturally, and it reasons with an LLM, uses a growing toolbox (smart home, PC,
-web, phone…), and answers out loud. Choose between **hybrid**, **quality**
-(OpenAI + ElevenLabs), or **fully offline local** mode (Ollama + Piper).
+web, phone…), and answers out loud. Choose between three distinct modes:
+**hybrid** (everyday cloud AI + Hermes for background work), **quality** (the most
+capable configured cloud model), or **fully offline local** (Ollama + local voice).
+LLM and voice are independent choices. **OpenAI and Claude/Anthropic are integrated
+today**; other providers such as Gemini can be added through a connector without
+changing these three modes.
 
 **🧠 Jarvis + Hermes.** Jarvis delegates long-form research and planning to the
 local [Hermes](docs/hermes.md) agent. The boundary is explicit: **Hermes orchestrates
@@ -24,7 +28,8 @@ to it over the local network/Wi-Fi, **with no long cable back to the PC**
 ([how it works](docs/satellite.md) · [setup guide](docs/satellite_pi.md)).
 
 > Personal project shared as-is. Targets **Windows 11**, needs a microphone and (for
-> cloud mode) an OpenAI Platform API key. Most integrations are **optional** and disable
+> cloud mode) an API key from the selected provider. Consumer subscriptions and APIs
+> are generally separate. Most integrations are **optional** and disable
 > themselves cleanly when unconfigured.
 
 ## ✨ Features
@@ -53,7 +58,7 @@ to it over the local network/Wi-Fi, **with no long cable back to the PC**
 - 🤝 **Hermes delegation** — delegates long-form thinking and research to a sandboxed local agent ([docs/hermes.md](docs/hermes.md))
 - 🧭 **Local HUD & control panel** (`/panneau`) — quick model/voice controls, chain status, settings and permissions; local access only ([docs/panneau.md](docs/panneau.md))
 - 🔐 **Graduated safety** — N1/N2/N3 permission levels, revocable remembered approvals, and hard confirmation boundaries for critical actions
-- 💸 **Routing & budgets** — local/hybrid/quality backends, provider cost tracking, alerts and automatic local fallback at the spending cap ([docs/costs.md](docs/costs.md))
+- 💸 **Routing & budgets** — three modes (local/hybrid/quality), independently configurable cloud provider and voice, cost tracking, alerts, and automatic local fallback at the spending cap ([docs/costs.md](docs/costs.md))
 - 📊 **Private local cockpit** — subscriptions, upcoming charges, Gmail receipt detection, and CSV transaction import; financial data remains gitignored and unavailable to Hermes/MCP ([docs/cockpit.md](docs/cockpit.md))
 - ⏻ **Safe PC shutdown / wake-up** — voice-confirmed N3 shutdown with a cancellable delay; hardware-dependent wake methods are documented generically ([docs/wol.md](docs/wol.md))
 - ✋ **Optional camera and hand-gesture control** — when a webcam is configured, **Window** (switch/scroll) and **Audio** (volume/tracks) modes complement light/media/OBS actions; processing stays 100% local and no image leaves the tracker ([docs/gestes.md](docs/gestes.md))
@@ -73,9 +78,9 @@ to it over the local network/Wi-Fi, **with no long cable back to the PC**
 flowchart LR
     Mic([🎙️ Mic]) --> WW[openWakeWord<br/>« Hey Jarvis »]
     WW --> STT[faster-whisper<br/>STT — local]
-    STT --> LLM{{LLM<br/>OpenAI ☁️ OR Ollama 🏠}}
+    STT --> LLM{{LLM<br/>Configurable cloud ☁️<br/>OR Ollama 🏠}}
     LLM <-->|tool calls| TOOLS[🧰 Tools]
-    LLM --> TTS{{TTS<br/>ElevenLabs ☁️ OR Piper 🏠}}
+    LLM --> TTS{{Configurable voice<br/>ElevenLabs · Piper · Kokoro · Windows}}
     TTS --> SPK([🔊 Speakers])
 
     SAT([📡 Raspberry Pi satellite<br/>mic · speaker]) -->|authenticated LAN audio| STT
@@ -94,17 +99,15 @@ flowchart LR
     PANEL[🧭 Local control panel<br/>models · status · permissions] -.-> TOOLS
 ```
 
-## ☁️ Cloud vs 🏠 Local
+## 🎚️ The three modes
 
-| | **cloud** (default) | **local** (offline) |
-|---|---|---|
-| LLM | OpenAI Responses API (`gpt-5.6-terra` / `gpt-6-astra`) | Ollama (`qwen3.5:4b`…) |
-| Voice | ElevenLabs | Piper (French) |
-| Transcription | faster-whisper (local) | faster-whisper (local) |
-| Quality | highest | good (model-dependent) |
-| Cost | pay-per-use | free |
-| Privacy | API calls | **nothing leaves the machine** |
-| Hardware | light | GPU recommended |
+| Mode | LLM | Voice | Usage |
+|---|---|---|---|
+| **hybrid** *(default)* | everyday OpenAI or Claude/Anthropic profile | selected independently | short cloud requests, background work delegated to Hermes |
+| **quality** | strongest profile from the same provider | selected independently | demanding requests and stronger reasoning |
+| **local** | Ollama (`qwen3.5:4b`…) | Piper, Kokoro, or Windows | **fully offline**, no API and no usage fees |
+
+faster-whisper transcription stays local in all three modes.
 
 Switch with a single line: `mode: local`, `hybride` (default), or `qualite`. See [docs/local.md](docs/local.md) and [docs/costs.md](docs/costs.md)
 for the honest reliability breakdown (a 7B model handles the core home/PC tools well;
@@ -125,8 +128,9 @@ copy config.example.yaml config.yaml      # then fill in what you need
 uv run python jarvis14.py
 ```
 
-Say **"Hey Jarvis"**. The only strictly required setting is `openai.cle` (cloud mode)
-or a local model (local mode). Everything else is optional.
+Say **"Hey Jarvis"**. Configure either the selected cloud provider's API key
+(`openai.cle` or `anthropic.cle`) or an Ollama model in local mode. Everything else
+is optional.
 
 Complete beginner? See **[INSTALL_WITH_AI.en.md](INSTALL_WITH_AI.en.md)** — paste it into
 any free AI and it installs everything step by step. Or run the interactive installer:
@@ -157,7 +161,7 @@ Everything lives in a single **untracked** `config.yaml` (copy from
 
 | Integration | Guide |
 |---|---|
-| Cloud vs local, Ollama, Piper | [docs/local.md](docs/local.md) |
+| Local / hybrid / quality modes | [docs/local.md](docs/local.md) |
 | Philips Hue | [docs/hue.md](docs/hue.md) |
 | OBS | [docs/obs.md](docs/obs.md) |
 | Google Calendar + iCal | [docs/agenda.md](docs/agenda.md) |
@@ -169,7 +173,7 @@ Everything lives in a single **untracked** `config.yaml` (copy from
 | Instagram | [docs/instagram.md](docs/instagram.md) |
 | MCP server | [docs/mcp.md](docs/mcp.md) |
 | iPhone bridge (Shortcuts) | [docs/iphone.md](docs/iphone.md) |
-| **OpenAI / cloud models** | [docs/openai.md](docs/openai.md) |
+| **Cloud providers (OpenAI / Claude)** | [docs/openai.md](docs/openai.md) |
 | **Hermes delegation and isolation** | [docs/hermes.md](docs/hermes.md) |
 | **Content hub** | [docs/hub_contenu.md](docs/hub_contenu.md) |
 | **Content tracking** | [docs/suivi_contenu.md](docs/suivi_contenu.md) |

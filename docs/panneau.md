@@ -50,8 +50,8 @@ danger (choix de modèle, modèle d'Hermes) — **jamais une règle de sécurit�
 - **Modèles cloud OpenAI** : catalogue `gpt-5.6-luna/terra/sol` et
   `gpt-6-astra`, tarifs, vision, appels d'outils et vérification de l'accès réel
   via la clé API locale.
-- **Modèle actif par backend** : local (Ollama), cloud (OpenAI ou repli
-  Anthropic), Whisper et **Hermes**. Le LLM cloud/local change au tour suivant ;
+- **Modèle actif par backend** : local (Ollama), cloud (OpenAI ou Anthropic),
+  Whisper et **Hermes**. Le LLM cloud/local change au tour suivant ;
   Whisper demande encore un redémarrage.
 
 ## 2. Page Réglages (voix, audio, mot d'activation)

@@ -1,20 +1,18 @@
-# Mode local (100 % hors ligne) vs mode cloud
+# Modes local, hybride et qualité
 
 Jarvis propose trois modes, choisis par une seule ligne dans `config.yaml` :
 
 ```yaml
-mode: hybride  # OpenAI + ElevenLabs | local = Ollama + Piper, 100% hors ligne
+mode: hybride  # local | hybride | qualite
+cloud:
+  fournisseur: openai  # openai | anthropic
 ```
 
-| | **cloud** (defaut) | **local** |
-|---|---|---|
-| LLM | OpenAI Responses API | Ollama (`qwen3.5:4b`...) |
-| Voix (TTS) | ElevenLabs | Piper (FR) |
-| Transcription (STT) | faster-whisper (local) | faster-whisper (local) |
-| Qualite | maximale | bonne (dépend du modèle) |
-| Cout | à l'usage (API) | gratuit |
-| Vie privée | appels API | **rien ne sort de la machine** |
-| Matériel | léger | GPU recommandé (voir plus bas) |
+| Mode | LLM | Voix | Usage |
+|---|---|---|---|
+| **hybride** | profil quotidien OpenAI ou Claude/Anthropic | moteur configuré | chemin cloud rapide + tâches de fond Hermes |
+| **qualité** | profil le plus puissant du même fournisseur | moteur configuré | demandes exigeantes |
+| **local** | Ollama (`qwen3.5:4b`...) | Piper/Kokoro/Windows | **100 % hors ligne**, gratuit |
 
 Le **STT reste local dans les trois modes** (faster-whisper, GPU si dispo).
 
@@ -34,7 +32,7 @@ Le **STT reste local dans les trois modes** (faster-whisper, GPU si dispo).
 3. Dans `config.yaml` : `mode: local` (et éventuellement `ollama.modele`,
    `piper.modele`).
 
-Sans clé OpenAI ni ElevenLabs, le mode local fonctionne entièrement seul. (Si Piper
+Sans clé cloud ni ElevenLabs, le mode local fonctionne entièrement seul. (Si Piper
 n'est pas configuré, Jarvis retombe sur la voix Windows SAPI.)
 
 ## Fiabilité réelle du mode local (honnête)
@@ -79,8 +77,8 @@ plutôt que de planter.
 **En résumé** : le mode local couvre très bien la **domotique et le PC** en tout
 confidentialité ; pour la **productivité internet** et surtout les **features à
 vision** (navigateur, réservation), le **mode cloud est recommandé**. Ces dernières
-utilisent le fournisseur cloud pour la boucle vision. Avec OpenAI, configure
-`openai.cle` ; l'abonnement ChatGPT seul ne suffit pas.
+utilisent le fournisseur cloud pour la boucle vision. Configure la clé correspondante
+(`openai.cle` ou `anthropic.cle`) ; un abonnement grand public ne remplace pas l'API.
 
 ## Matériel recommandé (mode local)
 

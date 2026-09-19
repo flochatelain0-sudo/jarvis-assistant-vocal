@@ -4,13 +4,13 @@
 > Le routage ci-dessous **est** l'implémentation de la doctrine — qui fait quoi, et à
 > quel coût.
 
-## Les 4 backends (config `mode`)
+## Les 3 modes (config `mode`)
 
 | Mode | LLM | Voix | Pour quoi |
 |---|---|---|---|
-| **local** | Ollama | Piper/Kokoro | tout local, **rien ne sort**, gratuit |
-| **hybride** *(défaut)* | OpenAI équilibré (`gpt-5.6-terra`) | ElevenLabs par défaut | réflexes + vision/navigateur/résa en cloud ; **tâches de fond → Hermes** |
-| **qualite** | GPT-6 Astra (`gpt-6-astra`) | ElevenLabs par défaut | cloud partout, meilleur raisonnement |
+| **local** | Ollama | Piper/Kokoro/Windows | tout local, **rien ne sort**, gratuit |
+| **hybride** *(défaut)* | profil quotidien du fournisseur choisi | moteur vocal configuré | demandes courtes en cloud ; **tâches de fond → Hermes** |
+| **qualite** | profil puissant du même fournisseur | moteur vocal configuré | modèle le plus capable pour les demandes exigeantes |
 
 *(L'ancien `mode: cloud` reste accepté = `hybride`.)* Changement **à la voix** :
 « passe en local », « repasse en hybride », « mode qualité » (`mode_routage`).
@@ -24,8 +24,8 @@ restent sur le chemin court de Jarvis (rapide, économique).
 
 Compteurs par fournisseur, agrégés **jour / mois**, dans `budget.json` (non versionné) :
 
-- **OpenAI (Jarvis)** : chaque appel Responses API est instrumenté (tokens in/out
-  + cache), coût via `budget.prix` ($/Mtok). Anthropic reste compté si le repli est actif.
+- **LLM cloud Jarvis** : les appels OpenAI ou Claude/Anthropic sont instrumentés
+  (tokens in/out + cache) et comptés via `budget.prix` ($/Mtok).
 - **Voix ElevenLabs** : facturée au caractère → `budget.prix_elevenlabs` ($/1000 car.).
 - **Twilio** (appels) : compteur mensuel `logs/calls/compteur.json`.
 - **Hermes** : tient **sa propre** compta (`hermes insights`) — Jarvis la lit mais ne
@@ -69,8 +69,8 @@ budget:
 | Tout en **local** | Ollama + Piper | **0 $** |
 
 Les tarifs exacts changent : le catalogue du panneau et `config.example.yaml`
-servent de valeurs de départ, à vérifier dans la documentation OpenAI avant de
-modifier les plafonds.
+servent de valeurs de départ, à vérifier dans la documentation du fournisseur
+sélectionné avant de modifier les plafonds.
 
 Pour ne rien dépenser : `mode: local` (ou « passe en local »). Pour la qualité
 maximale ponctuelle : « mode qualité », puis « repasse en hybride ».

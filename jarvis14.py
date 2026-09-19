@@ -2,7 +2,8 @@
 Assistant vocal local, avec mot d'activation et actions.
 
 Dites « Hey Jarvis », parlez, taisez-vous. Il repond et agit.
-Chaine : openWakeWord -> faster-whisper -> OpenAI/Ollama (+ outils) -> ElevenLabs/Piper/SAPI
+Chaine : openWakeWord -> faster-whisper -> LLM cloud configurable/Ollama (+ outils)
+         -> moteur vocal configurable (ElevenLabs/Piper/Kokoro/SAPI)
 
 Architecture : les outils vivent dans tools/ (auto-decouverts via core.registre),
 les reglages et secrets dans config.yaml (via core.config).
@@ -51,7 +52,7 @@ def _haut_parleur():
     l'outil sortie_audio -> config.definir). None = sortie par defaut de Windows."""
     return config.reglage("audio.haut_parleur", None)
 
-# Le choix du modele LLM (OpenAI/Ollama) et de la voix est gere
+# Le choix du LLM (OpenAI/Anthropic/Ollama) et de la voix est gere
 # par les providers (core/llm.py, core/tts.py), selon config.yaml
 # (mode: local|hybride|qualite).
 MODELE_WHISPER = config.reglage("whisper.modele", "medium")

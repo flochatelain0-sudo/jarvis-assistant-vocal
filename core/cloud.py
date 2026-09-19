@@ -1,8 +1,8 @@
 """Client cloud commun a Jarvis.
 
-OpenAI (Responses API) est le fournisseur cloud recommande. Anthropic reste un
-repli compatible pour les installations existantes : aucune migration brutale
-si une ancienne config ne contient pas encore ``openai.cle``.
+OpenAI (Responses API) et Anthropic/Claude sont les deux fournisseurs cloud
+intégrés. Le choix explicite vit dans ``cloud.fournisseur`` ; la détection des
+anciennes configurations est conservée pour éviter une migration brutale.
 
 Ce module centralise aussi les appels texte/vision utilises hors de la boucle
 principale (indexeur, navigateur, reservations, appels). Les secrets ne quittent
@@ -19,7 +19,7 @@ LOG = logging.getLogger("jarvis")
 
 
 def fournisseur() -> str:
-    """Fournisseur cloud actif : openai ou anthropic (compatibilite)."""
+    """Fournisseur cloud actif : openai ou anthropic."""
     choix = str(reglage("cloud.fournisseur", "") or "").strip().lower()
     if choix in {"openai", "anthropic"}:
         return choix

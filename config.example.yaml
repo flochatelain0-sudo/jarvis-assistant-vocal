@@ -3,13 +3,13 @@
 
 mode: hybride                  # local | hybride | qualite  (voir docs/costs.md)
                                #  local   = tout local (Ollama + Piper), rien ne sort
-                               #  hybride = DEFAUT : reflexes + vision en OpenAI eco ;
+                               #  hybride = DEFAUT : profil quotidien du fournisseur cloud ;
                                #            taches de fond confiees a Hermes
-                               #  qualite = cloud partout, GPT-6 Astra par defaut
+                               #  qualite = profil le plus puissant du meme fournisseur
                                # (l'ancien "cloud" reste accepte = hybride)
 
 cloud:
-  fournisseur: openai          # openai (recommande) | anthropic (compatibilite)
+  fournisseur: openai          # openai | anthropic (Claude)
 
 openai:
   cle: "sk-proj-..."           # cle API Platform ; l'abonnement ChatGPT ne la remplace pas
@@ -40,7 +40,7 @@ kokoro:                        # TTS local alternatif (voix FR unique ; uv add k
   voix: ""                     # chemin de voices-v1.0.bin
   voix_nom: "ff_siwis"         # voix francaise de Kokoro
 
-anthropic:                     # ancien fournisseur, garde comme repli optionnel
+anthropic:                     # fournisseur Claude / Anthropic alternatif
   cle: "sk-ant-..."            # https://console.anthropic.com/ , section API keys
   modele: "claude-haiku-4-5"          # mode hybride : modele economique (reflexes + vision)
   modele_qualite: "claude-sonnet-4-5" # mode qualite : modele le plus fort

@@ -5,13 +5,16 @@
 ![Python](https://img.shields.io/badge/python-3.13-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
-![Mode](https://img.shields.io/badge/mode-cloud%20%7C%20local-orange)
+![Mode](https://img.shields.io/badge/modes-hybrid%20%7C%20quality%20%7C%20local-orange)
 
 Un assistant vocal en français qui tourne **sur ta machine**. Dis *« Hey Jarvis »*,
 parle naturellement : il raisonne avec un LLM, utilise une boîte à outils extensible
-(domotique, PC, web, téléphone…) et te répond à voix haute. Trois modes au choix :
-**hybride**, **qualité** (OpenAI + ElevenLabs) ou **100 % local hors ligne**
-(Ollama + Piper).
+(domotique, PC, web, téléphone…) et te répond à voix haute. Trois modes distincts :
+**hybride** (IA cloud quotidienne + Hermes pour le fond), **qualité** (modèle cloud
+le plus puissant configuré) ou **100 % local hors ligne** (Ollama + voix locale).
+Le LLM et la voix se choisissent séparément. **OpenAI et Claude/Anthropic sont
+intégrés aujourd'hui** ; d'autres fournisseurs, comme Gemini, peuvent être ajoutés
+par connecteur sans changer ces trois modes.
 
 **🧠 Jarvis + Hermes.** Pour la réflexion de fond et la recherche, Jarvis **délègue à
 [Hermes](docs/hermes.md)**, un agent délibératif qui tourne **en local** (conteneur
@@ -27,7 +30,8 @@ sur place et communique avec lui sur le réseau local/Wi-Fi, **sans long câble
 jusqu'au PC** ([fonctionnement](docs/satellite.md) · [installation](docs/satellite_pi.md)).
 
 > Projet perso partagé tel quel. Cible **Windows 11**, nécessite un micro et (en mode
-> cloud) une clé API OpenAI Platform. L'abonnement ChatGPT est séparé de l'API. La plupart des intégrations sont **optionnelles** et se
+> cloud) une clé API du fournisseur choisi. Les abonnements grand public et les API
+> sont généralement séparés. La plupart des intégrations sont **optionnelles** et se
 > désactivent proprement si non configurées.
 
 ## ✨ Fonctionnalités
@@ -56,7 +60,7 @@ jusqu'au PC** ([fonctionnement](docs/satellite.md) · [installation](docs/satell
 - 🤝 **Délégation à Hermes** — confie la réflexion / recherche de fond à un agent délibératif **local** (doctrine : Jarvis tient les clés & le corps, Hermes pense) ([docs/hermes.md](docs/hermes.md))
 - 🧭 **HUD & panneau web local** (`/panneau`) — commandes rapides de modèle/voix, état de la chaîne, réglages et permissions — **accessibles en local uniquement** ([docs/panneau.md](docs/panneau.md))
 - 🔐 **Sécurité graduée** — niveaux **N1/N2/N3** par outil, « toujours autoriser » révocable, budget LLM par fournisseur
-- 💸 **Routage & budgets** — 4 backends (local / hybride / qualité), suivi des coûts jour/mois par fournisseur (OpenAI, ElevenLabs, Twilio, Hermes), plafonds avec alerte vocale à 80 % et **bascule auto en local** au plafond ([docs/costs.md](docs/costs.md))
+- 💸 **Routage & budgets** — 3 modes (local / hybride / qualité), fournisseur cloud et voix configurables séparément, suivi des coûts et **bascule auto en local** au plafond ([docs/costs.md](docs/costs.md))
 - 📊 **Cockpit personnel local** — abonnements, échéances, détection par reçus Gmail et import CSV de transactions ; les données financières restent gitignorées et ne sont jamais exposées à Hermes/MCP ([docs/cockpit.md](docs/cockpit.md))
 - ⏻ **Extinction / réveil du PC** — extinction propre à la voix (confirmation N3, délai annulable) ; méthodes génériques de réveil documentées selon le matériel ([docs/wol.md](docs/wol.md))
 - ✋ **Contrôle optionnel par caméra et gestes** — avec une webcam configurée, les modes **Fenêtres** (changer/défiler) et **Audio** (volume/pistes) complètent les actions lumière/média/OBS ; traitement **100 % local**, aucune image ne sort ([docs/gestes.md](docs/gestes.md))
@@ -76,9 +80,9 @@ jusqu'au PC** ([fonctionnement](docs/satellite.md) · [installation](docs/satell
 flowchart LR
     Mic([🎙️ Micro]) --> WW[openWakeWord<br/>« Hey Jarvis »]
     WW --> STT[faster-whisper<br/>STT — local]
-    STT --> LLM{{LLM<br/>OpenAI ☁️ OU Ollama 🏠}}
+    STT --> LLM{{LLM<br/>Cloud configurable ☁️<br/>OU Ollama 🏠}}
     LLM <-->|appels d'outils| TOOLS[🧰 Outils]
-    LLM --> TTS{{TTS<br/>ElevenLabs ☁️ OU Piper 🏠}}
+    LLM --> TTS{{Voix configurable<br/>ElevenLabs · Piper · Kokoro · Windows}}
     TTS --> SPK([🔊 Haut-parleurs])
 
     SAT([📡 Satellite Pi<br/>micro · haut-parleur]) -->|audio LAN authentifié| STT
@@ -100,17 +104,15 @@ flowchart LR
 > **Jarvis tient les clés & le corps** (il exécute) ; **Hermes pense** (réflexion, recherche,
 > analyse du Vault). Hermes ne voit que les **outils sûrs** exposés par le serveur MCP de Jarvis.
 
-## ☁️ Cloud vs 🏠 Local
+## 🎚️ Les trois modes
 
-| | **cloud** (défaut) | **local** (hors ligne) |
-|---|---|---|
-| LLM | OpenAI Responses API (`gpt-5.6-terra` / `gpt-6-astra`) | Ollama (`qwen3.5:4b`…) |
-| Voix | ElevenLabs | Piper (français) |
-| Transcription | faster-whisper (local) | faster-whisper (local) |
-| Qualité | maximale | bonne (selon le modèle) |
-| Coût | à l'usage | gratuit |
-| Vie privée | appels API | **rien ne sort de la machine** |
-| Matériel | léger | GPU recommandé |
+| Mode | LLM | Voix | Usage |
+|---|---|---|---|
+| **hybride** *(défaut)* | profil quotidien OpenAI ou Claude/Anthropic | moteur choisi séparément | demandes courtes en cloud, tâches de fond confiées à Hermes |
+| **qualité** | profil le plus puissant du même fournisseur | moteur choisi séparément | demandes exigeantes et raisonnement renforcé |
+| **local** | Ollama (`qwen3.5:4b`…) | Piper, Kokoro ou Windows | **100 % hors ligne**, aucune API et aucun coût d'usage |
+
+La transcription faster-whisper reste locale dans les trois modes.
 
 Bascule en une ligne : `mode: local`, `hybride` (défaut) ou `qualite` — ou à la voix « passe en local ». Voir [docs/local.md](docs/local.md) et [docs/costs.md](docs/costs.md)
 pour le bilan honnête de fiabilité (un modèle 7B gère bien les outils domotique/PC ;
@@ -132,8 +134,9 @@ copy config.example.yaml config.yaml      # puis remplis ce dont tu as besoin
 uv run python jarvis14.py
 ```
 
-Dis **« Hey Jarvis »**. Le seul réglage strictement requis est `openai.cle` (mode
-cloud) ou un modèle local (mode local). Tout le reste est optionnel.
+Dis **« Hey Jarvis »**. Il faut soit la clé API du fournisseur cloud sélectionné
+(`openai.cle` ou `anthropic.cle`), soit un modèle Ollama en mode local. Tout le reste
+est optionnel.
 
 Débutant complet ? Vois **[INSTALL_WITH_AI.md](INSTALL_WITH_AI.md)** — à coller dans
 n'importe quelle IA gratuite, elle t'installe tout pas à pas. Ou lance l'installateur
@@ -161,15 +164,15 @@ Aucun outil n'est imposé : prends celui qui te convient.
 
 Tout est dans un unique `config.yaml` **non versionné** (copié depuis
 `config.example.yaml`, qui documente chaque clé). Nouvelles sections côté config :
-`cloud`/`openai` (LLM cloud), `tts`/`elevenlabs` (voix), `hermes` (délégation), `integrations`/`hub` (Vault + génération), `suivi` (pipeline
+`cloud`/`openai`/`anthropic` (LLM cloud), `tts`/`elevenlabs` (voix), `hermes` (délégation), `integrations`/`hub` (Vault + génération), `suivi` (pipeline
 de contenus), `securite.toujours` (autorisations N2 mémorisées), `budget.prix`
 (coût LLM), `serveur`/`pont_iphone`. Guides par intégration :
 
 | Intégration | Guide |
 |---|---|
-| OpenAI / GPT-6 Astra | [docs/openai.md](docs/openai.md) |
-| Cloud vs local, Ollama, Piper | [docs/local.md](docs/local.md) |
-| Routage 4 backends, coûts & budgets | [docs/costs.md](docs/costs.md) |
+| Fournisseurs cloud (OpenAI / Claude) | [docs/openai.md](docs/openai.md) |
+| Modes local / hybride / qualité | [docs/local.md](docs/local.md) |
+| Routage 3 modes, coûts & budgets | [docs/costs.md](docs/costs.md) |
 | Philips Hue | [docs/hue.md](docs/hue.md) |
 | OBS | [docs/obs.md](docs/obs.md) |
 | Google Agenda + iCal | [docs/agenda.md](docs/agenda.md) |
