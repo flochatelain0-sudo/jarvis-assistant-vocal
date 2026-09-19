@@ -103,7 +103,7 @@ Mettre ce réglage à `false` rend le choix au modèle.
 
 > **⚠️ La routine doit exister** avec un nom qui matche. `alexapy` échoue **en
 > silence** si aucune routine ne correspond — Jarvis te le dit maintenant
-> honnêtement (« Aucune routine … ; tes routines : … ») au lieu de faire semblant.
+> honnêtement, sans réciter ni afficher toute la liste de tes routines.
 > **Convention conseillée** : nomme `<appareil> on` / `<appareil> off` en minuscules
 > et sans accents (`clim on`, `salon off`, `tele on`). Jarvis tolère les accents,
 > pluriels et synonymes courants (tv↔télé, lumière↔lampe), mais des noms simples

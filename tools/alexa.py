@@ -200,10 +200,6 @@ async def _annoncer(texte, cible):
     return "Annonce diffusée sur tes Echo."
 
 
-def _liste_noms(autos):
-    return [n for n in (_nom_routine(a) for a in autos if isinstance(a, dict)) if n]
-
-
 def _trouver_exact(autos, nom):
     """Routine dont le nom OU un énoncé == nom (insensible casse/accents)."""
     cible = sans_accents(nom).lower().strip()
@@ -222,9 +218,8 @@ async def _routine(nom):
     # sinon on annoncerait un faux succès (« déclenchée » alors que rien ne bouge).
     trouve = _trouver_exact(autos, nom)
     if trouve is None:
-        noms = _liste_noms(autos)
-        noms_txt = ", ".join(noms[:8]) or "aucune (à créer dans l'app Alexa)"
-        return f"Aucune routine « {nom} » chez toi. Tes routines : {noms_txt}."
+        return (f"Je ne trouve pas la routine Alexa « {nom} ». Vérifie son nom "
+                "dans l'app Alexa.")
     dev = _choisir(await _devices(login), "")
     await _api(dev, login).run_routine(trouve)
     return f"Routine « {trouve} » déclenchée."
@@ -310,11 +305,71 @@ _IGNORES_APPAREIL = {
     "mon", "ma", "mes", "notre", "nos", "stp", "svp", "s", "il", "te", "plait",
     "jarvis", "alexa", "sur", "suis", "moi", "pour", "peux", "tu", "peut", "vous",
 }
+_MOTS_DISCUSSION = {
+    "je", "j", "aimerais", "voudrais", "parle", "parlais", "expliquer",
+    "explique", "video", "idee", "hook", "pourquoi", "comment", "question",
+    "remplace", "remplacer", "raconte", "resume",
+}
 _PREFIXES_ROUTINE = {
     "lance", "lances", "lancez", "active", "actives", "activez", "declenche",
     "declenches", "declenchez", "execute", "executes", "executez", "demarre",
-    "demarres", "demarrez", "joue", "fais",
+    "demarres", "demarrez", "joue", "fais", "lancer", "activer",
+    "declencher", "executer", "demarrer", "jouer", "faire",
 }
+
+_PREFIXES_DEMANDE = (
+    ("est", "ce", "que", "tu", "peux"),
+    ("s", "il", "te", "plait"),
+    ("s", "il", "vous", "plait"),
+    ("je", "voudrais", "que", "tu"),
+    ("je", "veux", "que", "tu"),
+    ("j", "aimerais", "que", "tu"),
+    ("peux", "tu"), ("peut", "tu"), ("tu", "peux"),
+    ("pouvez", "vous"), ("vas", "y"),
+    ("stp",), ("svp",),
+)
+
+
+def _mots_demande(mots):
+    """Retire seulement les amorces qui expriment clairement une demande.
+
+    Une phrase discursive (« j'aimerais savoir si Alexa peut allumer... ») reste
+    intacte et ne peut donc pas être confondue avec un ordre domotique.
+    """
+    sortie = list(mots)
+    change = True
+    while sortie and change:
+        change = False
+        for prefixe in _PREFIXES_DEMANDE:
+            if tuple(sortie[:len(prefixe)]) == prefixe:
+                del sortie[:len(prefixe)]
+                change = True
+                break
+    return sortie
+
+
+def _routine_explicite(mots):
+    """Nom après un véritable ordre de routine placé au début, sinon None."""
+    commande = _mots_demande(mots)
+    if not commande:
+        return None
+    if commande[0] == "routine":
+        return " ".join(commande[1:]).strip() or None
+    if commande[0] not in _PREFIXES_ROUTINE:
+        return None
+    i = 1
+    while i < len(commande) and commande[i] in {"la", "le", "une", "un", "moi"}:
+        i += 1
+    if i >= len(commande) or commande[i] != "routine":
+        return None
+    return " ".join(commande[i + 1:]).strip() or None
+
+
+def _cible_alexa_plausible(texte, limite_mots):
+    """Dernier garde-fou contre une phrase de discussion envoyée comme cible."""
+    mots = _normaliser_commande(texte).split()
+    return bool(mots and len(mots) <= limite_mots
+                and not (set(mots) & _MOTS_DISCUSSION))
 
 
 def _vise_amaran(phrase, piece_amaran="", noms_amaran=()):
@@ -350,12 +405,12 @@ def _analyser_commande(phrase, piece="", automations=(),
     if not mots:
         return None
 
-    # « lance la routine bonne nuit » / « routine bonne nuit ».
-    if "routine" in mots:
-        i = mots.index("routine")
-        nom = " ".join(mots[i + 1:]).strip()
-        if nom:
-            return "alexa_routine", {"nom": nom}
+    # « lance la routine bonne nuit » / « routine bonne nuit », uniquement si
+    # c'est réellement un ordre. Une simple discussion contenant « routine »
+    # ne doit jamais détourner toute la phrase vers Alexa.
+    nom_routine = _routine_explicite(mots)
+    if nom_routine:
+        return "alexa_routine", {"nom": nom_routine}
 
     # L'Amaran est un équipement local prioritaire. Sa pièce et ses alias ne
     # doivent jamais être capturés par le routage Alexa générique.
@@ -364,16 +419,21 @@ def _analyser_commande(phrase, piece="", automations=(),
 
     # Commande domestique : action claire + appareil connecté connu, ou mention
     # explicite d'Alexa. Les commandes PC/musique ne sont donc pas détournées.
-    action_i = next((i for i, mot in enumerate(mots)
+    commande = _mots_demande(mots)
+    action_i = next((i for i, mot in enumerate(commande)
                      if mot in _MOTS_ON or mot in _MOTS_OFF), None)
     if action_i is not None:
-        voisinage = mots[max(0, action_i - 2):action_i + 3]
-        if "pas" not in voisinage:
-            appareil_mots = [m for m in mots[action_i + 1:]
+        # L'action doit ouvrir la demande (« allume... »), éventuellement après
+        # « Alexa ». Un verbe perdu au milieu d'une explication n'est pas un ordre.
+        debut_valide = action_i == 0 or (
+            action_i == 1 and commande[0] == "alexa")
+        voisinage = commande[max(0, action_i - 2):action_i + 3]
+        if debut_valide and "pas" not in voisinage:
+            appareil_mots = [m for m in commande[action_i + 1:]
                               if m not in _IGNORES_APPAREIL
                               and m not in _MOTS_ON and m not in _MOTS_OFF]
-            connu = bool(set(mots) & _MOTS_APPAREILS)
-            if appareil_mots and (connu or "alexa" in mots):
+            connu = bool(set(commande) & _MOTS_APPAREILS)
+            if appareil_mots and (connu or "alexa" in commande):
                 appareil = " ".join(appareil_mots)
                 mots_lumiere = {"lumiere", "lumieres", "lampe", "lampes", "eclairage"}
                 # La pièce du satellite ne complète que « allume la lumière ».
@@ -382,14 +442,14 @@ def _analyser_commande(phrase, piece="", automations=(),
                     piece_norm = _normaliser_commande(piece)
                     if piece_norm and piece_norm not in appareil:
                         appareil += " " + piece_norm
-                action = "eteindre" if mots[action_i] in _MOTS_OFF else "allumer"
+                action = "eteindre" if commande[action_i] in _MOTS_OFF else "allumer"
                 return "alexa_appareil", {"appareil": appareil, "action": action}
 
     # Une routine peut aussi être prononcée directement (« bonne nuit ») ou avec
     # un verbe (« lance bonne nuit »). Le cache est préchargé au démarrage.
-    candidats = [" ".join(mots)]
-    if mots[0] in _PREFIXES_ROUTINE and len(mots) > 1:
-        candidats.append(" ".join(mots[1:]))
+    candidats = [" ".join(commande)]
+    if commande and commande[0] in _PREFIXES_ROUTINE and len(commande) > 1:
+        candidats.append(" ".join(commande[1:]))
     for a in automations or ():
         if not isinstance(a, dict):
             continue
@@ -478,9 +538,8 @@ def _resoudre_routine(automations, appareil, on):
     if len(appareil_seul) == 1:                         # une seule routine (bascule)
         return appareil_seul[0], None
     if appareil_seul:
-        return None, ("Plusieurs routines correspondent : "
-                      + ", ".join(f"« {n} »" for n in appareil_seul[:6])
-                      + ". Précise, ou dis « lance la routine <nom> ».")
+        return None, ("Plusieurs routines Alexa pourraient correspondre. Précise "
+                      "l'appareil ou la pièce, ou dis « lance la routine <nom> ».")
     return None, ""
 
 
@@ -495,11 +554,10 @@ async def _appareil(appareil, action):
     if nom is None:
         if msg:
             return msg
-        noms = [n for n in (_nom_routine(a) for a in autos if isinstance(a, dict)) if n]
         premier = (sans_accents(appareil).lower().split() or ["appareil"])[0]
-        return (f"Pas de routine pour « {appareil} ». Tes routines : "
-                f"{', '.join(noms[:8]) or 'aucune'}. Crée « {premier} on » et "
-                f"« {premier} off » dans l'app Alexa.")
+        return (f"Je ne trouve pas de routine Alexa pour « {appareil} ». Vérifie "
+                f"son nom, ou crée « {premier} on » et « {premier} off » dans "
+                "l'app Alexa.")
     dev = _choisir(await _devices(login), "")
     await _api(dev, login).run_routine(nom)
     return f"C'est fait — routine « {nom} » déclenchée."
@@ -572,7 +630,9 @@ def alexa_annoncer(texte: str, cible: str = "") -> str:
     nom="alexa_routine",
     description="Déclenche une Routine Alexa par son énoncé (le contrôle des appareils "
                 "Google/Alexa passe par des routines que tu crées dans l'app Alexa, ex. "
-                "'lumière salon on'). Pour 'lance la routine ...', 'active ...'.",
+                "'lumière salon on'). UNIQUEMENT pour un ordre explicite comme 'lance "
+                "la routine ...'. Ne jamais appeler cet outil si l'utilisateur parle "
+                "d'Alexa, explique un projet, pose une question ou demande une idée.",
     parametres={
         "type": "object",
         "properties": {
@@ -585,6 +645,8 @@ def alexa_annoncer(texte: str, cible: str = "") -> str:
     annonce=lambda a: f"Je vais déclencher la routine Alexa « {a.get('nom','')} ».",
 )
 def alexa_routine(nom: str) -> str:
+    if not _cible_alexa_plausible(nom, 10):
+        return "Ce n'est pas un nom de routine Alexa clair ; je n'ai rien déclenché."
     if not _configure():
         return _msg_config()
     try:
@@ -599,7 +661,9 @@ def alexa_routine(nom: str) -> str:
                 "lumières, prise, ventilateur…) en déclenchant la routine Alexa qui "
                 "porte ce nom. Pour « allume la clim », « éteins la télé », « allume "
                 "les lumières du salon », « coupe le ventilateur ». Retrouve la bonne "
-                "routine parmi les tiennes (tolérant aux accents/pluriels).",
+                "routine parmi les tiennes (tolérant aux accents/pluriels). UNIQUEMENT "
+                "pour un ordre domotique direct. Ne jamais utiliser cet outil pour une "
+                "discussion sur Alexa, un contenu, une vidéo, une idée ou une question.",
     parametres={
         "type": "object",
         "properties": {
@@ -614,6 +678,8 @@ def alexa_routine(nom: str) -> str:
     phrase_attente="Je passe par Alexa.",
 )
 def alexa_appareil(appareil: str, action: str = "allumer") -> str:
+    if not _cible_alexa_plausible(appareil, 8):
+        return "Ce n'est pas une commande domotique claire ; je n'ai rien déclenché."
     if not _configure():
         return _msg_config()
     try:
