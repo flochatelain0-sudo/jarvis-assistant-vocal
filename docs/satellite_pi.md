@@ -124,6 +124,8 @@ Après chaque réponse, le satellite garde par défaut une fenêtre de conversat
 `fenetre_relance` de `config.yaml` règle cette durée (`0` la désactive). Pendant une
 transcription ou une recherche lente, Jarvis prononce de courts accusés et étapes de
 progression ; les seuils correspondants se règlent côté PC dans `satellite_lan`.
+Dire « Hey Jarvis, mets-toi en veille » ferme immédiatement la conversation suivie.
+Le satellite ignore alors toute parole ordinaire jusqu'à un nouveau « Hey Jarvis ».
 
 Par défaut, deux blocs audio très courts sont ignorés après le bip pour éviter que
 le micro réentende le haut-parleur. Avec un speakerphone doté d'une annulation

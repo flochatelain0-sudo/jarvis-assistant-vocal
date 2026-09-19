@@ -2,7 +2,7 @@
 import unittest
 from types import SimpleNamespace
 
-from core.satellite import _origine_locale_ou_lan, _phrase_progression
+from core.satellite import _demande_veille, _origine_locale_ou_lan, _phrase_progression
 
 
 def _ws(hote, **entetes):
@@ -34,6 +34,15 @@ class SatelliteSecurityTests(unittest.TestCase):
                          "Je m'en occupe.")
         self.assertEqual(_phrase_progression("Explique-moi cette idée"),
                          "Mmh, je réfléchis.")
+
+    def test_demande_de_veille_explicite(self):
+        self.assertTrue(_demande_veille("Hey Jarvis, mets-toi en veille"))
+        self.assertTrue(_demande_veille("Arrête de m'écouter"))
+        self.assertTrue(_demande_veille("Dors"))
+
+    def test_commandes_voisines_ne_declenchent_pas_la_veille(self):
+        self.assertFalse(_demande_veille("Mets la lumière en veilleuse"))
+        self.assertFalse(_demande_veille("Arrête la musique"))
 
 
 if __name__ == "__main__":

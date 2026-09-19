@@ -295,6 +295,10 @@ async def _session(url, satellite, token, file_audio, occupe, micro):
                 elif t == "relance":
                     micro.ouvrir_relance(d.get("secondes"))
                     occupe.clear()
+                elif t == "veille_forcee":
+                    micro.fermer_relance()
+                    occupe.clear()
+                    print("  [conversation] veille forcée — dites « Hey Jarvis » pour me réveiller")
                 elif t == "erreur":
                     print("  [erreur]", d.get("message"))
         finally:

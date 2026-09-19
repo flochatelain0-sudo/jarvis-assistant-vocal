@@ -21,6 +21,8 @@ Serveur -> client :
   {"type":"texte","texte":"..."}                          (réponse affichable)
   {"type":"audio_debut","freq":24000}                     (puis frames binaires)
   {"type":"audio_fin"}
+  {"type":"relance","secondes":8}                          (suivi sans wake word)
+  {"type":"veille_forcee"}                                  (wake word requis)
   {"type":"erreur","message":"..."}
 
 SÉCURITÉ : LAN-only (jamais exposé via ngrok — cf. la garde X-Forwarded), un
@@ -221,6 +223,27 @@ def _phrase_progression(phrase):
     return "Mmh, je réfléchis."
 
 
+def _demande_veille(phrase):
+    """Détecte une demande explicite de retour au mot d'activation."""
+    import re
+    from core.util import sans_accents
+    p = " ".join(re.sub(
+        r"[^a-z0-9]+", " ", sans_accents((phrase or "").lower())
+    ).split())
+    expressions = (
+        "mets toi en veille",
+        "met toi en veille",
+        "passe en veille",
+        "va en veille",
+        "dors",
+        "endors toi",
+        "rendors toi",
+        "arrete d ecouter",
+        "arrete de m ecouter",
+    )
+    return any(expression in p for expression in expressions)
+
+
 def _executer_outil(nom, args):
     """Exécute un outil N1/N2 (les N3 ne passent JAMAIS par ici)."""
     from core import registre
@@ -414,6 +437,14 @@ def monter_routes(app):
                         await etat("veille")
                         continue
                     await envoyer({"type": "transcription", "texte": phrase})
+                    if _demande_veille(phrase):
+                        # Une mise en veille annule aussi une éventuelle action N3
+                        # encore en attente : elle ne doit jamais être confirmée plus tard.
+                        sess.en_attente = None
+                        await parler("D'accord, je me mets en veille.")
+                        await envoyer({"type": "veille_forcee"})
+                        await etat("veille")
+                        continue
                     if sess.en_attente:                         # réponse à une confirmation N3
                         rep = _resoudre_confirmation(sess, phrase)
                         await parler(rep)
