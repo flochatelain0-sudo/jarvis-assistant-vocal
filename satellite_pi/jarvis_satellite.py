@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Satellite Jarvis pour Raspberry Pi — les oreilles + la bouche dans une pièce.
+"""Client audio satellite Jarvis pour Raspberry Pi ou machine Linux compatible.
 
-À COPIER SUR LE PI (pas besoin du reste du dépôt). Il :
+Le dossier satellite_pi/ peut être déployé sans le reste du dépôt. Le client :
   1. écoute le micro et détecte « Hey Jarvis » SUR LE PI (openWakeWord) ;
   2. capture ta phrase jusqu'au silence, l'envoie en PCM 16 kHz au PC
-     (WebSocket /satellite — même protocole qu'un futur ESP32) ;
+     (WebSocket /satellite) ;
   3. joue l'audio de réponse renvoyé par le PC sur le haut-parleur ;
-  4. se reconnecte tout seul, et te le dit si le PC est injoignable.
+  4. se reconnecte automatiquement si le serveur est temporairement indisponible.
 
 Config : satellite_pi/config.yaml (pc_url, satellite_id, token, pièce côté PC,
 device micro/haut-parleur). Voir docs/satellite_pi.md.
@@ -249,8 +249,7 @@ async def _boucle(url, satellite, token, file_audio, occupe):
         except Exception as e:
             occupe.clear()
             if not prevenu:
-                print(f"  [pc] injoignable ({str(e)[:60]}) — Jarvis dort, rallume la tour ? "
-                      "Je réessaie…")
+                print(f"  [serveur] injoignable ({str(e)[:60]}) — nouvelle tentative…")
                 prevenu = True
             await asyncio.sleep(3)
 
@@ -261,11 +260,18 @@ CONF = {}
 def main():
     global CONF
     CONF = _conf()
-    url = CONF.get("pc_url", "ws://192.168.1.10:8790/satellite")
-    satellite = str(CONF.get("satellite_id", "cuisine"))
-    token = str(CONF.get("token", ""))
-    if not token:
-        print("token manquant dans config.yaml"); sys.exit(1)
+    url = str(CONF.get("pc_url", "")).strip()
+    satellite = str(CONF.get("satellite_id", "")).strip()
+    token = str(CONF.get("token", "")).strip()
+    manquants = [nom for nom, valeur in (
+        ("pc_url", url), ("satellite_id", satellite), ("token", token)
+    ) if not valeur]
+    if manquants:
+        print("configuration manquante dans config.yaml : " + ", ".join(manquants))
+        sys.exit(1)
+    if not url.startswith(("ws://", "wss://")):
+        print("pc_url doit commencer par ws:// ou wss://")
+        sys.exit(1)
 
     file_audio = queue.Queue()
     occupe = threading.Event()

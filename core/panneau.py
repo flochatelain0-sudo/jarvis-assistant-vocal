@@ -75,8 +75,9 @@ CATALOGUE_OPENAI = [
      "tool_calling": True, "vision": True, "francais": True},
 ]
 
-# Whisper tourne en CPU chez toi (GPU casse) : la VRAM n'est pas le facteur limitant,
-# on classe par qualite/vitesse. "francais_fiable" a partir de small.
+# Le panneau télécharge et teste Whisper sur CPU pour rester portable et ne pas
+# concurrencer le LLM local. Le moteur principal peut utiliser CPU ou CUDA selon
+# l'environnement ; le catalogue est donc classé par qualité/vitesse.
 CATALOGUE_WHISPER = [
     {"nom": "tiny",             "vram": 1.0, "francais_fiable": False, "note": "tres rapide, peu precis"},
     {"nom": "base",             "vram": 1.0, "francais_fiable": False, "note": "rapide, moyen"},

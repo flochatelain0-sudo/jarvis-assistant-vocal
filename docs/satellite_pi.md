@@ -1,95 +1,128 @@
-# Satellite Raspberry Pi — installation
+# Satellite Raspberry Pi — installation générique
 
-Le satellite Pi = les **oreilles + la bouche** de Jarvis dans une pièce. Il détecte
-« Hey Jarvis » **sur le Pi**, envoie ta phrase au PC (cerveau), et joue la réponse.
-Protocole et sécurité : voir [satellite.md](satellite.md).
+Le client `satellite_pi/` transforme un Raspberry Pi en point audio distant
+pour Jarvis. Le Pi détecte le mot d'activation localement, transmet la parole au PC
+qui héberge Jarvis, puis joue la réponse reçue.
 
-Statut : **client fait** (`satellite_pi/`). Il te reste à **brancher un micro + un
-haut-parleur** et suivre ce guide (tu m'as dit que tu ferais le flash/install
-toi-même — tout est ici).
+Le PC reste le serveur central. Le satellite n'a besoin ni de caméra ni d'écran :
+une entrée audio, une sortie audio, une alimentation adaptée et une connexion au
+même réseau local suffisent. Le protocole et son modèle de sécurité sont décrits
+dans [satellite.md](satellite.md).
 
-## 1. Matériel
+## 1. Matériel compatible
 
-| Élément | Statut | Détail |
-|---|---|---|
-| **Raspberry Pi 4 (8 Go)** | ✅ tu l'as | Largement suffisant (le gros du calcul est sur le PC). |
-| **Carte micro-SD** | à vérifier | 16 Go+ (Raspberry Pi OS 64-bit). |
-| **Alimentation Pi 4** (USB-C, 5V/3A) | à vérifier | Celle du Pi. |
-| **Micro** | **à brancher** | Le Pi n'a **pas** de micro intégré. Voir ci-dessous. |
-| **Haut-parleur** | **à brancher** | Prise **jack 3,5 mm** du Pi 4, ou USB, ou HDMI. |
-| Écran | optionnel | Le « visage » (HUD/orbe) c'est surtout pour le futur boîtier ESP32. Le Pi v1 peut être **audio seul**. |
+| Élément | Requis | Recommandation générale |
+|---|---:|---|
+| Ordinateur monocarte | oui | Raspberry Pi 4 ou 5 sous Raspberry Pi OS 64 bits. D'autres machines Linux ARM64 peuvent fonctionner, mais ne sont pas validées. |
+| Stockage | oui | Carte micro-SD ou SSD de 16 Go minimum. |
+| Alimentation | oui | Alimentation conforme au modèle de carte utilisé ; éviter les chargeurs sous-dimensionnés. |
+| Entrée audio | oui | Tout microphone exposé à ALSA : USB, interface audio USB ou carte/HAT audio compatible. |
+| Sortie audio | oui | Toute sortie exposée à ALSA : USB, interface audio, HDMI ou sortie analogique si la carte en possède une. |
+| Réseau | oui | Ethernet ou Wi-Fi sur le même LAN que le PC Jarvis. |
+| Caméra / écran | non | Le client actuel est audio uniquement. |
 
-### Micro / haut-parleur — ce qui marche avec ce que tu as vs à acheter
+### Choisir l'audio
 
-**Si tu as déjà sous la main (ça marche, zéro achat) :**
-- une **webcam USB** (elle a un micro) → micro OK ; + n'importe quelle enceinte/écouteurs en **jack 3,5 mm** → son OK ;
-- un **casque/micro USB** (gaming) → fait les deux ;
-- une vieille **enceinte Bluetooth/USB** + un micro USB quelconque.
+Plusieurs montages sont possibles ; le logiciel n'impose aucune marque ni aucune
+connectique :
 
-**Si tu dois acheter (le mieux pour une pièce) :**
-- 🥇 **Un speakerphone USB** (micro + HP tout-en-un, type Anker PowerConf, Jabra Speak, ou générique ~25-40 €) → plug-and-play, bonne captation à distance, un seul câble. **C'est ce que je recommande.**
-- 🥈 **ReSpeaker 2-Mic HAT** (~13 €) + une petite enceinte jack → meilleure captation « pièce » (far-field), un peu plus de config.
-- 🥉 **Micro USB basique** (~8 €) + enceinte jack que tu as → le moins cher.
+1. **Speakerphone USB (micro + haut-parleur)** : solution la plus simple, avec un
+   seul périphérique d'entrée/sortie.
+2. **Micro et haut-parleur séparés** : micro USB avec enceinte USB, HDMI ou sortie
+   analogique disponible sur la carte.
+3. **Carte audio/HAT I2S** : adaptée à une intégration fixe, mais demande la
+   configuration du pilote ALSA correspondant.
+4. **Bluetooth** : possible si le périphérique est correctement exposé à ALSA,
+   mais moins recommandé pour un service autonome à cause de la latence et des
+   reconnexions.
 
-> Conseil : commence avec **ce que tu as** (webcam USB + enceinte jack) pour valider,
-> puis passe à un **speakerphone USB** si la captation à distance te déçoit.
+La qualité de captation dépend surtout de la distance, du bruit de la pièce et de
+l'annulation d'écho du périphérique. Une webcam n'est jamais requise par le
+satellite.
 
-## 2. Installation sur le Pi
+## 2. Installer le client
+
+Sur Raspberry Pi OS 64 bits :
 
 ```bash
-# Raspberry Pi OS 64-bit à jour
-sudo apt update && sudo apt install -y python3-venv python3-pip portaudio19-dev
+sudo apt update
+sudo apt install -y python3-venv python3-pip portaudio19-dev
 
-# Copie le dossier satellite_pi/ sur le Pi (clé USB, scp, git clone...), puis :
+# Copier satellite_pi/ sur le Pi, puis :
 cd satellite_pi
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt          # sounddevice, numpy, openwakeword, websockets, pyyaml
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-## 3. Côté PC (une fois)
+Le dossier peut être copié par Git, SCP ou support amovible. Le fichier local
+`satellite_pi/config.yaml` contient les paramètres propres à l'installation et
+ne doit pas être versionné.
 
-Dans `config.yaml` du PC, déclare le satellite. Jarvis ouvre automatiquement un
-listener LAN dédié qui ne contient **que** `/satellite` :
+## 3. Déclarer le satellite sur le PC
+
+Dans le `config.yaml` du PC, ajouter une entrée par satellite. Chaque appareil
+doit avoir un identifiant et un token distincts :
+
 ```yaml
 satellites:
-  - id: "cuisine"
-    piece: "cuisine"
-    token: "un-secret-long"    # python -c "import secrets;print(secrets.token_urlsafe(24))"
+  - id: "satellite-1"
+    piece: "salon"             # exemple : contexte domotique de cette pièce
+    token: "<TOKEN_ALEATOIRE>"
     wake: "appareil"
+
 satellite_lan:
   actif: true
   host: "0.0.0.0"
   port: 8791
 ```
-Puis **relance Jarvis**. Récupère l'**IP du PC** sur le réseau (`ipconfig` → IPv4).
 
-## 4. Config du Pi
+Générer un token avec :
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(24))"
+```
+
+Après redémarrage de Jarvis, le listener LAN dédié n'expose que la route
+`/satellite`. Le pare-feu doit autoriser le port choisi uniquement sur le profil
+réseau privé.
+
+## 4. Configurer le Pi
 
 ```bash
 cp config.exemple.yaml config.yaml
 nano config.yaml
 ```
-Renseigne :
-- `pc_url: "ws://<IP-DU-PC>:8791/satellite"`
-- `satellite_id: "cuisine"` (le même qu'au PC)
-- `token: "<le même token qu'au PC>"`
-- `micro` / `haut_parleur` : lance
-  `python -c "import sounddevice as sd; print(sd.query_devices())"`
-  et mets les **index** de ton micro et de ta sortie (ou laisse `null` pour le défaut).
 
-## 5. Lancer
+Renseigner obligatoirement :
+
+- `pc_url` : `ws://<ADRESSE_LAN_DU_PC>:8791/satellite` ;
+- `satellite_id` : le même identifiant que dans la configuration du PC ;
+- `token` : le token associé à cet identifiant.
+
+Pour lister les périphériques audio :
+
+```bash
+python -c "import sounddevice as sd; print(sd.query_devices())"
+```
+
+Les clés `micro` et `haut_parleur` acceptent un index de périphérique.
+La valeur `null` utilise le périphérique par défaut d'ALSA.
+
+## 5. Tester
 
 ```bash
 python jarvis_satellite.py
 ```
-Dis **« Hey Jarvis »**, attends le bip, puis **« Quelle heure est-il ? »** → le Pi
-capte, le PC répond, le Pi parle.
-Si le PC est éteint : « Jarvis dort, rallume la tour » (reconnexion auto ensuite).
 
-## 6. Démarrage auto au boot (systemd utilisateur)
+Dire « Hey Jarvis », attendre le signal sonore, puis poser une question. Le terminal
+affiche la connexion, la détection du mot d'activation, la transcription et les
+éventuelles erreurs audio ou réseau.
 
-Le dépôt fournit `satellite_pi/jarvis-satellite.service`. Il emploie `%h`, donc il
-fonctionne quel que soit le nom de l'utilisateur du Pi.
+## 6. Démarrage automatique
+
+Le service fourni emploie `%h` et ne dépend donc pas d'un nom d'utilisateur
+particulier. Il suppose que le dossier se trouve dans `~/satellite_pi` :
 
 ```bash
 mkdir -p ~/.config/systemd/user
@@ -97,27 +130,33 @@ cp ~/satellite_pi/jarvis-satellite.service ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now jarvis-satellite
 
-# Une seule fois : autoriser le service utilisateur à démarrer sans connexion SSH.
+# Autoriser le service utilisateur à démarrer sans session SSH ouverte.
 sudo loginctl enable-linger "$USER"
 
-# Voir l'état et les logs.
 systemctl --user status jarvis-satellite
 journalctl --user -u jarvis-satellite -f
 ```
 
+Si le dossier est installé ailleurs, adapter `WorkingDirectory` et
+`ExecStart` dans le fichier de service.
+
 ## Dépannage
 
-- **Pas de son / micro** : vérifie les index (`sd.query_devices()`), et le volume ALSA
-  (`alsamixer`). Un speakerphone USB s'auto-sélectionne souvent bien.
-- **« token invalide »** : le `token` du Pi doit être identique à celui du PC pour ce `satellite_id`.
-- **« injoignable »** : le PC doit être allumé et sur le même réseau ; vérifie
-  `satellite_lan.actif`, puis teste `ping <IP-DU-PC>` depuis le Pi. Le pare-feu
-  Windows doit autoriser le port TCP 8791 sur le réseau privé.
-- **Latence** : normal ~2-3 s (transcription + LLM + voix). Le 1er échange après un
-  démarrage du PC est plus lent (chargement des modèles).
+- **Configuration refusée au démarrage** : vérifier `pc_url`,
+  `satellite_id` et `token` dans le fichier local.
+- **Aucun micro / aucun son** : vérifier les index avec `sd.query_devices()`,
+  le périphérique ALSA par défaut et les niveaux dans `alsamixer`.
+- **Token invalide** : l'identifiant et le token doivent correspondre exactement à
+  une entrée `satellites[]` côté PC.
+- **Serveur injoignable** : vérifier que les deux machines sont sur le même réseau,
+  que `satellite_lan.actif` est activé et que le pare-feu autorise le port LAN.
+- **Coupures ou latence** : privilégier Ethernet ou un Wi-Fi stable, puis vérifier
+  la charge du PC et les backends STT/LLM/TTS sélectionnés.
+- **Écho acoustique** : éloigner le micro du haut-parleur, réduire le volume ou
+  utiliser un périphérique avec annulation d'écho.
 
-## Plus tard (prévu, pas encore fait)
-- **Écran/visage** sur le Pi (états veille/écoute/parole) — l'overlay version boîtier.
-- **Mode nuit** : le Pi assure la domotique seul quand le PC est éteint et le réveille
-  via la Tapo (cf. [wol.md](wol.md)). L'architecture le permet déjà (dispatch isolé).
-- **Boîtier ESP32-S3-BOX-3** : même protocole, firmware dédié (phase suivante).
+## Extensions possibles
+
+Le protocole prévoit déjà les états d'écoute, de réflexion et de parole. Un écran,
+un mode local de secours ou d'autres clients embarqués peuvent être ajoutés plus
+tard sans être requis par l'installation audio de base.

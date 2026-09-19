@@ -45,7 +45,8 @@ danger (choix de modèle, modèle d'Hermes) — **jamais une règle de sécurit�
   (mini-benchmark : latence + un appel d'outil factice + une phrase en français),
   **Supprimer**, **Activer**.
 - **Modèles Whisper** (tiny → large-v3-turbo) : reco + badge *français fiable* ;
-  installer / activer / supprimer. (Whisper tourne en **CPU** chez toi.)
+  installer / activer / supprimer. Le panneau effectue ses tests sur **CPU** pour
+  rester portable ; le moteur principal choisit CPU ou CUDA selon l'environnement.
 - **Modèles cloud OpenAI** : catalogue `gpt-5.6-luna/terra/sol` et
   `gpt-6-astra`, tarifs, vision, appels d'outils et vérification de l'accès réel
   via la clé API locale.

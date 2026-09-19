@@ -1,6 +1,6 @@
-# Config du satellite Pi — copie en config.yaml et remplis.
-pc_url: "ws://192.168.1.10:8791/satellite"   # listener LAN dédié, route /satellite uniquement
-satellite_id: "cuisine"        # doit exister cote PC (config.yaml -> satellites[].id)
+# Config générique — copier en config.yaml puis renseigner les valeurs locales.
+pc_url: ""                      # ex. ws://<ADRESSE_LAN_DU_PC>:8791/satellite
+satellite_id: ""                # doit exister côté PC (config.yaml -> satellites[].id)
 token: ""                      # le meme token que cote PC pour ce satellite
 # Peripheriques audio (indices : `python -c "import sounddevice as sd; print(sd.query_devices())"`)
 micro: null                    # null = micro par defaut ; sinon l'index

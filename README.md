@@ -58,8 +58,8 @@ jusqu'au PC** ([fonctionnement](docs/satellite.md) · [installation](docs/satell
 - 🔐 **Sécurité graduée** — niveaux **N1/N2/N3** par outil, « toujours autoriser » révocable, budget LLM par fournisseur
 - 💸 **Routage & budgets** — 4 backends (local / hybride / qualité), suivi des coûts jour/mois par fournisseur (OpenAI, ElevenLabs, Twilio, Hermes), plafonds avec alerte vocale à 80 % et **bascule auto en local** au plafond ([docs/costs.md](docs/costs.md))
 - 📊 **Cockpit personnel local** — abonnements, échéances, détection par reçus Gmail et import CSV de transactions ; les données financières restent gitignorées et ne sont jamais exposées à Hermes/MCP ([docs/cockpit.md](docs/cockpit.md))
-- ⏻ **Extinction / réveil du PC** — extinction propre à la voix (confirmation N3, délai annulable) ; réveil par prise connectée ou Wake-on-LAN ([docs/wol.md](docs/wol.md))
-- ✋ **Contrôle par caméra et gestes** — via webcam, les modes **Fenêtres** (changer/défiler) et **Audio** (volume/pistes) complètent les actions configurables lumière/média/OBS ; traitement **100 % local**, aucune image ne sort ([docs/gestes.md](docs/gestes.md))
+- ⏻ **Extinction / réveil du PC** — extinction propre à la voix (confirmation N3, délai annulable) ; méthodes génériques de réveil documentées selon le matériel ([docs/wol.md](docs/wol.md))
+- ✋ **Contrôle optionnel par caméra et gestes** — avec une webcam configurée, les modes **Fenêtres** (changer/défiler) et **Audio** (volume/pistes) complètent les actions lumière/média/OBS ; traitement **100 % local**, aucune image ne sort ([docs/gestes.md](docs/gestes.md))
 - 📡 **Satellites multi-pièces** — déporte le micro et le haut-parleur de Jarvis sur un Raspberry Pi : wake word local, audio sur le LAN authentifié, contexte de la pièce et confirmations vocales N3 ([protocole](docs/satellite.md) · [installation Pi](docs/satellite_pi.md))
 - 🎵 **Reconnaissance musicale** — « c'est quoi cette musique ? » (micro de la pièce **ou** son d'une vidéo/reel via loopback), à la demande uniquement ([docs/musique.md](docs/musique.md))
 - 🪟 **Overlay de réponses** — mini-fenêtre flottante qui affiche à l'écrit ce que Jarvis dit, sans jamais voler le focus (topmost, clic-transparent, invisible en stream), 2e écran configurable + mode silencieux visuel ([docs/overlay.md](docs/overlay.md))
@@ -83,7 +83,7 @@ flowchart LR
 
     SAT([📡 Satellite Pi<br/>micro · haut-parleur]) -->|audio LAN authentifié| STT
     TTS -->|audio LAN| SAT
-    CAM([📷 Webcam]) --> GEST[✋ Gestes locaux]
+    CAM([📷 Webcam optionnelle]) --> GEST[✋ Gestes locaux]
     GEST --> TOOLS
 
     TOOLS -.-> HOME[💡 Hue / 🎬 OBS / 🖥️ PC]
@@ -217,13 +217,13 @@ La confiance est intégrée, pas rajoutée :
 - [x] **Suivi de contenus** : pipeline idée → publié, croisé avec l'agenda
 - [x] **Panneau web local** : modèles · état de la chaîne · permissions **N1/N2/N3** · budget LLM
 - [x] **Démarrage automatique & scènes** : chaîne Jarvis/Hermes, brief quotidien météo/agenda et scène d'extinction
-- [x] **Extinction propre du PC** (N3, délai annulable) — réveil par prise connectée / Wake-on-LAN
+- [x] **Extinction propre du PC** (N3, délai annulable) — options de réveil documentées séparément selon le matériel
 - [x] **Contrôle caméra/gestes v2** : modes Fenêtres et Audio, calibration locale et garde-fous anti-faux-positifs
 - [x] **Cockpit local — phase 1** : abonnements, détection par mail et transactions CSV
-- [x] **Logiciel satellite Raspberry Pi** : client audio, wake word, protocole LAN sécurisé et multi-pièces — installation physique à finaliser pièce par pièce
+- [x] **Logiciel satellite Raspberry Pi** : client audio, wake word, protocole LAN sécurisé et multi-pièces — matériel audio choisi librement par chaque installation
 - [ ] Contrôle des lampes vidéo Godox (aujourd'hui Hue seulement)
 - [x] Notes / idées (+ pont iPhone via Raccourcis) — rappels programmés à venir
-- [ ] Pilotage direct de la prise connectée par Jarvis (`rallumer_pc` avec garde-fou ping)
+- [ ] Adaptateur générique de réveil/alimentation avec vérification d'état robuste
 - [ ] TTS en streaming phrase par phrase (voir [docs/latency.md](docs/latency.md))
 - [ ] Boucle navigateur en 100 % local : la vision de `qwen3.5` lit déjà le texte des boutons (testé) — reste à valider le pilotage complet
 - [ ] Rafraîchissement auto des tokens Instagram entre redémarrages (partiel aujourd'hui)

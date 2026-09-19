@@ -78,6 +78,9 @@ Chaque outil a un niveau de sensibilité (`core/registre.py`) :
 - [ ] `python -m py_compile` passe sur les fichiers modifiés.
 - [ ] **Aucun secret réel** : `git diff` ne contient ni clé, ni token, ni mot de passe,
       ni donnée perso. `config.yaml`, `notes/`, tokens = gitignorés.
+- [ ] **Documentation généraliste** : aucun matériel présenté comme déjà possédé ou
+      installé, aucun nom d'appareil/réseau personnel ; utiliser des placeholders et
+      distinguer clairement exemples, prérequis et fonctions futures.
 - [ ] `config.example.yaml` à jour (valeurs factices).
 - [ ] Doc `docs/<nom>.md` fournie pour toute nouvelle intégration.
 

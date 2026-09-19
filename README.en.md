@@ -55,8 +55,8 @@ to it over the local network/Wi-Fi, **with no long cable back to the PC**
 - 🔐 **Graduated safety** — N1/N2/N3 permission levels, revocable remembered approvals, and hard confirmation boundaries for critical actions
 - 💸 **Routing & budgets** — local/hybrid/quality backends, provider cost tracking, alerts and automatic local fallback at the spending cap ([docs/costs.md](docs/costs.md))
 - 📊 **Private local cockpit** — subscriptions, upcoming charges, Gmail receipt detection, and CSV transaction import; financial data remains gitignored and unavailable to Hermes/MCP ([docs/cockpit.md](docs/cockpit.md))
-- ⏻ **Safe PC shutdown / wake-up** — voice-confirmed N3 shutdown with a cancellable delay; wake through a smart plug or Wake-on-LAN ([docs/wol.md](docs/wol.md))
-- ✋ **Camera and hand-gesture control** — webcam-based **Window** (switch/scroll) and **Audio** (volume/tracks) modes plus configurable light/media/OBS actions; processing stays 100% local and no image leaves the tracker ([docs/gestes.md](docs/gestes.md))
+- ⏻ **Safe PC shutdown / wake-up** — voice-confirmed N3 shutdown with a cancellable delay; hardware-dependent wake methods are documented generically ([docs/wol.md](docs/wol.md))
+- ✋ **Optional camera and hand-gesture control** — when a webcam is configured, **Window** (switch/scroll) and **Audio** (volume/tracks) modes complement light/media/OBS actions; processing stays 100% local and no image leaves the tracker ([docs/gestes.md](docs/gestes.md))
 - 📡 **Multi-room satellites** — move Jarvis's microphone and speaker to a Raspberry Pi with on-device wake word, authenticated LAN audio, room context, and spoken N3 confirmations ([protocol](docs/satellite.md) · [Pi setup](docs/satellite_pi.md))
 - 🎵 **Music recognition** — identify room audio or a video's system audio on demand ([docs/musique.md](docs/musique.md))
 - 🪟 **Response overlay** — a no-focus-steal floating text window, configurable display, OBS-safe capture behavior, and visual silent mode ([docs/overlay.md](docs/overlay.md))
@@ -80,7 +80,7 @@ flowchart LR
 
     SAT([📡 Raspberry Pi satellite<br/>mic · speaker]) -->|authenticated LAN audio| STT
     TTS -->|LAN audio| SAT
-    CAM([📷 Webcam]) --> GEST[✋ Local gestures]
+    CAM([📷 Optional webcam]) --> GEST[✋ Local gestures]
     GEST --> TOOLS
 
     TOOLS -.-> HOME[💡 Hue / 🎬 OBS / 🖥️ PC]
@@ -205,7 +205,7 @@ Trust is built in, not bolted on:
 - [x] Automatic startup, daily brief, and clean shutdown scenes
 - [x] Camera hand gestures v2 with Window and Audio modes
 - [x] Private local cockpit phase 1 (subscriptions, receipt detection, CSV transactions)
-- [x] Raspberry Pi satellite software (audio client, wake word, authenticated LAN protocol, multi-room); physical installs remain room-by-room
+- [x] Raspberry Pi satellite software (audio client, wake word, authenticated LAN protocol, multi-room); each installation can choose its own audio hardware
 - [ ] Godox video-light control (currently Hue only)
 - [x] Notes / ideas (+ iPhone bridge via Shortcuts) — scheduled reminders next
 - [ ] Sentence-by-sentence streaming TTS (see [docs/latency.md](docs/latency.md))

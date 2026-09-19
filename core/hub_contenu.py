@@ -12,7 +12,8 @@ Regles (fiches A/B + 4bis) :
     sur la fiche que le pipeline vient de creer (les anciennes fiches sont
     laissees telles quelles ; parsing tolerant).
   - build_vault.py / graphe.py se lancent avec cwd = racine du Vault.
-  - Whisper tourne en CPU (GPU casse) ; ingest.py force deja device="cpu".
+  - L'ingestion force Whisper sur CPU pour rester portable et ne pas concurrencer
+    un éventuel LLM local chargé sur le GPU.
 
 Chemins dans config.yaml -> section `integrations:` (vault, scripts, cookies) et
 `hub:` (modele d'indexation, miroir Drive).

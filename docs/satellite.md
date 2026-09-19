@@ -86,14 +86,14 @@ Le script simule un boîtier : il envoie l'audio, affiche les états + la
 transcription + la réponse, enregistre l'audio de réponse dans
 `logs/_sat_test_reponse.wav`, et mesure la latence.
 
-## Mode nuit (prévu — pas encore implémenté)
+## Mode autonome (prévu — pas encore implémenté)
 
-Objectif futur : quand le **PC est éteint**, un satellite **Raspberry Pi** assure
-la **domotique en autonomie** (il a Python + réseau) et **réveille le PC** via la
-prise **Tapo** (cf. [wol.md](wol.md)) quand une demande dépasse ses capacités.
+Objectif futur : quand le **PC est éteint**, un satellite compatible pourrait
+assurer un petit sous-ensemble de domotique locale et demander le réveil du serveur
+par un mécanisme adapté au matériel (cf. [wol.md](wol.md)).
 
 Rien dans l'architecture actuelle ne le rend impossible :
 - le dispatch est **isolé** (`core/satellite.traiter_texte`) — réutilisable côté Pi ;
 - le protocole prévoit déjà les états et la confirmation ;
-- la détection « PC injoignable » se ferait **côté Pi** (ping), avec bascule sur
-  un mini-cerveau local (domotique seule) + réveil Tapo. À implémenter plus tard.
+- la détection d'indisponibilité se ferait **côté satellite**, avec bascule sur un
+  mini-cerveau local et réveil optionnel du serveur. À implémenter plus tard.
