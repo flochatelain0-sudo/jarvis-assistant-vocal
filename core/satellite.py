@@ -120,7 +120,6 @@ class _Session:
         self.audio = bytearray()
         self.historique = []
         self.en_attente = None     # (Outil, args) N3 à confirmer, ou None
-        self.accuse_index = 0
 
 
 def _transcrire(pcm_bytes):
@@ -181,11 +180,6 @@ def _tts_pcm(texte):
 
 _TTS_COURT = {}
 _TTS_COURT_LOCK = threading.Lock()
-_ACCUSES_COURTS = (
-    "Mmh, je vois.",
-    "D'accord, un instant.",
-    "Oui, je regarde.",
-)
 
 
 def _tts_pcm_court(texte):
@@ -203,31 +197,61 @@ def _tts_pcm_court(texte):
         return resultat
 
 
-def _accuse_court(session):
-    texte = _ACCUSES_COURTS[session.accuse_index % len(_ACCUSES_COURTS)]
-    session.accuse_index += 1
-    return texte
+def _progression_initiale(phrase):
+    """Accusé contextuel uniquement si la demande annonce un travail lent.
+
+    Les échanges simples (salutation, heure, conversation) renvoient None : ils
+    ne doivent jamais être précédés d'un « attends » ou d'un « je cherche ».
+    """
+    from core.util import sans_accents
+    p = sans_accents((phrase or "").lower())
+    if any(m in p for m in ("mail", "mails", "email", "courriel", "boite de reception")):
+        return "Je regarde tes mails."
+    if "recette" in p:
+        return "Je cherche une recette adaptée."
+    if any(m in p for m in (
+            "cherche", "recherche", "sur internet", "sur le web", "trouve-moi",
+            "trouve moi", "actualite", "derniere nouvelle", "compare")):
+        return "Je lance la recherche."
+    if any(m in p for m in ("agenda", "calendrier", "rendez-vous", "rendez vous")):
+        return "Je regarde ton agenda."
+    if "meteo" in p or "temps fait" in p or "prevision" in p:
+        return "Je regarde la météo."
+    if any(m in p for m in ("facture", "recu", "recus", "depense", "budget")):
+        return "Je vérifie tes informations."
+    if any(m in p for m in (
+            "analyse", "explique en detail", "en detail", "synthese",
+            "resume ce", "fais le point")):
+        return "Je réfléchis à ta demande."
+    return None
 
 
 def _phrase_progression(phrase):
-    """Retour vocal court, relié à l'intention, pendant un traitement long."""
+    """Seconde étape, seulement pour une intention lente déjà reconnue."""
     from core.util import sans_accents
     p = sans_accents((phrase or "").lower())
+    if any(m in p for m in ("mail", "mails", "email", "courriel", "boite de reception")):
+        return "Je parcours les messages."
+    if "recette" in p:
+        return "Je vérifie les propositions."
     if any(m in p for m in (
             "cherche", "recherche", "sur internet", "sur le web", "trouve-moi",
-            "trouve moi", "actualite", "derniere nouvelle")):
-        return "Je lance la recherche."
+            "trouve moi", "actualite", "derniere nouvelle", "compare")):
+        return "Je vérifie les résultats."
+    if any(m in p for m in ("agenda", "calendrier", "rendez-vous", "rendez vous")):
+        return "Je vérifie les événements."
     if "meteo" in p or "temps fait" in p:
-        return "Je regarde la météo."
-    if any(m in p for m in ("quelle heure", "donne-moi l'heure", "donne moi l'heure")):
-        return "Je vérifie l'heure."
+        return "Je vérifie les prévisions."
+    if any(m in p for m in ("facture", "recu", "recus", "depense", "budget")):
+        return "Je termine la vérification."
     if any(m in p for m in (
-            "allume", "eteins", "éteins", "ouvre", "ferme", "lance", "mets ",
-            "augmente", "baisse")):
-        return "Je m'en occupe."
-    if any(m in p for m in ("pourquoi", "comment", "quel", "quelle", "est-ce")):
-        return "Je vérifie ça."
-    return "Mmh, je réfléchis."
+            "analyse", "explique en detail", "en detail", "synthese",
+            "resume ce", "fais le point")):
+        return "Je poursuis l'analyse."
+    if any(m in p for m in (
+            "allume", "eteins", "éteins", "ouvre", "ferme", "augmente", "baisse")):
+        return "La commande est en cours."
+    return None
 
 
 def _demande_veille(phrase):
@@ -512,8 +536,6 @@ def monter_routes(app):
                     await etat("reflexion")
                     transcription = asyncio.create_task(
                         asyncio.to_thread(_transcrire, audio))
-                    if bool(reglage("satellite_lan.accuse_immediat", True)):
-                        await progresser(_accuse_court(sess))
                     try:
                         attente_stt = float(reglage(
                             "satellite_lan.progression_transcription_apres", 5.0))
@@ -547,6 +569,11 @@ def monter_routes(app):
                         continue
                     traitement = asyncio.create_task(
                         asyncio.to_thread(traiter_texte, sess, phrase))
+                    progression_initiale = None
+                    if bool(reglage("satellite_lan.accuse_immediat", True)):
+                        progression_initiale = _progression_initiale(phrase)
+                    if progression_initiale:
+                        await progresser(progression_initiale)
                     try:
                         attente_llm = float(reglage(
                             "satellite_lan.progression_traitement_apres", 4.0))
@@ -556,7 +583,9 @@ def monter_routes(app):
                         r = await asyncio.wait_for(
                             asyncio.shield(traitement), timeout=max(0.1, attente_llm))
                     except asyncio.TimeoutError:
-                        await progresser(_phrase_progression(phrase))
+                        suite = _phrase_progression(phrase)
+                        if suite:
+                            await progresser(suite)
                         r = await traitement
                     if r["attente_confirmation"]:
                         await envoyer({"type": "texte", "texte": r["reponse"]})

@@ -126,8 +126,11 @@ PC l'autorisation de répondre. Seul le micro ayant le meilleur score de détect
 Après chaque réponse, le satellite garde par défaut une fenêtre de conversation de
 8 secondes : on peut enchaîner une question sans répéter « Hey Jarvis ». La clé
 `fenetre_relance` de `config.yaml` règle cette durée (`0` la désactive). Pendant une
-transcription ou une recherche lente, Jarvis prononce de courts accusés et étapes de
-progression ; les seuils correspondants se règlent côté PC dans `satellite_lan`.
+transcription anormalement longue ou une vraie tâche lente, Jarvis peut prononcer
+un accusé lié à l'intention (« Je regarde tes mails », « Je cherche une recette »).
+Les questions simples comme « Comment ça va ? » ou « Quelle heure est-il ? » restent
+directes, sans phrase de remplissage. Les seuils se règlent côté PC dans
+`satellite_lan`.
 Dire « Hey Jarvis, mets-toi en veille » ferme immédiatement la conversation suivie.
 Le satellite ignore alors toute parole ordinaire jusqu'à un nouveau « Hey Jarvis ».
 

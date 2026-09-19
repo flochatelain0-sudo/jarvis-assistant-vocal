@@ -2,7 +2,8 @@
 import unittest
 from types import SimpleNamespace
 
-from core.satellite import _demande_veille, _origine_locale_ou_lan, _phrase_progression
+from core.satellite import (_demande_veille, _origine_locale_ou_lan,
+                            _phrase_progression, _progression_initiale)
 
 
 def _ws(hote, **entetes):
@@ -26,14 +27,22 @@ class SatelliteSecurityTests(unittest.TestCase):
         self.assertFalse(_origine_locale_ou_lan(_ws("")))
 
     def test_progression_est_liee_a_l_intention(self):
-        self.assertEqual(_phrase_progression("Cherche les dernières nouvelles"),
+        self.assertEqual(_progression_initiale("Cherche les dernières nouvelles"),
                          "Je lance la recherche.")
-        self.assertEqual(_phrase_progression("Quelle heure est-il ?"),
-                         "Je vérifie l'heure.")
+        self.assertEqual(_phrase_progression("Cherche les dernières nouvelles"),
+                         "Je vérifie les résultats.")
+        self.assertEqual(_progression_initiale("C'est quoi mes mails ?"),
+                         "Je regarde tes mails.")
+        self.assertEqual(_progression_initiale("Cherche-moi une recette"),
+                         "Je cherche une recette adaptée.")
+        self.assertIsNone(_progression_initiale("Allume la lumière"))
         self.assertEqual(_phrase_progression("Allume la lumière"),
-                         "Je m'en occupe.")
-        self.assertEqual(_phrase_progression("Explique-moi cette idée"),
-                         "Mmh, je réfléchis.")
+                         "La commande est en cours.")
+
+    def test_questions_simples_sans_mots_inutiles(self):
+        for phrase in ("Comment ça va ?", "Quelle heure est-il ?", "Merci Jarvis"):
+            self.assertIsNone(_progression_initiale(phrase))
+            self.assertIsNone(_phrase_progression(phrase))
 
     def test_demande_de_veille_explicite(self):
         self.assertTrue(_demande_veille("Hey Jarvis, mets-toi en veille"))
