@@ -308,7 +308,7 @@ _MOTS_APPAREILS = {mot for groupe in _SYNONYMES for mot in groupe} | {
 _IGNORES_APPAREIL = {
     "le", "la", "les", "l", "un", "une", "des", "du", "de", "d", "au", "aux",
     "mon", "ma", "mes", "notre", "nos", "stp", "svp", "s", "il", "te", "plait",
-    "jarvis", "alexa", "suis", "moi", "pour", "peux", "tu", "peut", "vous",
+    "jarvis", "alexa", "sur", "suis", "moi", "pour", "peux", "tu", "peut", "vous",
 }
 _PREFIXES_ROUTINE = {
     "lance", "lances", "lancez", "active", "actives", "activez", "declenche",
@@ -317,7 +317,25 @@ _PREFIXES_ROUTINE = {
 }
 
 
-def _analyser_commande(phrase, piece="", automations=()):
+def _vise_amaran(phrase, piece_amaran="", noms_amaran=()):
+    """Vrai si la phrase cible la lumière vidéo locale plutôt qu'Alexa."""
+    p = _normaliser_commande(phrase)
+    mots = set(p.split())
+    if "alexa" in mots:  # « sur Alexa » reste une demande explicite d'Alexa
+        return False
+    aliases = ["amaran", "key light", "lumiere video", "projecteur"]
+    aliases.extend(str(n) for n in (noms_amaran or ()))
+    cadre = f" {p} "
+    if any(f" {_normaliser_commande(alias)} " in cadre
+           for alias in aliases if _normaliser_commande(alias)):
+        return True
+    piece = _normaliser_commande(piece_amaran)
+    mots_lumiere = {"lumiere", "lumieres", "lampe", "lampes", "eclairage"}
+    return bool(piece and f" {piece} " in cadre and mots & mots_lumiere)
+
+
+def _analyser_commande(phrase, piece="", automations=(),
+                       piece_amaran="", noms_amaran=()):
     """Traduit une phrase naturelle en appel Alexa déterministe, ou None.
 
     Cette fonction est pure : elle ne se connecte pas à Amazon et sert aussi aux
@@ -338,6 +356,11 @@ def _analyser_commande(phrase, piece="", automations=()):
         nom = " ".join(mots[i + 1:]).strip()
         if nom:
             return "alexa_routine", {"nom": nom}
+
+    # L'Amaran est un équipement local prioritaire. Sa pièce et ses alias ne
+    # doivent jamais être capturés par le routage Alexa générique.
+    if _vise_amaran(phrase, piece_amaran=piece_amaran, noms_amaran=noms_amaran):
+        return None
 
     # Commande domestique : action claire + appareil connecté connu, ou mention
     # explicite d'Alexa. Les commandes PC/musique ne sont donc pas détournées.
@@ -414,7 +437,13 @@ def router_commande(phrase, piece=""):
     precharger_routines()
     with _VERROU:
         autos = list(_ROUTINES_CACHE)
-    return _analyser_commande(phrase, piece=piece, automations=autos)
+    return _analyser_commande(
+        phrase,
+        piece=piece,
+        automations=autos,
+        piece_amaran=reglage("amaran.piece", ""),
+        noms_amaran=reglage("amaran.noms", []) or [],
+    )
 
 
 def _variantes(mot):

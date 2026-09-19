@@ -29,6 +29,15 @@ class AlexaRoutingTests(unittest.TestCase):
             ("alexa_appareil", {"appareil": "lumieres salon", "action": "allumer"}),
         )
 
+    def test_lumiere_de_la_piece_amaran_reste_locale(self):
+        self.assertIsNone(_analyser_commande(
+            "Allume la lumière du bureau", piece_amaran="bureau"))
+        self.assertEqual(
+            _analyser_commande(
+                "Allume la lumière du bureau sur Alexa", piece_amaran="bureau"),
+            ("alexa_appareil", {"appareil": "lumiere bureau", "action": "allumer"}),
+        )
+
     def test_routine_explicite(self):
         self.assertEqual(
             _analyser_commande("Lance la routine bonne nuit"),
