@@ -37,6 +37,11 @@ Puis, à la voix : **« Jarvis, active les gestes »** / **« coupe les gestes �
 `gestes.actif: true` dans `config.yaml`, ou le **raccourci clavier** (défaut
 `Ctrl+Alt+G`).
 
+La calibration peut elle aussi être ouverte à la voix : **« Jarvis, lance la
+calibration des gestes »**. Jarvis libère d'abord la webcam si le tracker normal
+est actif, puis ouvre la fenêtre locale. Cet outil n'est exposé ni à MCP ni à
+Hermes.
+
 ## Le vocabulaire (v2) et le mapping par défaut
 
 Des gestes **tenus** (pas d'instantané) pour éviter les faux positifs :

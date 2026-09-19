@@ -271,6 +271,17 @@ def traiter_texte(session, phrase):
     from core import registre
     session.historique.append({"role": "user", "content": phrase})
 
+    try:
+        from tools.gestes import demande_calibration_gestes, lancer_calibration_gestes
+        calibration = demande_calibration_gestes(phrase)
+    except Exception:
+        LOG.exception("satellite: routage calibration gestes")
+        calibration = False
+    if calibration:
+        texte = lancer_calibration_gestes()
+        session.historique.append({"role": "assistant", "content": texte})
+        return {"reponse": texte, "attente_confirmation": False}
+
     # Une invocation explicite prononcée à la maison vaut autorisation pour la
     # tâche sûre décrite. Les garde-fous internes bloquent toujours N3/secrets.
     try:

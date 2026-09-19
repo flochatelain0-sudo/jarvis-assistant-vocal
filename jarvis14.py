@@ -109,6 +109,8 @@ SYSTEME_BASE = (
     "d'apres l'image. Pour ouvrir un site, une URL, Netflix/YouTube ou faire une "
     "recherche web, utilise browser_open. Pour un logiciel configure, utilise "
     "launch_app. N'utilise ouvrir_application que pour les utilitaires Windows. "
+    "Pour ouvrir la calibration de la webcam et des mains, utilise "
+    "lancer_calibration_gestes. "
     "Si une demande exige plusieurs clics ou saisies dans une interface et qu'aucun "
     "outil direct ne suffit, appelle controle_pc_astra : le systeme demandera alors "
     "l'autorisation avant de laisser Astra piloter le PC. Pour un vrai travail de "
@@ -654,6 +656,26 @@ def _repondre_route_astra(historique):
     return texte
 
 
+def _repondre_route_calibration_gestes(historique):
+    """Ouvre la calibration locale sur un ordre vocal explicite."""
+    question = next((m.get("content") for m in reversed(historique)
+                     if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
+    try:
+        from tools.gestes import demande_calibration_gestes, lancer_calibration_gestes
+        if not demande_calibration_gestes(question):
+            return None
+        texte = lancer_calibration_gestes()
+    except Exception:
+        LOG.exception("routage calibration gestes")
+        texte = "Je n'ai pas pu ouvrir la calibration des gestes."
+    historique.append({"role": "assistant", "content": texte})
+    _hud("outil", "lancer_calibration_gestes", texte[:60])
+    _hud("etat", "parole")
+    if not _INTERRUPTION.is_set():
+        dire(texte)
+    return texte
+
+
 def _repondre_route_hermes_contenu(historique):
     """Confie a Hermes une demande creative explicite avant l'appel au LLM."""
     question = next((m.get("content") for m in reversed(historique)
@@ -686,6 +708,10 @@ def repondre(historique):
     les outils a confirmation, prononce l'annonce et renvoie SENTINEL_CONFIRM
     (la suite est geree par traiter, qui capture la reponse oui/non).
     """
+    prioritaire = _repondre_route_calibration_gestes(historique)
+    if prioritaire is not None:
+        return prioritaire
+
     prioritaire = _repondre_route_astra(historique)
     if prioritaire is not None:
         return prioritaire

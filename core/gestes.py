@@ -13,6 +13,7 @@ import logging
 import os
 import secrets
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -25,6 +26,7 @@ _RACINE = Path(__file__).resolve().parent.parent
 
 _TOKEN = None          # jeton courant (None = gestes coupés) ; protège /api/gestes
 _PROC = None           # sous-process tracker
+_PROC_CALIBRATION = None  # fenêtre de calibration locale, lancée à la voix
 _COUPER_TTS = None     # callback fourni par jarvis14 (couper_parole)
 _FEEDBACK = None       # callback fourni par jarvis14 (bip + flash HUD)
 _CURSEUR_LUM = {}      # compatibilité des anciens mappings par pincement
@@ -144,6 +146,30 @@ def arreter():
                 pass
         _PROC = None
     return "Contrôle par gestes coupé. La webcam est éteinte."
+
+
+def lancer_calibration():
+    """Ouvre la fenêtre locale de calibration, après avoir libéré la webcam."""
+    global _PROC_CALIBRATION
+    if _PROC_CALIBRATION is not None and _PROC_CALIBRATION.poll() is None:
+        return "La calibration des gestes est déjà ouverte sur le PC."
+    if actif():
+        arreter()
+    script = _RACINE / "scripts" / "gestes_calibrer.py"
+    py_tracker = _python_tracker()
+    if not py_tracker.exists():
+        return ("L'environnement des gestes n'est pas installé "
+                "(lance : python scripts/setup_gestes.py).")
+    if not script.exists():
+        return "Le programme de calibration des gestes est introuvable."
+    try:
+        _PROC_CALIBRATION = subprocess.Popen(
+            [sys.executable, str(script)], cwd=str(_RACINE))
+    except Exception as exc:
+        LOG.exception("gestes: lancement calibration")
+        return f"Je n'ai pas pu ouvrir la calibration des gestes ({exc})."
+    return ("Calibration des gestes ouverte sur le PC. Appuie sur S pour sauvegarder "
+            "et sur Q pour quitter.")
 
 
 def statut():
