@@ -101,7 +101,9 @@ def _systeme(piece):
             "pièce de la maison. Réponds en UNE à deux phrases courtes, en français, "
             "avec ta personnalité. Utilise les outils quand c'est utile. Si une tâche "
             "exige plusieurs clics ou saisies sur le PC et qu'aucun outil direct ne "
-            "suffit, appelle controle_pc_astra afin de demander l'autorisation.")
+            "suffit, appelle controle_pc_astra afin de demander l'autorisation. Pour "
+            "un vrai travail de création de contenu — script, hooks, idées vidéo, "
+            "analyse ou réécriture — confie la réflexion à Hermes.")
     if piece:
         base += (f" CONTEXTE : ce satellite est dans « {piece} ». Si l'utilisateur "
                  f"parle d'une lumière/pièce SANS préciser laquelle, utilise « {piece} » "
@@ -308,6 +310,24 @@ def traiter_texte(session, phrase):
         resultat = _executer_outil(nom, args)
         session.historique.append({"role": "assistant", "content": resultat})
         return {"reponse": resultat, "attente_confirmation": False}
+
+    # Scripts, hooks et analyses d'inspirations sont des travaux de fond : ils
+    # partent directement chez Hermes. Le classifieur exige une intention de
+    # creation ; mentionner simplement une video ne suffit pas.
+    try:
+        from tools.deleguer_a_hermes import extraire_tache_contenu, deleguer_en_fond
+        tache_contenu = extraire_tache_contenu(phrase)
+    except Exception:
+        LOG.exception("satellite: routage Hermes contenu")
+        tache_contenu = None
+    if tache_contenu is not None:
+        texte = deleguer_en_fond(
+            tache_contenu,
+            intro="Hermes a terminé le travail de contenu. ",
+            nom_thread="contenu-hermes",
+        )
+        session.historique.append({"role": "assistant", "content": texte})
+        return {"reponse": texte, "attente_confirmation": False}
 
     from core.llm import llm
     P = llm()

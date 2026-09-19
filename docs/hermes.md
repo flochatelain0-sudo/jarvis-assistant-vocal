@@ -8,6 +8,11 @@ sur ta machine, puis t'annoncer le résultat **à voix haute** quand c'est prêt
   délégation utilise une session nommée et plusieurs tâches peuvent tourner en parallèle.
 - Phrases déclencheuses : « **délègue à Hermes** … », « **fais une recherche de fond sur** … »,
   « **lance Hermes sur** … ».
+- Les demandes explicites de **création de contenu** sont aussi routées
+  automatiquement : écrire ou améliorer un script, proposer des hooks/accroches,
+  trouver des idées vidéo ou analyser des inspirations. Hermes reçoit la demande
+  avec instruction d'utiliser le Vault pour respecter le ton existant. Une simple
+  mention (« j'ai tourné ma vidéo », « où en est mon script ? ») reste chez Jarvis.
 
 > Exemple : « Jarvis, délègue à Hermes : compare les 3 meilleurs micros pour le streaming en 2026. »
 > Jarvis : « Je délègue ça à Hermes. Je te préviens dès que c'est prêt. » … *(plus tard)* …
@@ -20,7 +25,9 @@ sur ta machine, puis t'annoncer le résultat **à voix haute** quand c'est prêt
 2. En tâche de fond, Jarvis appelle l'**API locale d'Hermes** :
    `POST http://127.0.0.1:8642/v1/responses`, en-tête `Authorization: Bearer <clé>`, corps
    `{"model":"hermes-agent","input":"…","conversation":"jarvis-delegation"}`. Hermes réfléchit
-   (et peut utiliser ses propres outils : web, code en conteneur Docker, etc.).
+   (et peut utiliser ses propres outils : web, code en conteneur Docker, etc.). Avec
+   les versions récentes où `hermes gateway` ne fournit plus cette API, Jarvis se
+   replie automatiquement sur le mode officiel `hermes -z`.
 3. Le résultat passe par le **filtre de confidentialité** (`core/confidentialite.py` :
    caviarde mails/clés/numéros/jetons, raccourcit) puis est **lu à voix haute**.
 4. **Sessions nommées** : chaque délégation reçoit sa propre conversation. Deux
@@ -56,6 +63,7 @@ credential et aucun outil physique/sensible n'est ajouté à Hermes.
 
 ```yaml
 hermes:
+  transport: "auto"                   # auto | cli | http
   api_url: "http://127.0.0.1:8642"   # gateway Hermes, loopback
   api_key: "…"                       # = API_SERVER_KEY du .env d'Hermes
   # api_key_file: "…"                # alternative : un fichier contenant la clé
@@ -65,9 +73,10 @@ hermes:
   resume_max: 500                    # longueur max du résumé vocal
 ```
 
-La clé provient du `.env` d'Hermes (`API_SERVER_KEY`). Le serveur API d'Hermes doit tourner
-(port 8642, loopback) — il fait partie de la chaîne Hermes (voir `HERMES_NOTES.md` §13, script
-`start-hermes-chain.ps1`). Si l'API est éteinte, la délégation échoue proprement (annonce vocale).
+La clé provient du `.env` d'Hermes (`API_SERVER_KEY`). En transport `auto`, l'API
+historique sur le port 8642 est utilisée si elle répond ; sinon le CLI Hermes local
+prend automatiquement le relais. `cli` force le nouveau chemin et `http` conserve
+strictement l'ancienne passerelle.
 
 ## Sécurité
 

@@ -23,12 +23,16 @@ import time
 import uuid
 import json
 import re
+import shutil
+import subprocess
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
 from core import voix, confidentialite
 from core.config import reglage
 from core.registre import outil
+from core.util import sans_accents
 
 # Magasin de certificats Windows (Malwarebytes/AV) puis requests.
 try:
@@ -46,6 +50,65 @@ _FICHIER_TACHES = Path(__file__).resolve().parent.parent / "logs" / "hermes" / "
 
 # Marqueur qu'Hermes peut poser dans son resume pour demander ta validation.
 _MARQUEUR_VALIDATION = "[A VALIDER]"
+
+# Routage deterministe des vrais travaux de creation. On exige a la fois un
+# objet de contenu et une intention de le fabriquer/ameliorer : une simple
+# conversation qui contient « script » ou « video » reste ainsi chez Jarvis.
+_OBJETS_CONTENU = {
+    "script", "scripts", "hook", "hooks", "accroche", "accroches",
+    "storyboard", "storyboards", "contenu", "contenus", "video", "videos",
+    "reel", "reels", "short", "shorts", "tiktok", "youtube", "post", "posts",
+    "instagram", "idee", "idees", "angle", "angles", "publication",
+    "publications", "carrousel", "carrousels", "legende",
+    "legendes", "caption", "captions", "voix-off", "createur", "createurs",
+    "inspiration", "inspirations",
+}
+_ACTIONS_CONTENU = {
+    "ecris", "ecrire", "redige", "rediger", "cree", "creer", "prepare",
+    "preparer", "propose", "proposer", "trouve", "trouver", "donne", "donner",
+    "genere", "generer", "imagine", "imaginer", "analyse", "analyser", "etudie",
+    "etudier", "corrige", "corriger", "reecris", "reecrire", "ameliore",
+    "ameliorer", "optimise", "optimiser", "adapte", "adapter", "structure",
+    "structurer", "developpe", "developper", "cherche", "chercher", "compare",
+    "comparer", "travaille", "travailler", "brainstorme", "brainstormer", "fais",
+    "faire", "copie", "copier", "inspire", "inspirer", "reprends", "reprendre",
+    "utilise", "utiliser", "imite", "imiter", "apprends", "apprendre", "connais",
+    "connaitre", "veux", "voudrais", "aimerais",
+}
+_ACTIONS_PHYSIQUES = {
+    "allume", "allumer", "eteins", "eteindre", "ouvre", "ouvrir", "ferme",
+    "fermer", "augmente", "baisse",
+}
+_OBJETS_PHYSIQUES = {
+    "lumiere", "lumieres", "lampe", "lampes", "clim", "climatisation",
+    "tele", "television", "prise", "ventilateur", "musique", "volume",
+}
+
+
+def extraire_tache_contenu(phrase: str):
+    """Transforme une demande creative explicite en tache Hermes, sinon None.
+
+    Les mises a jour de suivi (« j'ai tourne ma video »), les questions meta et
+    les actions physiques faites *pour* filmer ne sont volontairement pas routees.
+    """
+    original = (phrase or "").strip()
+    normalise = " ".join(re.sub(
+        r"[^a-z0-9]+", " ", sans_accents(original.lower())
+    ).split())
+    mots = set(normalise.split())
+    if not original or not (mots & _OBJETS_CONTENU):
+        return None
+    if not (mots & _ACTIONS_CONTENU):
+        return None
+    if (mots & _ACTIONS_PHYSIQUES) and (mots & _OBJETS_PHYSIQUES):
+        return None
+    return (
+        original
+        + "\n\nTraite cette demande comme un travail de creation de contenu. "
+          "Appuie-toi d'abord sur les inspirations, scripts et contexte disponibles "
+          "dans le Vault afin de respecter le ton de l'utilisatrice. Produis un "
+          "livrable concret, pas seulement des conseils generiques."
+    )
 
 
 def _charger_taches():
@@ -170,13 +233,8 @@ def _cle_api() -> str:
     return ""
 
 
-def _appeler_hermes(tache: str, session: str = ""):
-    """Appelle Hermes. Renvoie texte, tokens, cout estime et modele."""
-    base = reglage("hermes.api_url", "http://127.0.0.1:8642").rstrip("/")
-    cle = _cle_api()
-    if not cle:
-        raise RuntimeError("cle API Hermes introuvable (hermes.api_key)")
-    prompt = (
+def _prompt_hermes(tache):
+    return (
         f"{tache}\n\n"
         "IMPORTANT : effectue la tache MAINTENANT et renvoie la reponse COMPLETE et "
         "definitive dans CE meme message. N'annonce PAS que tu vas le faire, ne dis "
@@ -186,6 +244,58 @@ def _appeler_hermes(tache: str, session: str = ""):
         "SEULEMENT si) la tache demande MON accord avant d'agir, prefixe le RESUME "
         f"par {_MARQUEUR_VALIDATION}."
     )
+
+
+def _usage_tuple(usage, modele_repli=""):
+    usage = usage if isinstance(usage, dict) else {}
+    entree = int(usage.get("input_tokens") or 0)
+    sortie = int(usage.get("output_tokens") or 0)
+    tokens = usage.get("total_tokens") or (entree + sortie) or None
+    cout = usage.get("estimated_cost_usd")
+    try:
+        cout = round(float(cout), 4) if cout is not None else None
+    except (TypeError, ValueError):
+        cout = None
+    return tokens, cout, str(usage.get("model") or modele_repli or "")
+
+
+def _appeler_hermes_cli(prompt):
+    """Hermes recent : exécute une tâche one-shot via son CLI officiel."""
+    exe = shutil.which("hermes")
+    if not exe:
+        raise RuntimeError("CLI Hermes introuvable")
+    timeout = int(reglage("hermes.timeout", 900))
+    dossier = Path(reglage("hermes.workspace", "") or Path.home() / "hermes-workspace")
+    cwd = str(dossier) if dossier.is_dir() else None
+    with tempfile.TemporaryDirectory(prefix="jarvis-hermes-") as temporaire:
+        usage_fichier = Path(temporaire) / "usage.json"
+        proc = subprocess.run(
+            [exe, "-z", prompt, "--usage-file", str(usage_fichier)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            cwd=cwd,
+        )
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout or "erreur inconnue").strip()[-500:]
+            raise RuntimeError(f"Hermes CLI a échoué : {detail}")
+        texte = (proc.stdout or "").strip()
+        try:
+            usage = json.loads(usage_fichier.read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError):
+            usage = {}
+    tokens, cout, modele = _usage_tuple(usage)
+    return texte or "(reponse vide d'Hermes)", tokens, cout, modele
+
+
+def _appeler_hermes_http(prompt, session):
+    """Ancienne passerelle OpenAI-compatible, gardée pour compatibilité."""
+    base = reglage("hermes.api_url", "http://127.0.0.1:8642").rstrip("/")
+    cle = _cle_api()
+    if not cle:
+        raise RuntimeError("cle API Hermes introuvable (hermes.api_key)")
     body = {
         "model": "hermes-agent",
         "input": prompt,
@@ -204,15 +314,12 @@ def _appeler_hermes(tache: str, session: str = ""):
             for bloc in item.get("content", []):
                 if bloc.get("type") == "output_text" and bloc.get("text"):
                     morceaux.append(bloc["text"])
-    # tokens de CETTE reponse si l'API les renvoie (usage.total_tokens ou in+out)
-    tokens = None
-    cout = None
     modele_utilise = str(data.get("model") or reglage("hermes.modele_facturation", "") or "")
     u = data.get("usage") or {}
-    if isinstance(u, dict):
+    tokens, cout, modele_usage = _usage_tuple(u, modele_utilise)
+    if cout is None and isinstance(u, dict):
         entree = int(u.get("input_tokens") or 0)
         sortie = int(u.get("output_tokens") or 0)
-        tokens = u.get("total_tokens") or (entree + sortie) or None
         try:
             from core.budget import _prix
             pin, pout = _prix(modele_utilise)
@@ -221,7 +328,25 @@ def _appeler_hermes(tache: str, session: str = ""):
         except Exception:
             pass
     return (("\n".join(morceaux).strip() or "(reponse vide d'Hermes)"),
-            tokens, cout, modele_utilise)
+            tokens, cout, modele_usage or modele_utilise)
+
+
+def _appeler_hermes(tache: str, session: str = ""):
+    """Appelle Hermes. Renvoie texte, tokens, cout estime et modele.
+
+    `auto` conserve l'ancienne API lorsqu'elle est disponible et se replie sur
+    `hermes -z` avec les versions recentes, dont `gateway` ne sert plus d'API.
+    """
+    prompt = _prompt_hermes(tache)
+    transport = str(reglage("hermes.transport", "auto") or "auto").lower()
+    if transport == "cli":
+        return _appeler_hermes_cli(prompt)
+    try:
+        return _appeler_hermes_http(prompt, session)
+    except Exception:
+        if transport == "http":
+            raise
+        return _appeler_hermes_cli(prompt)
 
 
 def _resume_vocal(texte: str) -> str:
@@ -284,8 +409,7 @@ def deleguer_en_fond(tache: str, intro: str = "Hermes a termine. ",
             _pousser_hud()
     threading.Thread(target=worker, daemon=True,
                      name=f"{nom_thread}-{t['id']}").start()
-    ou = f" (session {session_effective})"
-    return f"Je confie ca a Hermes{ou}. Je te previens des que c'est pret."
+    return "Je confie ça à Hermes. Je te préviens dès que c'est prêt."
 
 
 @outil(
@@ -294,7 +418,9 @@ def deleguer_en_fond(tache: str, intro: str = "Hermes a termine. ",
         "Confie une tache de REFLEXION, d'ANALYSE ou de RECHERCHE DE FOND a Hermes "
         "(agent delibératif local). A appeler DE TOI-MEME, sans demander, des que la "
         "demande est une tache de fond : analyse, veille, recherche longue, synthese, "
-        "reflexion approfondie — et bien sur si l'utilisateur dit 'delegue a Hermes', "
+        "reflexion approfondie, ou un travail de creation de contenu (script, hooks, "
+        "accroches, idees video, analyse d'inspirations, reecriture) — et bien sur si "
+        "l'utilisateur dit 'delegue a Hermes', "
         "'fais une recherche de fond', 'lance Hermes sur...'. Plusieurs delegations "
         "peuvent tourner EN PARALLELE : donne un `session` court et parlant (ex. "
         "'veille-ia', 'analyse-budget') pour les suivre separement. Jarvis annonce "

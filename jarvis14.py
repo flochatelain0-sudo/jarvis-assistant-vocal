@@ -111,7 +111,9 @@ SYSTEME_BASE = (
     "launch_app. N'utilise ouvrir_application que pour les utilitaires Windows. "
     "Si une demande exige plusieurs clics ou saisies dans une interface et qu'aucun "
     "outil direct ne suffit, appelle controle_pc_astra : le systeme demandera alors "
-    "l'autorisation avant de laisser Astra piloter le PC."
+    "l'autorisation avant de laisser Astra piloter le PC. Pour un vrai travail de "
+    "creation de contenu (script, hooks, accroches, idees video, analyse ou reecriture), "
+    "confie la reflexion a Hermes avec deleguer_a_hermes."
 )
 
 # Consigne systeme courante (persona + regles + memoire). Passee a chaque appel
@@ -652,6 +654,31 @@ def _repondre_route_astra(historique):
     return texte
 
 
+def _repondre_route_hermes_contenu(historique):
+    """Confie a Hermes une demande creative explicite avant l'appel au LLM."""
+    question = next((m.get("content") for m in reversed(historique)
+                     if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
+    try:
+        from tools.deleguer_a_hermes import extraire_tache_contenu, deleguer_en_fond
+        tache = extraire_tache_contenu(question)
+    except Exception:
+        LOG.exception("routage Hermes contenu")
+        return None
+    if tache is None:
+        return None
+    texte = deleguer_en_fond(
+        tache,
+        intro="Hermes a terminé le travail de contenu. ",
+        nom_thread="contenu-hermes",
+    )
+    historique.append({"role": "assistant", "content": texte})
+    _hud("outil", "deleguer_a_hermes", question[:60])
+    _hud("etat", "parole")
+    if not _INTERRUPTION.is_set():
+        dire(texte)
+    return texte
+
+
 def repondre(historique):
     """Interroge le LLM actif et boucle sur les appels d'outils jusqu'a la reponse.
 
@@ -664,6 +691,10 @@ def repondre(historique):
         return prioritaire
 
     prioritaire = _repondre_route_alexa(historique)
+    if prioritaire is not None:
+        return prioritaire
+
+    prioritaire = _repondre_route_hermes_contenu(historique)
     if prioritaire is not None:
         return prioritaire
 
