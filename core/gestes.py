@@ -29,6 +29,7 @@ _TOKEN = None          # jeton courant (None = gestes coupés) ; protège /api/g
 _PROC = None           # sous-process tracker
 _MODE_DEMO = False     # tracker visible + actions réelles (pour démonstration locale)
 _PROC_CALIBRATION = None  # fenêtre de calibration locale, lancée à la voix
+_PROC_REGARD = None    # contrôle local du pointeur par les yeux
 _COUPER_TTS = None     # callback fourni par jarvis14 (couper_parole)
 _FEEDBACK = None       # callback fourni par jarvis14 (bip + flash HUD)
 _CURSEUR_LUM = {}      # compatibilité des anciens mappings par pincement
@@ -108,9 +109,36 @@ def actif():
     return _PROC is not None and _PROC.poll() is None
 
 
+def regard_actif():
+    return _PROC_REGARD is not None and _PROC_REGARD.poll() is None
+
+
+def _terminer_processus(proc):
+    """Ferme un sous-process et son éventuel interpréteur enfant sous Windows."""
+    if proc is None or proc.poll() is not None:
+        return
+    try:
+        if os.name == "nt":
+            subprocess.run(
+                ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                timeout=5, check=False,
+            )
+        else:
+            proc.terminate()
+            proc.wait(timeout=3)
+    except Exception:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+
 def _demarrer_tracker(demo=False):
     """Lance l'unique tracker, invisible normalement ou visible en mode démo."""
     global _TOKEN, _PROC, _MODE_DEMO
+    if regard_actif():
+        arreter_regard()
     py = _python_tracker()
     if not py.exists():
         return ("L'environnement des gestes n'est pas installé "
@@ -161,26 +189,59 @@ def arreter():
     global _TOKEN, _PROC, _MODE_DEMO
     _TOKEN = None
     if _PROC is not None:
-        try:
-            if os.name == "nt":
-                # Le lanceur Python peut créer un second interpréteur. Fermer
-                # l'arbre entier évite un tracker orphelin qui garderait la webcam.
-                subprocess.run(
-                    ["taskkill", "/PID", str(_PROC.pid), "/T", "/F"],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                    timeout=5, check=False,
-                )
-            else:
-                _PROC.terminate()
-                _PROC.wait(timeout=3)
-        except Exception:
-            try:
-                _PROC.kill()               # de secours si terminate n'a pas suffi
-            except Exception:
-                pass
+        _terminer_processus(_PROC)
         _PROC = None
     _MODE_DEMO = False
     return "Contrôle par gestes coupé. La webcam est éteinte."
+
+
+def demarrer_regard():
+    """Lance le mode regard : calibration puis contrôle local par les yeux."""
+    global _PROC_REGARD, _PROC_CALIBRATION
+    if regard_actif():
+        return "Le mode regard est déjà actif."
+    if actif():
+        arreter()
+    if (_PROC_CALIBRATION is not None
+            and _PROC_CALIBRATION.poll() is None):
+        _terminer_processus(_PROC_CALIBRATION)
+        _PROC_CALIBRATION = None
+    py = _python_tracker()
+    script = _RACINE / "gestes" / "regard.py"
+    modele = _RACINE / "gestes" / "models" / "face_landmarker.task"
+    if not py.exists():
+        return ("L'environnement de suivi n'est pas installé "
+                "(lance : python scripts/setup_gestes.py).")
+    if not script.exists() or not modele.exists():
+        return ("Le contrôle du regard n'est pas installé "
+                "(lance : python scripts/setup_regard.py).")
+    commande = [str(py), str(script), "--device",
+                str(int(reglage("gestes.device", 0))), "--clics-actifs"]
+    try:
+        _PROC_REGARD = subprocess.Popen(commande, cwd=str(_RACINE))
+    except Exception as exc:
+        _PROC_REGARD = None
+        LOG.exception("gestes: démarrage contrôle du regard")
+        return f"Je n'ai pas pu ouvrir le mode regard ({exc})."
+    LOG.info("gestes: contrôle du regard lancé (pid %s)", _PROC_REGARD.pid)
+    return ("Mode regard activé. La calibration est ouverte ; appuie sur "
+            "Espace pour commencer. Le clic par sourcils sera déjà actif ensuite.")
+
+
+def arreter_regard():
+    """Ferme le contrôle du regard et libère la webcam."""
+    global _PROC_REGARD
+    _terminer_processus(_PROC_REGARD)
+    _PROC_REGARD = None
+    return "Mode regard coupé. Le contrôle des yeux et la webcam sont arrêtés."
+
+
+def arreter_mode_visio():
+    """Coupe uniquement le mode visio des gestes de la main."""
+    if not actif():
+        return "Le mode visio est déjà coupé."
+    arreter()
+    return "Mode visio coupé. Les gestes sont arrêtés et la webcam est libérée."
 
 
 def lancer_calibration():
@@ -188,6 +249,8 @@ def lancer_calibration():
     global _PROC_CALIBRATION
     if _PROC_CALIBRATION is not None and _PROC_CALIBRATION.poll() is None:
         return "La calibration des gestes est déjà ouverte sur le PC."
+    if regard_actif():
+        arreter_regard()
     if actif():
         arreter()
     script = _RACINE / "scripts" / "gestes_calibrer.py"
@@ -209,8 +272,11 @@ def lancer_calibration():
 
 def statut():
     vivant = actif()
-    return {"actif": vivant, "tracker_vivant": vivant,
-            "demo": bool(vivant and _MODE_DEMO)}
+    regard = regard_actif()
+    return {"actif": bool(vivant or regard), "tracker_vivant": vivant,
+            "demo": bool(vivant and _MODE_DEMO),
+            "regard": regard, "mode_regard": regard,
+            "mode_visio": bool(vivant and _MODE_DEMO)}
 
 
 # ---------------------------------------------------------------- dispatch

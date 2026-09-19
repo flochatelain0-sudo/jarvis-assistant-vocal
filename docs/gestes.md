@@ -53,7 +53,7 @@ Des gestes **tenus** (pas d'instantané) pour éviter les faux positifs :
 | **Poing** tenu | Coupe immédiatement le TTS et annule le mode courant |
 | **2 doigts** tenus | Arme le mode **Onglets** |
 | **3 doigts** tenus | Arme le mode **Audio** |
-| **4 doigts, pouce replié** | Arme le mode **Souris** |
+| **Index seul** tenu | Arme le mode **Souris** et pilote le pointeur |
 | **Deux mains ouvertes, 5 doigts chacune** | Écarter = zoom avant ; rapprocher = zoom arrière |
 
 Chaque geste reconnu = **feedback discret** (petit bip + flash HUD) pour savoir que
@@ -62,12 +62,14 @@ c'est pris. Le mapping est **entièrement éditable** dans `config.yaml → gest
 ### Mode Onglets — 2 doigts
 
 - tiens index + majeur environ 1 seconde → overlay `🗂 Mode onglets` ;
-- passe à la main entière ouverte, pouce compris, et garde-la brièvement immobile ;
+- passe à la main entière ouverte et garde-la brièvement immobile ; une perte
+  momentanée du pouce par la caméra n'active jamais la souris dans ce mode ;
 - clique d'abord dans le navigateur ou l'application à piloter ;
 - swipe gauche/droite → onglet ou vue précédente/suivante de cette application
   (`Ctrl+Shift+Tab` / `Ctrl+Tab`) ;
 - swipe haut/bas → défilement de la fenêtre active (`Page Up` / `Page Down`) ;
-- sors brièvement la main du cadre entre deux swipes ; le mode reste actif.
+- le point d'arrivée devient immédiatement le départ suivant : enchaîne dans
+  n'importe quelle direction sans restabiliser ni refaire les 2 doigts.
 
 Le nom interne `mode_fenetres` est conservé pour la compatibilité des anciennes
 calibrations. Les applications sans onglets peuvent ignorer `Ctrl+Tab`, mais Jarvis
@@ -77,7 +79,8 @@ applications, règle `gestes.navigation_horizontale: applications`.
 ### Mode Audio — 3 doigts
 
 - tiens index + majeur + annulaire environ 1 seconde → overlay `🔊 Mode audio` ;
-- passe à la main entière ouverte, pouce compris, et garde-la brièvement immobile ;
+- passe à la main entière ouverte et garde-la brièvement immobile ; une perte
+  momentanée du pouce par la caméra n'active jamais la souris dans ce mode ;
 - swipe haut/bas → volume +/− ;
 - swipe gauche/droite → piste précédente/suivante.
 
@@ -87,7 +90,7 @@ confirmation vocale locale.
 
 ### Zoom à deux mains
 
-- présente deux paumes entièrement ouvertes, pouce compris, et stabilise-les brièvement ;
+- présente deux paumes entièrement ouvertes et stabilise-les brièvement ;
 - écarte-les pour zoomer, rapproche-les pour dézoomer ;
 - garde-les visibles : continue le mouvement pour plusieurs crans ou inverse-le
   directement pour changer le sens du zoom.
@@ -97,12 +100,12 @@ dans les navigateurs, les lecteurs PDF et la plupart des applications qui
 utilisent ces raccourcis. Aucun mode à un doigt n'est déclenché tant que deux
 mains sont visibles.
 
-### Mode Souris — 4 doigts
+### Mode Souris — index seul
 
-- tiens quatre doigts avec le pouce replié jusqu'à voir `🖱 Mode souris` ;
-- baisse majeur, annulaire et auriculaire : le bout de l'index pilote le curseur ;
+- tiens seulement l'index immobile jusqu'à voir `🖱 Mode souris` ;
+- déplace ensuite ce même index pour piloter le curseur ;
 - écarte d'abord le pouce, puis pince pouce-index pour cliquer si le clic est actif ;
-- tiens le poing pour quitter immédiatement, ou attends l'expiration du mode.
+- tiens le poing pour quitter immédiatement, ou retire la main du cadre.
 
 Le pointeur reste strictement local. Aucune image ne sort du tracker : seul un
 couple `(x,y)` normalisé est envoyé sur le loopback authentifié. Par sécurité, le
@@ -115,11 +118,16 @@ calibration locale permet de l'activer avec `p`, puis de sauvegarder avec `s`.
 - **Modes explicites** : aucun swipe n'agit sans 2 ou 3 doigts tenus au préalable.
 - **Transition stabilisée** après la sélection : passer directement à la paume
   ouverte suffit ; sortir la main du cadre reste accepté.
-- **Main hors cadre obligatoire entre deux actions** pour empêcher un deuxième
-  ordre involontaire. Le même mode accepte ensuite plusieurs swipes successifs.
-- **Expiration** du mode après `mode_duree_s` secondes sans nouvelle action
-  (30 s par défaut), ou immédiatement avec un poing tenu.
-- **Stabilisation** : la main déployée (5 doigts, pouce compris) doit rester presque immobile pendant
+- **Enchaînement continu** : la fin d'un swipe est ignorée pour éviter les
+  doublons ; une courte pause ou un virage franc sur l'autre axe réarme aussitôt
+  le geste suivant, sans sortir la main ni refaire le geste de sélection.
+- **Retour neutre** : après un swipe horizontal, le retour immédiat de la main
+  vers le centre reste ignoré, même si la caméra perd brièvement des doigts.
+- **Sortie explicite** : le mode reste actif tant que la main demeure visible ;
+  les pertes momentanées de suivi sont ignorées. Il se ferme après trois secondes
+  réellement hors du cadre ou immédiatement avec un poing tenu.
+- **Stabilisation contextuelle** : après l'armement Onglets/Audio, trois doigts
+  longs visibles suffisent et ne peuvent plus lancer la souris. La main doit rester presque immobile pendant
   `swipe_pret_s` (0,35 s par défaut). Le changement de pose ou le trajet d'entrée
   dans le cadre ne peut donc plus être interprété comme un swipe.
 - **Déplacement minimal + axe dominant** : un mouvement diagonal ambigu est ignoré.
@@ -140,20 +148,28 @@ arrière −/+, `x/X` temps de stabilisation du zoom −/+, `i` inverse haut/bas
 quitte. Le fichier sauvegardé est rechargé à la prochaine ouverture. **Aucune
 image n'est enregistrée** pendant la calibration.
 
-### Mode démo visible
+### Mode visio : gestes de la main visibles
 
-Dis « passe en mode visio », « ouvre la démo des gestes », « lance les gestes visibles pour ma vidéo », ou
-utilise `Ctrl+Alt+D`.
-Un seul tracker utilise la webcam : la fenêtre montre les points, la pose et
-l'historique comme en calibration, mais chaque geste reconnu agit aussi réellement
-sur Windows. Le bandeau `MODE DEMO : ACTIONS PC ACTIVES` évite toute ambiguïté et
-la fenêtre reste au premier plan pendant la démonstration. `Q` ferme la démo ; le
-raccourci `Ctrl+Alt+G` ou la commande vocale « coupe les gestes » coupe le tracker.
-Tu peux aussi dire « quitte le mode visio » pour fermer la fenêtre et libérer la webcam.
+Dis « passe en mode visio », « ouvre la démo des gestes » ou « lance les gestes
+visibles pour ma vidéo », ou utilise `Ctrl+Alt+D`. La fenêtre montre les points,
+la pose et l'historique, et les gestes reconnus agissent réellement sur Windows. Le bandeau
+`MODE DEMO : ACTIONS PC ACTIVES` évite toute ambiguïté. `Q` ferme la démo et
+« quitte le mode visio », `Ctrl+Alt+G` ou « coupe les gestes » coupe le tracker.
+
+### Mode regard : contrôle avec les yeux
+
+Dis « passe en mode regard » ou « active le contrôle avec les yeux », ou utilise
+`Ctrl+Alt+R`. Jarvis ferme d'abord le tracker des mains s'il est actif, puis ouvre
+la calibration locale du regard. Après la calibration, les yeux déplacent le
+pointeur et le clic gauche par haussement tenu des deux sourcils est immédiatement
+actif. `C` permet encore de couper ou réactiver les clics manuellement. Dis
+« quitte le mode regard » ou utilise de nouveau `Ctrl+Alt+R` pour arrêter le suivi.
 
 ## Caméra : cycle de vie & cohabitation
 
-- **On/off** : à la voix (`controler_gestes`), au raccourci clavier, ou `gestes.actif`.
+- **On/off mains** : à la voix (`controler_gestes`), au raccourci clavier, ou `gestes.actif`.
+- **On/off regard** : « passe/quitte le mode regard » ou `Ctrl+Alt+R`. Le regard et les mains sont
+  mutuellement exclusifs puisqu'ils partagent la même webcam.
   À l'arrêt de Jarvis, la webcam est **libérée** (`atexit`).
 - **Choix du périphérique** : `gestes.device` (0 = première webcam USB).
 - **Statut** : `GET http://127.0.0.1:8790/api/gestes/status` → `{actif}` (repris dans

@@ -1,10 +1,13 @@
 """Tests des commandes vocales de gestes, sans ouvrir la webcam."""
 import unittest
-from unittest.mock import patch
+from pathlib import Path
+from unittest.mock import Mock, patch
 
+from core import gestes as gestes_core
 from tools.gestes import (demande_calibration_gestes, demande_demo_gestes,
-                           demande_mode_visio,
-                           lancer_calibration_gestes, lancer_demo_gestes)
+                           demande_mode_regard, demande_mode_visio,
+                           lancer_calibration_gestes, lancer_demo_gestes,
+                           lancer_mode_regard, quitter_mode_regard)
 
 
 class GestesToolsTests(unittest.TestCase):
@@ -33,8 +36,22 @@ class GestesToolsTests(unittest.TestCase):
         self.assertIs(demande_mode_visio(
             "Hey Jarvis, passe en mode visio"), True)
         self.assertIs(demande_mode_visio("Active le mode visio"), True)
+        self.assertIs(demande_mode_visio(
+            "Active le contrôle avec les yeux"), None)
         self.assertIs(demande_mode_visio("Quitte le mode visio"), False)
+        self.assertIs(demande_mode_visio(
+            "Coupe le contrôle du regard"), None)
         self.assertIs(demande_mode_visio("Je parle du mode visio"), None)
+
+    def test_mode_regard_est_separe_du_mode_visio(self):
+        self.assertIs(demande_mode_regard(
+            "Hey Jarvis, passe en mode regard"), True)
+        self.assertIs(demande_mode_regard(
+            "Active le contrôle avec les yeux"), True)
+        self.assertIs(demande_mode_regard(
+            "Coupe le contrôle du regard"), False)
+        self.assertIs(demande_mode_regard(
+            "Je parle du suivi des yeux"), None)
 
     def test_commande_vocale_ouvre_la_calibration_locale(self):
         with patch("core.gestes.lancer_calibration",
@@ -47,6 +64,40 @@ class GestesToolsTests(unittest.TestCase):
                    return_value="Démo active.") as lancer:
             self.assertEqual(lancer_demo_gestes(), "Démo active.")
         lancer.assert_called_once_with()
+
+    def test_mode_regard_lance_le_regard(self):
+        with patch("core.gestes.demarrer_regard",
+                   return_value="Regard actif.") as lancer:
+            self.assertEqual(lancer_mode_regard(), "Regard actif.")
+        lancer.assert_called_once_with()
+
+    def test_quitter_mode_regard_libere_la_camera(self):
+        with patch("core.gestes.arreter_regard",
+                   return_value="Regard coupé.") as arreter:
+            self.assertEqual(quitter_mode_regard(), "Regard coupé.")
+        arreter.assert_called_once_with()
+
+    def test_mode_regard_demarre_avec_les_clics_actifs(self):
+        ancien_regard = gestes_core._PROC_REGARD
+        ancienne_calibration = gestes_core._PROC_CALIBRATION
+        faux_processus = Mock(pid=1234)
+        faux_processus.poll.return_value = None
+        gestes_core._PROC_REGARD = None
+        gestes_core._PROC_CALIBRATION = None
+        try:
+            with (patch.object(gestes_core, "_python_tracker",
+                               return_value=Path("C:/faux/python.exe")),
+                  patch.object(Path, "exists", return_value=True),
+                  patch.object(gestes_core, "actif", return_value=False),
+                  patch.object(gestes_core.subprocess, "Popen",
+                               return_value=faux_processus) as popen):
+                reponse = gestes_core.demarrer_regard()
+            commande = popen.call_args.args[0]
+            self.assertIn("--clics-actifs", commande)
+            self.assertIn("clic par sourcils sera déjà actif", reponse)
+        finally:
+            gestes_core._PROC_REGARD = ancien_regard
+            gestes_core._PROC_CALIBRATION = ancienne_calibration
 
 
 if __name__ == "__main__":

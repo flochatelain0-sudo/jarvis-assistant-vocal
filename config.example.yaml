@@ -299,6 +299,7 @@ gestes:                        # controle par gestes de la main (webcam USB) ; v
   hauteur: 480
   raccourci: "ctrl+alt+g"      # raccourci clavier pour basculer les gestes ("" = desactive)
   raccourci_demo: "ctrl+alt+d" # repères visibles + actions réelles, pour une démonstration
+  raccourci_regard: "ctrl+alt+r" # bascule le contrôle local du pointeur par les yeux
   navigation_horizontale: onglets # onglets/vues de l'app active ; "applications" restaure Alt+Tab
   souris_moniteur: 1           # écran piloté par l'index : 1=principal, 2=second écran
   pause_pendant_live: true     # compat anciens mappings OBS ; sans effet sur les modes v2
@@ -312,9 +313,13 @@ gestes:                        # controle par gestes de la main (webcam USB) ; v
     swipe_fenetre_s: 1.0       # le mouvement doit tenir dans cette fenêtre
     swipe_dominance: 1.2       # axe principal >= autre axe * cette valeur
     swipe_pret_s: 0.35         # main immobile avant de commencer à mesurer
+    swipe_cooldown_s: 0.18     # délai court entre deux axes, sans doubler un même geste
+    swipe_pause_s: 0.28        # pause qui termine un swipe ; son retour au centre reste ignoré
+    swipe_tourne_seuil: 0.05   # virage perpendiculaire minimal pour changer d'axe directement
     stabilite_seuil: 0.06      # mouvement max pendant cette stabilisation
     inverser_vertical: false   # activer si haut/bas sont inversés par la caméra
-    mode_duree_s: 30.0         # expiration du mode si aucun swipe
+    mode_duree_s: 30.0         # horizon affiché, rafraîchi tant que la main reste visible
+    sortie_absence_s: 3.0      # absence continue avant fermeture ; filtre les pertes caméra
     zoom_seuil: 0.12           # variation minimale de distance entre deux paumes
     zoom_reduire_seuil: 0.08   # rapprochement plus sensible (amplitude naturelle plus courte)
     zoom_tenue_s: 0.45         # stabilité des deux mains avant d'armer le zoom
@@ -322,6 +327,7 @@ gestes:                        # controle par gestes de la main (webcam USB) ; v
     souris_marge: 0.10         # bord caméra ignoré puis étendu à tout l'écran
     souris_lissage: 0.32       # 0.05 très doux, 1.0 très direct
     souris_pincement_seuil: 0.55 # pouce-index ; augmenter rend le clic plus facile
+    souris_tenue_s: 0.45       # index immobile nécessaire pour armer la souris
     souris_clic: false         # sûr par défaut ; activer localement ou avec [p] + [s]
   mapping:                     # geste -> action (N1/N2 UNIQUEMENT ; jamais N3)
     main_ouverte:     { action: media, commande: pause, label: "⏸ Pause" }
@@ -416,5 +422,6 @@ satellite_lan:
   whisper_compute_type: "int8"
   conversation_suivie: true    # relance sans répéter « Hey Jarvis » après une réponse
   fenetre_relance: 8.0         # secondes d'écoute pour une question de suivi
+  max_relances: 2              # nombre maximal de suivis par « Hey Jarvis » ; évite l'écoute infinie
   accuse_immediat: true        # accusé contextuel seulement pour une tâche lente
   progression_traitement_apres: 4.0     # annonce l'étape si le LLM cherche encore

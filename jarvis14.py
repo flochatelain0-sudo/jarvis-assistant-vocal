@@ -112,9 +112,15 @@ SYSTEME_BASE = (
     "d'apres l'image. Pour ouvrir un site, une URL, Netflix/YouTube ou faire une "
     "recherche web, utilise browser_open. Pour un logiciel configure, utilise "
     "launch_app. N'utilise ouvrir_application que pour les utilitaires Windows. "
+    "Pour lire un titre ou une playlist Spotify, utilise lire_spotify ; pour une "
+    "série ou un film Netflix précis, utilise lire_netflix ; pour pause, suivant "
+    "ou précédent, utilise controler_media. Ces actions ne nécessitent pas Astra. "
     "Pour ouvrir la calibration de la webcam et des mains, utilise "
     "lancer_calibration_gestes. Pour afficher les repères tout en exécutant "
     "réellement les gestes pendant une démonstration, utilise lancer_demo_gestes. "
+    "Pour activer le contrôle du pointeur avec les yeux, utilise lancer_mode_regard ; "
+    "pour le fermer, utilise quitter_mode_regard. Le mode visio reste la démo "
+    "visible des gestes de la main. "
     "Si une demande exige plusieurs clics ou saisies dans une interface et qu'aucun "
     "outil direct ne suffit, appelle controle_pc_astra : le systeme demandera alors "
     "l'autorisation avant de laisser Astra piloter le PC. Pour un vrai travail de "
@@ -660,16 +666,95 @@ def _repondre_route_astra(historique):
     return texte
 
 
+def _repondre_route_ouverture_simple(historique):
+    """Ouvre directement un site ou une application en une seule étape.
+
+    Cette route évite qu'un modèle envoie par erreur « ouvre Spotify » à Astra,
+    qui est réservé aux tâches nécessitant réellement plusieurs actions à l'écran.
+    """
+    question = next((m.get("content") for m in reversed(historique)
+                     if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
+    try:
+        from tools.apps import router_ouverture_simple
+        route = router_ouverture_simple(question)
+    except Exception:
+        LOG.exception("routage ouverture simple")
+        return None
+    if not route:
+        return None
+
+    from types import SimpleNamespace
+    nom, arguments = route
+    if registre.get(nom) is None:
+        return None
+    bloc = SimpleNamespace(
+        type="tool_use", name=nom, input=arguments, id="route-ouverture-simple")
+    resultats = _executer_outils([bloc])
+    texte = str(resultats[0]["content"] if resultats else "C'est fait.")
+    historique.append({"role": "assistant", "content": texte})
+    _hud("etat", "parole")
+    if texte and not _INTERRUPTION.is_set():
+        dire(texte)
+    return texte
+
+
+def _repondre_route_media(historique):
+    """Exécute les commandes média bornées sans contrôle général de l'écran."""
+    question = next((m.get("content") for m in reversed(historique)
+                     if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
+    try:
+        from tools.media import router_commande_media
+        route = router_commande_media(question)
+    except Exception:
+        LOG.exception("routage média")
+        return None
+    if not route:
+        return None
+
+    from types import SimpleNamespace
+    nom, arguments = route
+    outil = registre.get(nom)
+    if outil is None:
+        return None
+    fil_accuse = None
+    if outil.lent and outil.phrase_attente:
+        _hud("etat", "parole")
+        fil_accuse = threading.Thread(
+            target=dire, args=(outil.phrase_attente,), daemon=True)
+        fil_accuse.start()
+    bloc = SimpleNamespace(
+        type="tool_use", name=nom, input=arguments, id="route-media-directe")
+    resultats = _executer_outils([bloc])
+    if fil_accuse:
+        fil_accuse.join()
+    texte = str(resultats[0]["content"] if resultats else "C'est fait.")
+    historique.append({"role": "assistant", "content": texte})
+    _hud("etat", "parole")
+    if texte and not _INTERRUPTION.is_set():
+        dire(texte)
+    return texte
+
+
 def _repondre_route_calibration_gestes(historique):
     """Route les ordres vocaux explicites de caméra et de gestes locaux."""
     question = next((m.get("content") for m in reversed(historique)
                      if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
     try:
-        from tools.gestes import (controler_gestes, demande_calibration_gestes,
-                                  demande_demo_gestes, demande_mode_visio,
-                                  lancer_calibration_gestes, lancer_demo_gestes)
+        from tools.gestes import (controler_gestes,
+                                  demande_calibration_gestes,
+                                  demande_demo_gestes, demande_mode_regard,
+                                  demande_mode_visio,
+                                  lancer_calibration_gestes, lancer_demo_gestes,
+                                  lancer_mode_regard, quitter_mode_regard)
+        regard = demande_mode_regard(question)
         visio = demande_mode_visio(question)
-        if visio is True:
+        if regard is True:
+            texte = lancer_mode_regard()
+            outil_nom = "lancer_mode_regard"
+        elif regard is False:
+            texte = quitter_mode_regard()
+            outil_nom = "quitter_mode_regard"
+        elif visio is True:
             texte = lancer_demo_gestes()
             outil_nom = "lancer_demo_gestes"
         elif visio is False:
@@ -686,7 +771,7 @@ def _repondre_route_calibration_gestes(historique):
     except Exception:
         LOG.exception("routage caméra et gestes")
         texte = "Je n'ai pas pu changer le mode de détection de la caméra."
-        outil_nom = "controler_gestes"
+        outil_nom = "lancer_mode_regard"
     historique.append({"role": "assistant", "content": texte})
     _hud("outil", outil_nom, texte[:60])
     _hud("etat", "parole")
@@ -736,6 +821,14 @@ def repondre(historique):
         return prioritaire
 
     prioritaire = _repondre_route_alexa(historique)
+    if prioritaire is not None:
+        return prioritaire
+
+    prioritaire = _repondre_route_media(historique)
+    if prioritaire is not None:
+        return prioritaire
+
+    prioritaire = _repondre_route_ouverture_simple(historique)
     if prioritaire is not None:
         return prioritaire
 
@@ -1200,10 +1293,11 @@ def _feedback_geste(geste):
 
 
 def _installer_raccourci_gestes():
-    """Raccourci clavier global pour basculer les gestes (optionnel, via 'keyboard')."""
+    """Raccourcis globaux des mains et du regard (optionnels, via keyboard)."""
     combo = config.reglage("gestes.raccourci", "ctrl+alt+g")
     combo_demo = config.reglage("gestes.raccourci_demo", "ctrl+alt+d")
-    if not combo and not combo_demo:
+    combo_regard = config.reglage("gestes.raccourci_regard", "ctrl+alt+r")
+    if not combo and not combo_demo and not combo_regard:
         return
     try:
         import keyboard
@@ -1217,6 +1311,10 @@ def _installer_raccourci_gestes():
     def _demo():
         print(gestes.demarrer_demo())
 
+    def _regard():
+        print(gestes.arreter_regard() if gestes.regard_actif()
+              else gestes.demarrer_regard())
+
     try:
         if combo:
             keyboard.add_hotkey(combo, _toggle)
@@ -1224,6 +1322,9 @@ def _installer_raccourci_gestes():
         if combo_demo:
             keyboard.add_hotkey(combo_demo, _demo)
             print(f"Raccourci démo gestes : {combo_demo}")
+        if combo_regard:
+            keyboard.add_hotkey(combo_regard, _regard)
+            print(f"Raccourci regard : {combo_regard}")
     except Exception:
         LOG.exception("gestes: raccourci clavier")
 
@@ -1301,7 +1402,8 @@ def main():
         import atexit
         from core import gestes
         gestes.definir_hooks(couper_tts=couper_parole, feedback=_feedback_geste)
-        atexit.register(gestes.arreter)          # libere la webcam a la sortie
+        atexit.register(gestes.arreter_regard)      # libère le regard à la sortie
+        atexit.register(gestes.arreter)          # libère le tracker invisible
         if config.reglage("gestes.actif", False):
             print(gestes.demarrer())
         _installer_raccourci_gestes()

@@ -12,7 +12,7 @@ Vocabulaire v2 (gestes FIABLES, tenus) :
   main ouverte immobile -> pause ; pouce leve -> lecture ; poing -> couper Jarvis
   2 doigts -> mode fenetres, puis main ouverte + swipe horizontal/vertical
   3 doigts -> mode audio, puis main ouverte + swipe horizontal/vertical
-  4 doigts, pouce replie -> mode souris, puis index seul pour le pointeur
+  index seul tenu -> mode souris, puis ce meme index pilote le pointeur
   2 mains ouvertes -> ecarter pour zoomer, rapprocher pour dezoomer
 Chaque mode attend une paume ouverte brièvement stable après la pose de sélection
 et exige une sortie du cadre entre deux actions.
@@ -56,10 +56,22 @@ def doigt_leve(lm, tip, pip):
     return _d(lm[tip], lm[POIGNET]) > _d(lm[pip], lm[POIGNET]) + 0.22 * echelle
 
 
-def pouce_ouvert(lm):
-    """Pouce écarté, avec une mesure relative à la taille de la paume."""
+def ratio_ouverture_pouce(lm):
+    """Écart pouce/index rapporté à la taille apparente de la paume."""
     echelle = max(0.04, _d(lm[POIGNET], lm[MAJEUR_MCP]))
-    return _d(lm[POUCE_TIP], lm[INDEX_MCP]) > 0.85 * echelle
+    return _d(lm[POUCE_TIP], lm[INDEX_MCP]) / echelle
+
+
+def extension_pouce(lm):
+    """Allongement du pouce au-delà de son articulation, normalisé par la paume."""
+    echelle = max(0.04, _d(lm[POIGNET], lm[MAJEUR_MCP]))
+    return (_d(lm[POUCE_TIP], lm[POIGNET])
+            - _d(lm[POUCE_IP], lm[POIGNET])) / echelle
+
+
+def pouce_ouvert(lm):
+    """Pouce réellement tendu, même vu de biais par la webcam."""
+    return extension_pouce(lm) > 0.12 and ratio_ouverture_pouce(lm) > 0.25
 
 
 def doigts_tendus(lm):
@@ -88,16 +100,22 @@ def est_main_ouverte(lm):
 
 def est_quatre_doigts(lm):
     """Les quatre doigts levés avec le pouce replié : sélection Souris."""
-    echelle = max(0.04, _d(lm[POIGNET], lm[MAJEUR_MCP]))
-    # La zone neutre entre 0,55 et 0,85 évite qu'un pouce mal vu fasse
-    # basculer directement une paume ouverte vers le mode souris.
-    pouce_replie = _d(lm[POUCE_TIP], lm[INDEX_MCP]) <= 0.55 * echelle
+    # L'extension distingue un pouce ouvert vu de biais d'un pouce réellement
+    # replié. L'écart maximal reste généreux pour reconnaître le chiffre 4.
+    pouce_replie = (not pouce_ouvert(lm)
+                     and ratio_ouverture_pouce(lm) <= 0.75)
     return _doigts(lm) == (True, True, True, True) and pouce_replie
 
 
 def est_index_seul(lm):
     """Index tendu, majeur/annulaire/auriculaire repliés : pilotage du pointeur."""
     return _doigts(lm) == (True, False, False, False)
+
+
+def est_index_pointeur(lm):
+    """Index visible en mode souris, avec tolérance sur le majeur mal suivi."""
+    index, _majeur, annulaire, auriculaire = _doigts(lm)
+    return index and not annulaire and not auriculaire
 
 
 def ratio_pincement(lm):
@@ -109,10 +127,11 @@ def ratio_pincement(lm):
 def est_main_deployee(lm):
     """Paume assez ouverte pour piloter un mode déjà explicitement armé.
 
-    Les cinq doigts sont exigés pour que la transition vers un swipe ou un zoom
-    ne puisse jamais être confondue avec les quatre doigts du mode souris.
+    Trois doigts longs suffisent après l'armement explicite d'un mode, ou lorsque
+    deux mains sont visibles. Dans ces contextes, cette tolérance ne peut pas
+    armer la souris et absorbe les pertes momentanées pendant un mouvement.
     """
-    return est_main_ouverte(lm)
+    return doigts_tendus(lm) >= 3
 
 
 def est_deux_doigts(lm):
@@ -145,14 +164,14 @@ def centre_main(lm):
 
 def pose(lm):
     """Nom de la pose statique courante, ou None."""
-    if est_quatre_doigts(lm):
-        return "mode_souris"
     if est_main_ouverte(lm):
         return "main_ouverte"
     if est_trois_doigts(lm):
         return "mode_audio"
     if est_deux_doigts(lm):
         return "mode_fenetres"
+    if est_index_seul(lm):
+        return "mode_souris"
     if est_pouce_leve(lm):
         return "pouce_leve"
     if est_poing(lm):
@@ -175,9 +194,13 @@ class MachineGestes:
         self.swipe_fenetre_s = float(s.get("swipe_fenetre_s", 1.0))
         self.swipe_dominance = float(s.get("swipe_dominance", 1.20))
         self.swipe_pret_s = float(s.get("swipe_pret_s", 0.35))
+        self.swipe_cooldown_s = float(s.get("swipe_cooldown_s", 0.18))
+        self.swipe_pause_s = float(s.get("swipe_pause_s", 0.28))
+        self.swipe_tourne_seuil = float(s.get("swipe_tourne_seuil", 0.05))
         self.stabilite_seuil = float(s.get("stabilite_seuil", 0.06))
         self.inverser_vertical = bool(s.get("inverser_vertical", False))
         self.mode_duree_s = float(s.get("mode_duree_s", 30.0))
+        self.sortie_absence_s = float(s.get("sortie_absence_s", 3.0))
         self.zoom_seuil = float(s.get("zoom_seuil", 0.12))
         self.zoom_reduire_seuil = float(s.get("zoom_reduire_seuil", 0.08))
         self.zoom_tenue_s = float(s.get("zoom_tenue_s", 0.45))
@@ -185,6 +208,7 @@ class MachineGestes:
         self.souris_marge = float(s.get("souris_marge", 0.10))
         self.souris_lissage = float(s.get("souris_lissage", 0.32))
         self.souris_pincement_seuil = float(s.get("souris_pincement_seuil", 0.55))
+        self.souris_tenue_s = float(s.get("souris_tenue_s", 0.45))
         self.souris_clic = bool(s.get("souris_clic", False))
 
         self._geste_courant = None      # geste tenu en cours d'observation
@@ -193,11 +217,14 @@ class MachineGestes:
         self.mode = None                # None | fenetres | audio | souris
         self._mode_jusqu = 0.0
         self._attend_relachement = False
-        self._attend_absence = False    # après une action, main hors cadre obligatoire
+        self._absence_depuis = None     # fermeture après une vraie sortie du cadre
         self._hist_xy = []              # (t, x, y) après sélection d'un mode
         self._pret_depuis = 0.0         # début de l'immobilité avant un swipe
         self._pret_position = None      # position de référence pendant l'immobilité
         self._pret_confirme = False     # le trajet de retour n'est jamais un swipe
+        self._swipe_verrou_axe = None   # fin du dernier geste : "h" | "v"
+        self._swipe_pause_position = None
+        self._swipe_pause_depuis = 0.0
         self._zoom_reference = None     # distance des paumes après stabilisation
         self._zoom_depuis = 0.0         # début de la stabilisation à deux mains
         self._zoom_pret = False
@@ -208,6 +235,8 @@ class MachineGestes:
         self._pincement_arme = False
         self._dernier_clic = -1e9
         self.souris_ratio_pincement = None
+        self._selection_souris_position = None
+        self._selection_souris_depuis = 0.0
         self.debug_evenement = ""       # diagnostic local affiché en calibration
 
     def _cooldown_ok(self, t):
@@ -222,11 +251,73 @@ class MachineGestes:
         self._pret_depuis = 0.0
         self._pret_position = None
         self._pret_confirme = False
+        self._swipe_verrou_axe = None
+        self._swipe_pause_position = None
+        self._swipe_pause_depuis = 0.0
+
+    def _suivre_fin_swipe(self, t, x, y):
+        """Évite les doublons puis réarme sur pause ou changement d'axe.
+
+        Un swipe est souvent reconnu avant que la main ait fini sa course. La
+        fin du mouvement ne doit pas compter comme un second geste, mais un
+        virage horizontal/vertical volontaire doit pouvoir partir tout de suite.
+        """
+        if self._swipe_verrou_axe is None:
+            return True
+
+        self._hist_xy.append((t, x, y))
+        fenetre = min(self.swipe_fenetre_s,
+                      max(0.22, self.swipe_pause_s * 2.0))
+        self._hist_xy = [p for p in self._hist_xy if t - p[0] <= fenetre]
+        debut = self._hist_xy[0]
+        dx = x - debut[1]
+        dy = y - debut[2]
+        seuil = max(0.025, self.swipe_tourne_seuil)
+
+        tourne = ((self._swipe_verrou_axe == "h"
+                   and abs(dy) >= seuil
+                   and abs(dy) >= abs(dx) * 1.15)
+                  or (self._swipe_verrou_axe == "v"
+                      and abs(dx) >= seuil
+                      and abs(dx) >= abs(dy) * 1.15))
+        if tourne:
+            # Élimine de l'historique la queue du geste précédent, mais garde
+            # le début utile du nouveau trajet perpendiculaire.
+            coord = 1 if self._swipe_verrou_axe == "h" else 2
+            tolerance = max(0.018, seuil * 0.55)
+            indice = 0
+            for i in range(len(self._hist_xy) - 2, -1, -1):
+                if abs(self._hist_xy[i][coord] - self._hist_xy[-1][coord]) > tolerance:
+                    indice = min(i + 1, len(self._hist_xy) - 1)
+                    break
+            self._hist_xy = self._hist_xy[indice:]
+            self._swipe_verrou_axe = None
+            self._swipe_pause_position = (x, y)
+            self._swipe_pause_depuis = t
+            return True
+
+        position = self._swipe_pause_position
+        if position is None:
+            self._swipe_pause_position = (x, y)
+            self._swipe_pause_depuis = t
+            return False
+        mouvement = ((x - position[0]) ** 2 + (y - position[1]) ** 2) ** 0.5
+        if mouvement > max(0.018, self.stabilite_seuil * 0.40):
+            self._swipe_pause_position = (x, y)
+            self._swipe_pause_depuis = t
+            return False
+        if (t - self._swipe_pause_depuis) >= self.swipe_pause_s:
+            self._swipe_verrou_axe = None
+            self._hist_xy = [(t, x, y)]
+            self._swipe_pause_position = (x, y)
+            self._swipe_pause_depuis = t
+        return False
 
     def _fermer_mode(self):
         self.mode = None
         self._mode_jusqu = 0.0
         self._attend_relachement = False
+        self._absence_depuis = None
         self._reinitialiser_pret()
         self._reinitialiser_pointeur()
 
@@ -236,6 +327,29 @@ class MachineGestes:
         self._pincement_actif = False
         self._pincement_arme = False
         self.souris_ratio_pincement = None
+
+    def _reinitialiser_selection_souris(self):
+        self._selection_souris_position = None
+        self._selection_souris_depuis = 0.0
+
+    def _tenir_selection_souris(self, lm, t, duree=None):
+        """Arme la souris seulement si l'index reste presque immobile."""
+        position = centre_main(lm)
+        if self._selection_souris_position is None:
+            self._selection_souris_position = position
+            self._selection_souris_depuis = t
+            return False
+        dx = position[0] - self._selection_souris_position[0]
+        dy = position[1] - self._selection_souris_position[1]
+        if (dx * dx + dy * dy) ** 0.5 > max(0.12, self.stabilite_seuil):
+            self._selection_souris_position = position
+            self._selection_souris_depuis = t
+            return False
+        attente = self.souris_tenue_s if duree is None else duree
+        if (t - self._selection_souris_depuis) < attente:
+            return False
+        self._reinitialiser_selection_souris()
+        return True
 
     def _reinitialiser_zoom(self):
         self._zoom_reference = None
@@ -248,12 +362,12 @@ class MachineGestes:
         """État lisible par l'écran de calibration, sans exposer de landmarks."""
         if not self.mode:
             return "-"
-        if self._attend_absence:
-            return "sors la main du cadre"
         if self._attend_relachement:
             return "ouvre la main"
         if not self._pret_confirme:
             return "stabilise la main ouverte"
+        if self._swipe_verrou_axe is not None:
+            return "change d'axe ou marque une pause"
         return "PRET - swipe maintenant"
 
     @property
@@ -268,9 +382,11 @@ class MachineGestes:
     @property
     def etat_souris(self):
         if self.mode != "souris":
+            if self._selection_souris_position is not None:
+                return "ARMEMENT INDEX - ne bouge plus"
             return "-"
         if self._attend_relachement:
-            return "baisse 3 doigts, garde l'index"
+            return "garde seulement l'index"
         if self.evenement_pointeur is None:
             return "pointe avec l'index"
         return "POINTEUR ACTIF"
@@ -283,26 +399,35 @@ class MachineGestes:
                 return None
             self._attend_relachement = False
 
-        if not est_index_seul(lm):
-            self._reinitialiser_pointeur()
-            return None
-
-        marge = max(0.0, min(0.35, self.souris_marge))
-        amplitude = max(0.1, 1.0 - 2.0 * marge)
-        x = max(0.0, min(1.0, (lm[INDEX_TIP][0] - marge) / amplitude))
-        y = max(0.0, min(1.0, (lm[INDEX_TIP][1] - marge) / amplitude))
-        alpha = max(0.05, min(1.0, self.souris_lissage))
-        if self._pointeur_lisse is None:
-            self._pointeur_lisse = (x, y)
-        else:
-            px, py = self._pointeur_lisse
-            self._pointeur_lisse = (px + (x - px) * alpha,
-                                    py + (y - py) * alpha)
-
         ratio = ratio_pincement(lm)
         self.souris_ratio_pincement = ratio
         seuil = max(0.15, min(1.5, self.souris_pincement_seuil))
         relache = seuil * 1.35
+        index_visible = est_index_pointeur(lm)
+        pincement_visible = self._pincement_arme and ratio <= relache
+
+        # Pendant un vrai pincement, l'index se replie souvent et cesse d'être
+        # classé comme « index seul ». On conserve alors la dernière position
+        # du pointeur pour que le pincement puisse quand même produire un clic.
+        if not index_visible and not pincement_visible:
+            return None
+
+        if index_visible:
+            marge = max(0.0, min(0.35, self.souris_marge))
+            amplitude = max(0.1, 1.0 - 2.0 * marge)
+            x = max(0.0, min(1.0, (lm[INDEX_TIP][0] - marge) / amplitude))
+            y = max(0.0, min(1.0, (lm[INDEX_TIP][1] - marge) / amplitude))
+            alpha = max(0.05, min(1.0, self.souris_lissage))
+            if self._pointeur_lisse is None:
+                self._pointeur_lisse = (x, y)
+            else:
+                px, py = self._pointeur_lisse
+                self._pointeur_lisse = (px + (x - px) * alpha,
+                                        py + (y - py) * alpha)
+
+        if self._pointeur_lisse is None:
+            return None
+
         clic = False
         if ratio >= relache:
             self._pincement_actif = False
@@ -344,22 +469,37 @@ class MachineGestes:
         self.evenement_pointeur = None
         if lm is None:
             self._reinitialiser_tenue()
-            self._reinitialiser_pret()
-            self._attend_absence = False
-            if self._attend_relachement:
-                self._attend_relachement = False
+            if self.mode:
+                # Une ou plusieurs images perdues pendant un mouvement ne
+                # doivent ni désarmer le mode ni oublier que le geste précédent
+                # est encore verrouillé. On oublie seulement les coordonnées
+                # devenues discontinues, puis la première image revenue sert de
+                # nouvelle origine sûre.
+                self._hist_xy.clear()
+                self._pret_position = None
+                self._pret_depuis = t
+                if self._absence_depuis is None:
+                    self._absence_depuis = t
+                elif (t - self._absence_depuis) >= self.sortie_absence_s:
+                    ancien_mode = self.mode
+                    self._fermer_mode()
+                    self.debug_evenement = f"mode_{ancien_mode}_sortie"
+            else:
+                self._reinitialiser_pret()
+                if self._attend_relachement:
+                    self._attend_relachement = False
             self._reinitialiser_pointeur()
+            self._reinitialiser_selection_souris()
             return None
 
-        if self.mode and t >= self._mode_jusqu:
-            ancien_mode = self.mode
-            self._fermer_mode()
-            self.debug_evenement = f"mode_{ancien_mode}_expire"
-
-        if self._attend_absence:
-            return None
+        self._absence_depuis = None
+        if self.mode:
+            # Tant que la main reste visible, le mode ne peut pas expirer.
+            self._mode_jusqu = t + self.mode_duree_s
 
         instant = pose(lm)
+        if instant != "mode_souris":
+            self._reinitialiser_selection_souris()
 
         # Le poing reste un arrêt d'urgence, même lorsqu'un mode est armé.
         if instant == "poing" and self._tenir("poing", t):
@@ -369,6 +509,16 @@ class MachineGestes:
         if self.mode:
             if self.mode == "souris":
                 return self._alimenter_souris(lm, t)
+            # Un index volontaire et immobile permet de passer directement
+            # d'Onglets/Audio à Souris. S'il apparaît brièvement pendant un
+            # swipe, le mode courant continue sans interruption.
+            if (instant == "mode_souris"
+                    and self._tenir_selection_souris(lm, t)):
+                self._fermer_mode()
+                self.mode = "souris"
+                self._mode_jusqu = t + self.mode_duree_s
+                self._attend_relachement = False
+                return "mode_souris"
             # Après 2/3 doigts, une paume ouverte remplace naturellement la pose
             # de sélection. Sortir la main du cadre fonctionne aussi, sans être
             # obligatoire. La stabilisation ci-dessous absorbe la transition.
@@ -380,7 +530,16 @@ class MachineGestes:
 
             # Une action de mode exige une main entière ouverte en mouvement.
             if not est_main_deployee(lm):
-                self._reinitialiser_pret()
+                # Une paume ouverte peut être lue comme partielle pendant un
+                # changement de direction. Le mode reste prêt ; seule l'origine
+                # du prochain swipe doit être recalée.
+                self._hist_xy.clear()
+                self._pret_position = None
+                self._pret_depuis = t
+                self._pret_confirme = True
+                # Si un swipe vient d'être reconnu, conserver son verrou même
+                # quand MediaPipe perd brièvement des doigts. Sinon le retour
+                # naturel vers le centre serait pris pour le geste opposé.
                 self._reinitialiser_tenue()
                 return None
             x, y = centre_main(lm)
@@ -408,9 +567,14 @@ class MachineGestes:
                 self._hist_xy = [(t, x, y)]
                 return None
 
-            self._hist_xy.append((t, x, y))
+            if self._swipe_verrou_axe is not None:
+                if not self._suivre_fin_swipe(t, x, y):
+                    return None
+            else:
+                self._hist_xy.append((t, x, y))
             self._hist_xy = [p for p in self._hist_xy if t - p[0] <= self.swipe_fenetre_s]
-            if len(self._hist_xy) < 3 or not self._cooldown_ok(t):
+            if (len(self._hist_xy) < 3
+                    or (t - self._dernier_envoi) < self.swipe_cooldown_s):
                 return None
             dx = self._hist_xy[-1][1] - self._hist_xy[0][1]
             dy = self._hist_xy[-1][2] - self._hist_xy[0][2]
@@ -435,21 +599,33 @@ class MachineGestes:
                 else:
                     resultat = "volume_bas" if vers_bas else "volume_haut"
             self._dernier_envoi = t
-            # Le mode reste actif pour permettre plusieurs swipes successifs.
-            # Une sortie complète de la main reste obligatoire entre deux
-            # actions afin qu'un seul mouvement ne soit jamais compté deux fois.
-            self._reinitialiser_pret()
+            # Verrouille seulement la fin de ce mouvement. Une pause ou un
+            # virage franc sur l'autre axe réarme automatiquement le suivant.
+            self._hist_xy = [(t, x, y)]
+            self._pret_position = (x, y)
+            self._pret_depuis = t
+            self._pret_confirme = True
+            self._swipe_verrou_axe = "h" if horizontal else "v"
+            self._swipe_pause_position = (x, y)
+            self._swipe_pause_depuis = t
             self._mode_jusqu = t + self.mode_duree_s
-            self._attend_absence = True
             return resultat
 
-        # Hors mode : les poses 2/3/4 doigts arment une famille d'actions.
-        if instant in {"mode_fenetres", "mode_audio", "mode_souris"}:
+        # Hors mode : 2/3 doigts arment les swipes ; l'index seul arme la souris.
+        if instant == "mode_souris":
+            if self._tenir_selection_souris(lm, t):
+                self.mode = "souris"
+                self._mode_jusqu = t + self.mode_duree_s
+                self._attend_relachement = False
+                self._reinitialiser_pret()
+                return instant
+            return None
+
+        if instant in {"mode_fenetres", "mode_audio"}:
             if self._tenir(instant, t, self.tenue_mode_s, marquer_cooldown=False):
                 self.mode = {
                     "mode_fenetres": "fenetres",
                     "mode_audio": "audio",
-                    "mode_souris": "souris",
                 }[instant]
                 self._mode_jusqu = t + self.mode_duree_s
                 self._attend_relachement = True
@@ -638,8 +814,11 @@ def _afficher_calibration(frame, mains, fsm, historique_gestes, maintenant,
             f"M{i + 1}:{pose(lm) or '-'} ({doigts_detectes(lm)} doigts)"
             for i, lm in enumerate(mains[:2]))
         lm = mains[0]
+        ratio_pouce = ratio_ouverture_pouce(lm)
+        extension = extension_pouce(lm)
         infos = [f"mains:{len(mains)}  {poses}",
-                 f"M1 ouverte:{est_main_ouverte(lm)}  pouce ouvert:{pouce_ouvert(lm)}  "
+                 f"M1 ouverte:{est_main_ouverte(lm)}  pouce ecart:{ratio_pouce:.2f} "
+                 f"ext:{extension:.2f} ouvert:{pouce_ouvert(lm)}  "
                  f"2:{est_deux_doigts(lm)}  3:{est_trois_doigts(lm)}  poing:{est_poing(lm)}",
                  f"main deployee pour swipe:{est_main_deployee(lm)}"]
     else:
@@ -729,9 +908,13 @@ def _touches_calibration(k, fsm):
             "swipe_fenetre_s": round(fsm.swipe_fenetre_s, 2),
             "swipe_dominance": round(fsm.swipe_dominance, 2),
             "swipe_pret_s": round(fsm.swipe_pret_s, 2),
+            "swipe_cooldown_s": round(fsm.swipe_cooldown_s, 2),
+            "swipe_pause_s": round(fsm.swipe_pause_s, 2),
+            "swipe_tourne_seuil": round(fsm.swipe_tourne_seuil, 3),
             "stabilite_seuil": round(fsm.stabilite_seuil, 3),
             "inverser_vertical": fsm.inverser_vertical,
             "mode_duree_s": round(fsm.mode_duree_s, 2),
+            "sortie_absence_s": round(fsm.sortie_absence_s, 2),
             "zoom_seuil": round(fsm.zoom_seuil, 3),
             "zoom_reduire_seuil": round(fsm.zoom_reduire_seuil, 3),
             "zoom_tenue_s": round(fsm.zoom_tenue_s, 2),
@@ -739,6 +922,7 @@ def _touches_calibration(k, fsm):
             "souris_marge": round(fsm.souris_marge, 3),
             "souris_lissage": round(fsm.souris_lissage, 3),
             "souris_pincement_seuil": round(fsm.souris_pincement_seuil, 3),
+            "souris_tenue_s": round(fsm.souris_tenue_s, 2),
             "souris_clic": fsm.souris_clic,
         }
         chemin = os.path.join(os.path.dirname(os.path.abspath(__file__)), "calibration.json")

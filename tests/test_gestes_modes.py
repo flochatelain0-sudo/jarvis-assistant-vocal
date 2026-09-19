@@ -27,7 +27,9 @@ mp_python.vision = vision
 
 from gestes.tracker import (  # noqa: E402
     MachineGestes,
+    extension_pouce,
     est_deux_doigts,
+    est_index_pointeur,
     est_index_seul,
     est_main_deployee,
     est_main_ouverte,
@@ -36,6 +38,7 @@ from gestes.tracker import (  # noqa: E402
     est_quatre_doigts,
     est_trois_doigts,
     pose,
+    ratio_ouverture_pouce,
 )
 
 
@@ -97,14 +100,20 @@ class ClassifieursTests(unittest.TestCase):
         self.assertTrue(est_quatre_doigts(_main(4)))
         self.assertFalse(est_quatre_doigts(_paume()))
         self.assertTrue(est_index_seul(_main(1)))
+        self.assertTrue(est_index_pointeur(_main(2)))
         self.assertTrue(est_deux_doigts(_main(2)))
         self.assertTrue(est_trois_doigts(_main(3)))
         self.assertTrue(est_pouce_leve(_main(0, pouce=True)))
         self.assertTrue(est_poing(_main(0)))
-        self.assertFalse(est_main_deployee(_main(4)))
+        self.assertTrue(est_main_deployee(_main(3)))
         self.assertTrue(est_main_deployee(_paume()))
-        self.assertEqual(pose(_main(4)), "mode_souris")
+        self.assertIsNone(pose(_main(4)))
+        self.assertEqual(pose(_main(1)), "mode_souris")
         self.assertEqual(pose(_paume()), "main_ouverte")
+        self.assertLessEqual(ratio_ouverture_pouce(_main(4)), 0.30)
+        self.assertGreater(ratio_ouverture_pouce(_paume()), 0.45)
+        self.assertLess(extension_pouce(_main(4)), 0.12)
+        self.assertGreater(extension_pouce(_paume()), 0.12)
 
     def test_main_ouverte_reste_ouverte_a_l_horizontale(self):
         horizontale = _tourner(_paume(), math.pi / 2)
@@ -113,21 +122,23 @@ class ClassifieursTests(unittest.TestCase):
 
 
 class ModesTests(unittest.TestCase):
-    def test_quatre_doigts_arment_la_souris_et_index_deplace_le_pointeur(self):
+    def test_index_seul_arme_la_souris_et_deplace_le_pointeur(self):
         fsm = _fsm()
-        quatre = _main(4)
-        self.assertIsNone(fsm.alimenter(quatre, 0.0))
-        self.assertEqual(fsm.alimenter(quatre, 0.6), "mode_souris")
+        index = _main(1, x=0.45, y=0.55)
+        self.assertIsNone(fsm.alimenter(index, 0.0))
+        self.assertEqual(fsm.etat_souris, "ARMEMENT INDEX - ne bouge plus")
+        self.assertEqual(fsm.alimenter(index, 0.6), "mode_souris")
         self.assertEqual(fsm.mode, "souris")
 
-        index = _main(1, x=0.45, y=0.55)
         self.assertIsNone(fsm.alimenter(index, 0.7))
         self.assertIsNotNone(fsm.evenement_pointeur)
         self.assertFalse(fsm.evenement_pointeur["clic"])
         self.assertEqual(fsm.etat_souris, "POINTEUR ACTIF")
 
         # Après une position pouce écarté, le pincement produit un seul clic.
-        pince = _main(1, x=0.45, y=0.55)
+        # Un vrai pincement replie souvent l'index : le clic doit rester reconnu
+        # même si la pose n'est alors plus classée comme « index seul ».
+        pince = _main(0, x=0.45, y=0.55)
         pince[4] = (pince[8][0] + 0.005, pince[8][1] + 0.005)
         self.assertIsNone(fsm.alimenter(pince, 0.9))
         self.assertTrue(fsm.evenement_pointeur["clic"])
@@ -140,6 +151,23 @@ class ModesTests(unittest.TestCase):
         self.assertIsNone(fsm.alimenter(ouverte, 0.0))
         self.assertEqual(fsm.alimenter(ouverte, 1.1), "main_ouverte")
         self.assertIsNone(fsm.mode)
+
+    def test_index_immobile_bascule_un_autre_mode_vers_souris(self):
+        fsm = _fsm()
+        fsm.alimenter(_main(2), 0.0)
+        self.assertEqual(fsm.alimenter(_main(2), 0.6), "mode_fenetres")
+        self.assertIsNone(fsm.alimenter(_main(1), 0.7))
+        self.assertEqual(fsm.alimenter(_main(1), 1.3), "mode_souris")
+        self.assertEqual(fsm.mode, "souris")
+
+    def test_mode_arme_tolere_trois_doigts_visibles_pendant_le_swipe(self):
+        fsm = _fsm()
+        fsm.alimenter(_main(2), 0.0)
+        self.assertEqual(fsm.alimenter(_main(2), 0.6), "mode_fenetres")
+        self.assertIsNone(fsm.alimenter(_main(3, x=0.2), 0.7))
+        self.assertIsNone(fsm.alimenter(_main(3, x=0.2), 1.05))
+        self.assertIsNone(fsm.alimenter(_main(3, x=0.3), 1.15))
+        self.assertEqual(fsm.alimenter(_main(3, x=0.55), 1.25), "fenetre_droite")
 
     def test_deux_mains_ouvertes_ecartees_zoom_avant(self):
         fsm = _fsm()
@@ -223,23 +251,27 @@ class ModesTests(unittest.TestCase):
         self.assertIsNone(fsm.alimenter(_paume(x=0.3), 1.15))
         self.assertEqual(fsm.alimenter(_paume(x=0.55), 1.25), "fenetre_droite")
         self.assertEqual(fsm.mode, "fenetres")
-        self.assertEqual(fsm.etat_swipe, "sors la main du cadre")
+        self.assertEqual(fsm.etat_swipe, "change d'axe ou marque une pause")
 
-        # La même main ne peut pas déclencher deux fois sans quitter le cadre.
-        self.assertIsNone(fsm.alimenter(_paume(x=0.2), 1.4))
-        self.assertIsNone(fsm.alimenter(None, 1.5))
-        self.assertIsNone(fsm.alimenter(_paume(x=0.60), 1.6))
-        self.assertIsNone(fsm.alimenter(_paume(x=0.60), 1.95))
-        self.assertIsNone(fsm.alimenter(_paume(x=0.50), 2.05))
-        self.assertEqual(fsm.alimenter(_paume(x=0.25), 2.15), "fenetre_gauche")
+        # Une courte pause au point d'arrivée réarme directement le swipe.
+        self.assertIsNone(fsm.alimenter(_paume(x=0.55), 1.35))
+        self.assertIsNone(fsm.alimenter(_paume(x=0.55), 1.70))
+        self.assertIsNone(fsm.alimenter(_paume(x=0.45), 1.80))
+        self.assertEqual(fsm.alimenter(_paume(x=0.20), 1.90), "fenetre_gauche")
         self.assertEqual(fsm.mode, "fenetres")
 
-        # On peut encore repartir dans le même sens sans réarmer les 2 doigts.
-        self.assertIsNone(fsm.alimenter(None, 2.25))
-        self.assertIsNone(fsm.alimenter(_paume(x=0.60), 2.35))
-        self.assertIsNone(fsm.alimenter(_paume(x=0.60), 2.70))
-        self.assertIsNone(fsm.alimenter(_paume(x=0.50), 2.80))
-        self.assertEqual(fsm.alimenter(_paume(x=0.25), 2.90), "fenetre_gauche")
+        # Le même mode change immédiatement d'axe sans réarmer ni stabiliser.
+        self.assertIsNone(fsm.alimenter(_paume(x=0.20, y=0.40), 2.00))
+        self.assertEqual(fsm.alimenter(_paume(x=0.20, y=0.20), 2.10),
+                         "defilement_haut")
+
+        # Une lecture partielle de la paume entre les deux axes ne doit pas
+        # obliger à refaire la pose de sélection à deux doigts.
+        self.assertIsNone(fsm.alimenter(_main(2, x=0.20, y=0.20), 2.15))
+        self.assertIsNone(fsm.alimenter(_paume(x=0.20, y=0.20), 2.20))
+        self.assertIsNone(fsm.alimenter(_paume(x=0.35, y=0.20), 2.30))
+        self.assertEqual(fsm.alimenter(_paume(x=0.55, y=0.20), 2.40),
+                         "fenetre_droite")
 
     def test_mode_audio_vertical_regle_le_volume(self):
         fsm = _fsm()
@@ -249,6 +281,44 @@ class ModesTests(unittest.TestCase):
         self.assertIsNone(fsm.alimenter(_paume(y=0.65), 1.05))
         self.assertIsNone(fsm.alimenter(_paume(y=0.55), 1.15))
         self.assertEqual(fsm.alimenter(_paume(y=0.30), 1.25), "volume_haut")
+
+    def test_retour_au_centre_ne_declenche_pas_le_swipe_oppose(self):
+        fsm = _fsm()
+        fsm.alimenter(_main(2), 0.0)
+        self.assertEqual(fsm.alimenter(_main(2), 0.6), "mode_fenetres")
+        self.assertIsNone(fsm.alimenter(_paume(x=0.55), 0.7))
+        self.assertIsNone(fsm.alimenter(_paume(x=0.55), 1.05))
+        self.assertIsNone(fsm.alimenter(_paume(x=0.45), 1.15))
+        self.assertEqual(fsm.alimenter(_paume(x=0.20), 1.25),
+                         "fenetre_gauche")
+
+        # Même avec une lecture partielle pendant le demi-tour, le trajet de
+        # retour vers le centre ne devient jamais « fenêtre droite ».
+        self.assertIsNone(fsm.alimenter(_main(2, x=0.25), 1.30))
+        self.assertIsNone(fsm.alimenter(_paume(x=0.35), 1.38))
+        self.assertIsNone(fsm.alimenter(_paume(x=0.55), 1.48))
+        self.assertEqual(fsm.etat_swipe,
+                         "change d'axe ou marque une pause")
+        self.assertIsNone(fsm.alimenter(_paume(x=0.55), 1.80))
+        self.assertEqual(fsm.etat_swipe, "PRET - swipe maintenant")
+
+    def test_perte_camera_courte_ne_desarme_pas_le_mode(self):
+        fsm = _fsm()
+        fsm.alimenter(_main(2), 0.0)
+        self.assertEqual(fsm.alimenter(_main(2), 0.6), "mode_fenetres")
+        self.assertIsNone(fsm.alimenter(_paume(x=0.20), 0.7))
+        self.assertIsNone(fsm.alimenter(_paume(x=0.20), 1.05))
+        self.assertIsNone(fsm.alimenter(_paume(x=0.30), 1.15))
+        self.assertEqual(fsm.alimenter(_paume(x=0.55), 1.25),
+                         "fenetre_droite")
+
+        self.assertIsNone(fsm.alimenter(None, 1.30))
+        self.assertIsNone(fsm.alimenter(None, 2.00))
+        self.assertEqual(fsm.mode, "fenetres")
+        self.assertIsNone(fsm.alimenter(_paume(x=0.55, y=0.50), 2.10))
+        self.assertIsNone(fsm.alimenter(_paume(x=0.55, y=0.40), 2.20))
+        self.assertEqual(fsm.alimenter(_paume(x=0.55, y=0.20), 2.30),
+                         "defilement_haut")
 
     def test_axe_vertical_peut_etre_inverse_par_calibration(self):
         fsm = _fsm()
@@ -260,13 +330,23 @@ class ModesTests(unittest.TestCase):
         self.assertIsNone(fsm.alimenter(_paume(y=0.55), 1.15))
         self.assertEqual(fsm.alimenter(_paume(y=0.30), 1.25), "volume_bas")
 
-    def test_mode_refuse_une_paume_sans_les_cinq_doigts(self):
+    def test_mode_arme_tolere_un_pouce_mal_vu_sans_armer_la_souris(self):
         fsm = _fsm()
         fsm.alimenter(_main(2), 0.0)
         self.assertEqual(fsm.alimenter(_main(2), 0.6), "mode_fenetres")
-        for t, x in ((0.7, 0.2), (1.05, 0.2), (1.12, 0.3), (1.20, 0.5)):
-            self.assertIsNone(fsm.alimenter(_main(4, x=x), t))
-        self.assertEqual(fsm.etat_swipe, "ouvre la main")
+        self.assertIsNone(fsm.alimenter(_main(4, x=0.2), 0.7))
+        self.assertIsNone(fsm.alimenter(_main(4, x=0.2), 1.05))
+        self.assertIsNone(fsm.alimenter(_main(4, x=0.3), 1.12))
+        self.assertEqual(fsm.alimenter(_main(4, x=0.5), 1.20), "fenetre_droite")
+        self.assertEqual(fsm.mode, "fenetres")
+
+    def test_zoom_tolere_un_pouce_mal_vu_sur_chaque_main(self):
+        fsm = _fsm()
+        mains = [_main(4, x=0.30), _main(4, x=0.60)]
+        self.assertIsNone(fsm.alimenter_plusieurs(mains, 0.0))
+        self.assertIsNone(fsm.alimenter_plusieurs(mains, 0.45))
+        self.assertEqual(fsm.alimenter_plusieurs(
+            [_main(4, x=0.20), _main(4, x=0.75)], 0.60), "zoom_agrandir")
 
     def test_retour_dans_le_cadre_ne_compte_pas_comme_swipe(self):
         fsm = _fsm()
@@ -296,13 +376,17 @@ class ModesTests(unittest.TestCase):
         self.assertIsNone(fsm.alimenter(_paume(x=0.2), 0.0))
         self.assertIsNone(fsm.alimenter(_paume(x=0.5), 0.2))
 
-    def test_expiration_du_mode_est_visible_en_calibration(self):
+    def test_mode_reste_actif_main_visible_et_sort_apres_absence(self):
         fsm = _fsm()
         fsm.alimenter(_main(2), 0.0)
         self.assertEqual(fsm.alimenter(_main(2), 0.6), "mode_fenetres")
-        self.assertIsNone(fsm.alimenter(_paume(), 5.7))
+        self.assertIsNone(fsm.alimenter(_paume(), 50.0))
+        self.assertEqual(fsm.mode, "fenetres")
+        self.assertIsNone(fsm.alimenter(None, 50.1))
+        self.assertEqual(fsm.mode, "fenetres")
+        self.assertIsNone(fsm.alimenter(None, 53.2))
         self.assertIsNone(fsm.mode)
-        self.assertEqual(fsm.debug_evenement, "mode_fenetres_expire")
+        self.assertEqual(fsm.debug_evenement, "mode_fenetres_sortie")
 
 
 if __name__ == "__main__":

@@ -32,7 +32,7 @@ def _mots_commande(phrase: str):
 
 
 def demande_mode_visio(phrase: str):
-    """True=active la détection visible, False=la coupe, None=pas un ordre visio."""
+    """True=active les mains visibles, False=les coupe, None=pas un ordre visio."""
     mots = _mots_commande(phrase)
     if "visio" not in mots:
         return None
@@ -42,6 +42,27 @@ def demande_mode_visio(phrase: str):
             "sors du mode visio", "sort du mode visio",
             "coupe le mode visio", "desactive le mode visio",
             "arrete le mode visio", "ferme le mode visio")):
+        return False
+    if mots and mots[0] in {
+            "passe", "passer", "mets", "met", "active", "activer",
+            "lance", "lancer", "ouvre", "ouvrir", "demarre", "demarrer"}:
+        return True
+    return None
+
+
+def demande_mode_regard(phrase: str):
+    """True=active le regard, False=le coupe, None=pas un ordre de regard."""
+    mots = _mots_commande(phrase)
+    if not any(mot in mots for mot in ("regard", "yeux", "oculaire")):
+        return None
+    texte = " ".join(mots)
+    if any(expression in texte for expression in (
+            "quitte le mode regard", "quitter le mode regard",
+            "sors du mode regard", "sort du mode regard",
+            "coupe le mode regard", "desactive le mode regard",
+            "arrete le mode regard", "ferme le mode regard",
+            "coupe le controle du regard", "arrete le controle du regard",
+            "ferme le controle du regard")):
         return False
     if mots and mots[0] in {
             "passe", "passer", "mets", "met", "active", "activer",
@@ -80,7 +101,7 @@ def demande_demo_gestes(phrase: str) -> bool:
     nom="controler_gestes",
     description="Active ou coupe le contrôle par gestes de la main (webcam). A utiliser "
                 "pour 'active les gestes', 'coupe les gestes', 'allume/éteins la caméra "
-                "des gestes', 'Jarvis regarde mes mains' ou 'quitte le mode visio'.",
+                "des gestes' ou 'Jarvis regarde mes mains'.",
     parametres={
         "type": "object",
         "properties": {
@@ -111,11 +132,37 @@ def lancer_calibration_gestes() -> str:
     nom="lancer_demo_gestes",
     description="Ouvre la caméra avec les repères et les diagnostics visibles, tout "
                 "en appliquant réellement les gestes sur le PC. Pour 'ouvre la démo "
-                "des gestes', 'lance les gestes visibles pour ma vidéo' ou "
-                "'passe en mode visio'. Local uniquement.",
+                "des gestes' ou 'lance les gestes visibles pour ma vidéo'. "
+                "Local uniquement.",
     parametres={"type": "object", "properties": {}},
     mcp_expose=False,
 )
 def lancer_demo_gestes() -> str:
     from core import gestes
     return gestes.demarrer_demo()
+
+
+@outil(
+    nom="lancer_mode_regard",
+    description="Active localement le contrôle du pointeur par le regard. Ouvre la "
+                "calibration des yeux puis le suivi réel. À utiliser pour 'passe en "
+                "mode regard' ou 'active le contrôle avec les yeux'. La webcam reste "
+                "locale et le clic gauche par sourcils est actif après calibration.",
+    parametres={"type": "object", "properties": {}},
+    mcp_expose=False,
+)
+def lancer_mode_regard() -> str:
+    from core import gestes
+    return gestes.demarrer_regard()
+
+
+@outil(
+    nom="quitter_mode_regard",
+    description="Coupe le contrôle du regard et libère la webcam. À utiliser pour "
+                "'quitte/coupe/ferme le mode regard'.",
+    parametres={"type": "object", "properties": {}},
+    mcp_expose=False,
+)
+def quitter_mode_regard() -> str:
+    from core import gestes
+    return gestes.arreter_regard()
