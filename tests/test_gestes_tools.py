@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import patch
 
 from tools.gestes import (demande_calibration_gestes, demande_demo_gestes,
+                           demande_mode_visio,
                            lancer_calibration_gestes, lancer_demo_gestes)
 
 
@@ -27,6 +28,13 @@ class GestesToolsTests(unittest.TestCase):
             "Lance les gestes visibles pour ma vidéo"))
         self.assertFalse(demande_demo_gestes(
             "Je parle des gestes dans ma vidéo"))
+
+    def test_mode_visio_est_une_commande_directe(self):
+        self.assertIs(demande_mode_visio(
+            "Hey Jarvis, passe en mode visio"), True)
+        self.assertIs(demande_mode_visio("Active le mode visio"), True)
+        self.assertIs(demande_mode_visio("Quitte le mode visio"), False)
+        self.assertIs(demande_mode_visio("Je parle du mode visio"), None)
 
     def test_commande_vocale_ouvre_la_calibration_locale(self):
         with patch("core.gestes.lancer_calibration",

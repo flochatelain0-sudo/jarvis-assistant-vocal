@@ -292,11 +292,19 @@ def traiter_texte(session, phrase):
     session.historique.append({"role": "user", "content": phrase})
 
     try:
-        from tools.gestes import demande_calibration_gestes, lancer_calibration_gestes
+        from tools.gestes import (controler_gestes, demande_calibration_gestes,
+                                  demande_mode_visio, lancer_calibration_gestes,
+                                  lancer_demo_gestes)
+        visio = demande_mode_visio(phrase)
         calibration = demande_calibration_gestes(phrase)
     except Exception:
-        LOG.exception("satellite: routage calibration gestes")
+        LOG.exception("satellite: routage caméra et gestes")
+        visio = None
         calibration = False
+    if visio is not None:
+        texte = lancer_demo_gestes() if visio else controler_gestes(False)
+        session.historique.append({"role": "assistant", "content": texte})
+        return {"reponse": texte, "attente_confirmation": False}
     if calibration:
         texte = lancer_calibration_gestes()
         session.historique.append({"role": "assistant", "content": texte})

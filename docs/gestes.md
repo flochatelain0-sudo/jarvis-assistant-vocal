@@ -127,13 +127,14 @@ image n'est enregistrée** pendant la calibration.
 
 ### Mode démo visible
 
-Dis « ouvre la démo des gestes », « lance les gestes visibles pour ma vidéo », ou
+Dis « passe en mode visio », « ouvre la démo des gestes », « lance les gestes visibles pour ma vidéo », ou
 utilise `Ctrl+Alt+D`.
 Un seul tracker utilise la webcam : la fenêtre montre les points, la pose et
 l'historique comme en calibration, mais chaque geste reconnu agit aussi réellement
 sur Windows. Le bandeau `MODE DEMO : ACTIONS PC ACTIVES` évite toute ambiguïté et
 la fenêtre reste au premier plan pendant la démonstration. `Q` ferme la démo ; le
 raccourci `Ctrl+Alt+G` ou la commande vocale « coupe les gestes » coupe le tracker.
+Tu peux aussi dire « quitte le mode visio » pour fermer la fenêtre et libérer la webcam.
 
 ## Caméra : cycle de vie & cohabitation
 

@@ -661,13 +661,21 @@ def _repondre_route_astra(historique):
 
 
 def _repondre_route_calibration_gestes(historique):
-    """Ouvre la calibration locale sur un ordre vocal explicite."""
+    """Route les ordres vocaux explicites de caméra et de gestes locaux."""
     question = next((m.get("content") for m in reversed(historique)
                      if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
     try:
-        from tools.gestes import (demande_calibration_gestes, demande_demo_gestes,
+        from tools.gestes import (controler_gestes, demande_calibration_gestes,
+                                  demande_demo_gestes, demande_mode_visio,
                                   lancer_calibration_gestes, lancer_demo_gestes)
-        if demande_demo_gestes(question):
+        visio = demande_mode_visio(question)
+        if visio is True:
+            texte = lancer_demo_gestes()
+            outil_nom = "lancer_demo_gestes"
+        elif visio is False:
+            texte = controler_gestes(False)
+            outil_nom = "controler_gestes"
+        elif demande_demo_gestes(question):
             texte = lancer_demo_gestes()
             outil_nom = "lancer_demo_gestes"
         elif demande_calibration_gestes(question):
@@ -676,9 +684,9 @@ def _repondre_route_calibration_gestes(historique):
         else:
             return None
     except Exception:
-        LOG.exception("routage calibration gestes")
-        texte = "Je n'ai pas pu ouvrir la calibration des gestes."
-        outil_nom = "lancer_calibration_gestes"
+        LOG.exception("routage caméra et gestes")
+        texte = "Je n'ai pas pu changer le mode de détection de la caméra."
+        outil_nom = "controler_gestes"
     historique.append({"role": "assistant", "content": texte})
     _hud("outil", outil_nom, texte[:60])
     _hud("etat", "parole")
