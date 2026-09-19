@@ -60,6 +60,8 @@ class Micro:
         self.attente_parole = float(conf.get("attente_parole", 3.0))
         self.fenetre_relance = float(conf.get("fenetre_relance", 8.0))
         self.blocs_purge_bip = max(0, int(conf.get("blocs_purge_bip", 2)))
+        self.attente_arbitrage_reveil = float(
+            conf.get("attente_arbitrage_reveil", 4.0))
         self.device = conf.get("micro", None)
         self.sortie = conf.get("haut_parleur", None)
         self._relance_jusqua = 0.0
@@ -68,6 +70,7 @@ class Micro:
         self._reveil_event = threading.Event()
         self._reveil_id = 0
         self._reveil_accepte = False
+        self._reveil_accuse_vocal = False
         try:
             info = sd.query_devices(self.device, "input")
             self.taux_capture = int(round(info.get("default_samplerate") or TAUX))
@@ -121,6 +124,7 @@ class Micro:
             self._reveil_id += 1
             identifiant = self._reveil_id
             self._reveil_accepte = False
+            self._reveil_accuse_vocal = False
             self._reveil_event.clear()
         self.file.put({
             "type": "reveil",
@@ -128,16 +132,19 @@ class Micro:
             "score": float(score),
             "_cree": time.monotonic(),
         })
-        if not self._reveil_event.wait(timeout=1.5):
-            return False
+        if not self._reveil_event.wait(timeout=max(
+                1.5, min(self.attente_arbitrage_reveil, 6.0))):
+            return False, False
         with self._reveil_lock:
-            return self._reveil_id == identifiant and self._reveil_accepte
+            accepte = self._reveil_id == identifiant and self._reveil_accepte
+            return accepte, accepte and self._reveil_accuse_vocal
 
-    def resoudre_reveil(self, identifiant, accepte):
+    def resoudre_reveil(self, identifiant, accepte, accuse_vocal=False):
         with self._reveil_lock:
             if identifiant != self._reveil_id:
                 return
             self._reveil_accepte = bool(accepte)
+            self._reveil_accuse_vocal = bool(accuse_vocal)
             self._reveil_event.set()
 
     def _capturer_enonce(self, flux, attente, message_vide):
@@ -227,11 +234,15 @@ class Micro:
                 if score_reveil < self.seuil_reveil:
                     continue
                 reveil.reset()
-                if not self._demander_reveil(score_reveil):
+                accepte, accuse_vocal = self._demander_reveil(score_reveil)
+                if not accepte:
                     print("  [wake] ignoré — un micro plus proche a répondu")
                     continue
                 print("  [wake] Hey Jarvis — j'écoute")
-                self._bip()
+                # Le serveur joue normalement « Oui ? » avant d'autoriser la
+                # capture. Un bip local reste le repli si le TTS est indisponible.
+                if not accuse_vocal:
+                    self._bip()
                 # Le micro continue de tourner pendant le bip. Purge son écho
                 # résiduel avant d'attendre la question, sinon Whisper reçoit
                 # parfois seulement le bip puis du silence.
@@ -325,7 +336,11 @@ async def _session(url, satellite, token, file_audio, occupe, micro):
                     if d.get("etat") == "veille":
                         occupe.clear()
                 elif t in ("reveil_accepte", "reveil_refuse"):
-                    micro.resoudre_reveil(d.get("id"), t == "reveil_accepte")
+                    micro.resoudre_reveil(
+                        d.get("id"),
+                        t == "reveil_accepte",
+                        d.get("accuse_vocal", False),
+                    )
                 elif t == "transcription":
                     print(f"  [entendu] {d.get('texte')}")
                 elif t == "progression":

@@ -425,5 +425,8 @@ satellite_lan:
   conversation_suivie: true    # relance sans répéter « Hey Jarvis » après une réponse
   fenetre_relance: 8.0         # secondes d'écoute pour une question de suivi
   max_relances: 2              # nombre maximal de suivis par « Hey Jarvis » ; évite l'écoute infinie
+  accuse_reveil_vocal: true    # dit « Oui ? » dès que le wake word est accepté
+  texte_accuse_reveil: "Oui ?"
+  delai_accuse_reveil: 2.5     # au-delà, le satellite utilise son bip local
   accuse_immediat: true        # accusé contextuel seulement pour une tâche lente
   progression_traitement_apres: 4.0     # annonce l'étape si le LLM cherche encore

@@ -115,13 +115,17 @@ La valeur `null` utilise le périphérique par défaut d'ALSA.
 python jarvis_satellite.py
 ```
 
-Dire « Hey Jarvis », attendre le signal sonore, puis poser une question. Le terminal
+Dire « Hey Jarvis », attendre le « Oui ? » vocal, puis poser une question. Le terminal
 affiche la connexion, la détection du mot d'activation, la transcription et les
 éventuelles erreurs audio ou réseau.
 
 Quand plusieurs micros entendent le même mot d'activation, le satellite demande au
 PC l'autorisation de répondre. Seul le micro ayant le meilleur score de détection
-émet le bip ; les autres affichent `wake ignoré` et retournent en veille.
+prononce « Oui ? » ; les autres affichent `wake ignoré` et retournent en veille.
+Le texte, l'activation et le délai de repli se règlent côté PC avec
+`satellite_lan.texte_accuse_reveil`, `accuse_reveil_vocal` et
+`delai_accuse_reveil`. Si la synthèse vocale n'est pas disponible à temps, le Pi
+émet son bip local afin de ne jamais bloquer la conversation.
 
 Après chaque réponse, le satellite garde par défaut une fenêtre de conversation de
 8 secondes : on peut enchaîner une question sans répéter « Hey Jarvis ». La clé
@@ -139,7 +143,7 @@ directes, sans phrase de remplissage. Les seuils se règlent côté PC dans
 Dire « Hey Jarvis, mets-toi en veille » ferme immédiatement la conversation suivie.
 Le satellite ignore alors toute parole ordinaire jusqu'à un nouveau « Hey Jarvis ».
 
-Par défaut, deux blocs audio très courts sont ignorés après le bip pour éviter que
+Par défaut, deux blocs audio très courts sont ignorés après l'accusé pour éviter que
 le micro réentende le haut-parleur. Avec un speakerphone doté d'une annulation
 d'écho, `blocs_purge_bip: 0` permet de dire « Hey Jarvis, quelle heure est-il ? »
 d'une traite, sans perdre le début de la question.

@@ -18,7 +18,8 @@ Client -> serveur :
   {"type":"ping"}
 Serveur -> client :
   {"type":"pret","piece":"cuisine"}
-  {"type":"reveil_accepte|reveil_refuse","id":1}
+  <audio court « Oui ? » si le réveil est accepté>
+  {"type":"reveil_accepte|reveil_refuse","id":1,"accuse_vocal":true}
   {"type":"etat","etat":"ecoute|reflexion|parole|attente_confirmation|veille"}
   {"type":"texte","texte":"..."}                          (réponse affichable)
   {"type":"audio_debut","freq":24000}                     (puis frames binaires)
@@ -516,6 +517,8 @@ def monter_routes(app):
                 for i in range(0, len(pcm), 4096):
                     await ws.send_bytes(pcm[i:i + 4096])
                 await envoyer({"type": "audio_fin"})
+                return True
+            return False
 
         async def parler(texte):
             """Envoie le texte (affichage) puis l'audio TTS (frames binaires)."""
@@ -598,9 +601,32 @@ def monter_routes(app):
                     if accepte:
                         sess.nouveau_reveil(reglage(
                             "satellite_lan.max_relances", 2))
+                    accuse_vocal = False
+                    if accepte and bool(reglage(
+                            "satellite_lan.accuse_reveil_vocal", True)):
+                        texte_accuse = str(reglage(
+                            "satellite_lan.texte_accuse_reveil", "Oui ?") or "").strip()
+                        try:
+                            delai_accuse = float(reglage(
+                                "satellite_lan.delai_accuse_reveil", 2.5))
+                        except (TypeError, ValueError):
+                            delai_accuse = 2.5
+                        if texte_accuse:
+                            try:
+                                # L'audio part AVANT l'autorisation de capture :
+                                # le Pi le joue pendant que son thread micro attend,
+                                # puis commence seulement à enregistrer la question.
+                                accuse_vocal = await asyncio.wait_for(
+                                    envoyer_audio(texte_accuse, court=True),
+                                    timeout=max(0.5, min(delai_accuse, 5.0)),
+                                )
+                            except asyncio.TimeoutError:
+                                LOG.warning(
+                                    "satellite: accusé vocal trop lent, repli sur le bip")
                     await envoyer({
                         "type": "reveil_accepte" if accepte else "reveil_refuse",
                         "id": data.get("id"),
+                        "accuse_vocal": accuse_vocal,
                     })
 
                 elif typ == "fin_parole" and sess.satellite:
@@ -719,6 +745,19 @@ def demarrer_lan():
     _SERVEUR_LAN = threading.Thread(
         target=run, daemon=True, name="satellite-lan")
     _SERVEUR_LAN.start()
+
+    # Prépare le très court « Oui ? » dès le démarrage. Le premier wake word ne
+    # paie ainsi normalement ni la latence réseau ni la synthèse cloud.
+    if bool(reglage("satellite_lan.accuse_reveil_vocal", True)):
+        texte_accuse = str(reglage(
+            "satellite_lan.texte_accuse_reveil", "Oui ?") or "").strip()
+        if texte_accuse:
+            threading.Thread(
+                target=_tts_pcm_court,
+                args=(texte_accuse,),
+                daemon=True,
+                name="satellite-accuse-reveil",
+            ).start()
     for _ in range(40):
         try:
             socket.create_connection(("127.0.0.1", port), 0.15).close()

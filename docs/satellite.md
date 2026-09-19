@@ -54,7 +54,7 @@ l'identique**. Deux types de trames :
 | Message | Rôle |
 |---|---|
 | `{"type":"pret","piece":"cuisine"}` | Auth acceptée ; pièce du satellite. |
-| `{"type":"reveil_accepte","id":1}` / `reveil_refuse` | Autorise un seul micro à biper, capter et répondre. |
+| `{"type":"reveil_accepte","id":1,"accuse_vocal":true}` / `reveil_refuse` | Autorise un seul micro à capter et répondre. Si accepté, le serveur envoie d'abord le court audio « Oui ? » ; `accuse_vocal` indique qu'il a bien été joué, sinon le client émet son bip de secours. |
 | `{"type":"etat","etat":"..."}` | État pour le visage/HUD : `veille`, `ecoute`, `reflexion`, `parole`, `attente_confirmation`. |
 | `{"type":"transcription","texte":"..."}` | Ce que le serveur a entendu. |
 | `{"type":"progression","texte":"..."}` | Accusé ou étape vocale pendant une transcription/recherche longue. |
@@ -67,7 +67,8 @@ l'identique**. Deux types de trames :
 | `{"type":"erreur","message":"..."}` | Erreur. |
 
 ### Cycle type
-`hello` → `pret` → *(binaire audio…)* → `fin_parole` → `etat:reflexion` →
+`hello` → `pret` → `reveil` → *« Oui ? »* → `reveil_accepte` →
+*(binaire audio…)* → `fin_parole` → `etat:reflexion` →
 `transcription` → `etat:parole` + `texte` + `audio_debut` + *(binaire…)* +
 `audio_fin` → `relance` → `etat:veille`. Pendant les étapes lentes, un ou plusieurs
 messages `progression` et leurs trames audio peuvent précéder la réponse finale.
