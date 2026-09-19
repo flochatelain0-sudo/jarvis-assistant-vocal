@@ -2,7 +2,7 @@
 import unittest
 from types import SimpleNamespace
 
-from core.satellite import (_demande_veille, _origine_locale_ou_lan,
+from core.satellite import (_Session, _demande_veille, _origine_locale_ou_lan,
                             _phrase_progression, _progression_initiale)
 from core.util import nettoyer_reponse_vocale
 
@@ -68,6 +68,24 @@ class SatelliteSecurityTests(unittest.TestCase):
     def test_commandes_voisines_ne_declenchent_pas_la_veille(self):
         self.assertFalse(_demande_veille("Mets la lumière en veilleuse"))
         self.assertFalse(_demande_veille("Arrête la musique"))
+
+    def test_conversation_suivie_a_un_nombre_borne_de_relances(self):
+        session = _Session()
+        session.nouveau_reveil(2)
+        self.assertTrue(session.autoriser_relance())
+        self.assertTrue(session.autoriser_relance())
+        self.assertFalse(session.autoriser_relance())
+
+        # Une confirmation sensible explicitement attendue n'est jamais coupée,
+        # mais elle ne recrée pas de crédit de conversation ordinaire.
+        self.assertTrue(session.autoriser_relance(obligatoire=True))
+        self.assertFalse(session.autoriser_relance())
+
+    def test_mise_en_veille_annule_les_relances_restantes(self):
+        session = _Session()
+        session.nouveau_reveil(4)
+        session.mettre_en_veille()
+        self.assertFalse(session.autoriser_relance())
 
 
 if __name__ == "__main__":

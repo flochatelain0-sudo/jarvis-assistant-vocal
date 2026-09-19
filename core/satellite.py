@@ -106,6 +106,9 @@ def _systeme(piece):
             "outils quand c'est utile. Si une tâche "
             "exige plusieurs clics ou saisies sur le PC et qu'aucun outil direct ne "
             "suffit, appelle controle_pc_astra afin de demander l'autorisation. Pour "
+            "un titre ou une playlist Spotify, utilise lire_spotify ; pour une série "
+            "ou un film Netflix, utilise lire_netflix ; pour pause/suivant/précédent, "
+            "utilise controler_media, sans Astra. Pour "
             "un vrai travail de création de contenu — script, hooks, idées vidéo, "
             "analyse ou réécriture — confie la réflexion à Hermes.")
     if piece:
@@ -124,6 +127,27 @@ class _Session:
         self.audio = bytearray()
         self.historique = []
         self.en_attente = None     # (Outil, args) N3 à confirmer, ou None
+        self.relances_restantes = 0
+
+    def nouveau_reveil(self, maximum):
+        """Ouvre un nombre borné de fenêtres sans nouveau wake word."""
+        try:
+            maximum = int(maximum)
+        except (TypeError, ValueError):
+            maximum = 2
+        self.relances_restantes = max(0, min(maximum, 10))
+
+    def autoriser_relance(self, obligatoire=False):
+        """Consomme une relance normale ; les confirmations N3 restent possibles."""
+        if obligatoire:
+            return True
+        if self.relances_restantes <= 0:
+            return False
+        self.relances_restantes -= 1
+        return True
+
+    def mettre_en_veille(self):
+        self.relances_restantes = 0
 
 
 def _transcrire(pcm_bytes):
@@ -292,15 +316,23 @@ def traiter_texte(session, phrase):
     session.historique.append({"role": "user", "content": phrase})
 
     try:
-        from tools.gestes import (controler_gestes, demande_calibration_gestes,
-                                  demande_mode_visio, lancer_calibration_gestes,
-                                  lancer_demo_gestes)
+        from tools.gestes import (controler_gestes,
+                                  demande_calibration_gestes,
+                                  demande_mode_regard, demande_mode_visio,
+                                  lancer_calibration_gestes, lancer_demo_gestes,
+                                  lancer_mode_regard, quitter_mode_regard)
+        regard = demande_mode_regard(phrase)
         visio = demande_mode_visio(phrase)
         calibration = demande_calibration_gestes(phrase)
     except Exception:
         LOG.exception("satellite: routage caméra et gestes")
+        regard = None
         visio = None
         calibration = False
+    if regard is not None:
+        texte = lancer_mode_regard() if regard else quitter_mode_regard()
+        session.historique.append({"role": "assistant", "content": texte})
+        return {"reponse": texte, "attente_confirmation": False}
     if visio is not None:
         texte = lancer_demo_gestes() if visio else controler_gestes(False)
         session.historique.append({"role": "assistant", "content": texte})
@@ -346,6 +378,33 @@ def traiter_texte(session, phrase):
                             + " Tu confirmes ? (oui / non)",
                 "attente_confirmation": True,
             }
+        resultat = _executer_outil(nom, args)
+        session.historique.append({"role": "assistant", "content": resultat})
+        return {"reponse": resultat, "attente_confirmation": False}
+
+    # Lecture et contrôle média : actions locales et réversibles, sans Astra.
+    try:
+        from tools.media import router_commande_media
+        route = router_commande_media(phrase)
+    except Exception:
+        LOG.exception("satellite: routage média")
+        route = None
+    if route:
+        nom, args = route
+        resultat = _executer_outil(nom, args)
+        session.historique.append({"role": "assistant", "content": resultat})
+        return {"reponse": resultat, "attente_confirmation": False}
+
+    # Même comportement que sur le micro principal : une ouverture mono-étape
+    # utilise directement le navigateur ou le lanceur, jamais Astra.
+    try:
+        from tools.apps import router_ouverture_simple
+        route = router_ouverture_simple(phrase)
+    except Exception:
+        LOG.exception("satellite: routage ouverture simple")
+        route = None
+    if route:
+        nom, args = route
         resultat = _executer_outil(nom, args)
         session.historique.append({"role": "assistant", "content": resultat})
         return {"reponse": resultat, "attente_confirmation": False}
@@ -471,8 +530,14 @@ def monter_routes(app):
             await envoyer_audio(texte, court=True)
             await etat("reflexion")
 
-        async def proposer_relance(secondes=None):
+        async def proposer_relance(secondes=None, obligatoire=False):
             if not bool(reglage("satellite_lan.conversation_suivie", True)):
+                return
+            if not sess.autoriser_relance(obligatoire=obligatoire):
+                # Ferme aussi une éventuelle fenêtre devenue obsolète côté
+                # client. Un bruit de cuisine ne peut ainsi pas renouveler
+                # indéfiniment l'écoute sans nouveau « Hey Jarvis ».
+                await envoyer({"type": "veille_forcee"})
                 return
             try:
                 duree = float(secondes if secondes is not None else reglage(
@@ -530,6 +595,9 @@ def monter_routes(app):
                         f"satellite:{sess.satellite}",
                         score * priorite,
                     )
+                    if accepte:
+                        sess.nouveau_reveil(reglage(
+                            "satellite_lan.max_relances", 2))
                     await envoyer({
                         "type": "reveil_accepte" if accepte else "reveil_refuse",
                         "id": data.get("id"),
@@ -554,6 +622,7 @@ def monter_routes(app):
                         # Une mise en veille annule aussi une éventuelle action N3
                         # encore en attente : elle ne doit jamais être confirmée plus tard.
                         sess.en_attente = None
+                        sess.mettre_en_veille()
                         await parler("D'accord, je me mets en veille.")
                         await envoyer({"type": "veille_forcee"})
                         await etat("veille")
@@ -588,7 +657,7 @@ def monter_routes(app):
                         await envoyer({"type": "texte", "texte": r["reponse"]})
                         await etat("attente_confirmation")
                         await envoyer_audio(r["reponse"])
-                        await proposer_relance(12.0)
+                        await proposer_relance(12.0, obligatoire=True)
                     else:
                         await parler(r["reponse"])
                         await proposer_relance()

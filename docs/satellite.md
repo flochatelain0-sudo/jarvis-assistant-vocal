@@ -76,6 +76,8 @@ Après la lecture de la réponse, le client écoute pendant quelques secondes. U
 question posée dans cette fenêtre repart directement au PC ; en l'absence de voix,
 le satellite revient automatiquement à l'attente de « Hey Jarvis ». Le micro reste
 verrouillé pendant que Jarvis parle afin de ne pas réécouter sa propre réponse.
+Le serveur borne également le nombre de relances successives (deux par défaut) :
+du bruit ambiant ne peut pas maintenir la conversation ouverte indéfiniment.
 La commande « Hey Jarvis, mets-toi en veille » ferme explicitement cette fenêtre :
 les paroles ordinaires sont alors ignorées jusqu'au prochain « Hey Jarvis ». Elle
 annule également toute confirmation sensible encore en attente.
