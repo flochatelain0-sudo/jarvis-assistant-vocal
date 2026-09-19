@@ -388,3 +388,8 @@ satellite_lan:
   whisper_modele: "small"      # modèle dédié au satellite, plus léger que le principal
   whisper_device: "cpu"        # évite de charger un second Whisper sur le GPU
   whisper_compute_type: "int8"
+  conversation_suivie: true    # relance sans répéter « Hey Jarvis » après une réponse
+  fenetre_relance: 8.0         # secondes d'écoute pour une question de suivi
+  accuse_immediat: true        # « Mmh… » pendant la transcription
+  progression_transcription_apres: 5.0  # comble une transcription anormalement longue
+  progression_traitement_apres: 4.0     # annonce l'étape si le LLM cherche encore

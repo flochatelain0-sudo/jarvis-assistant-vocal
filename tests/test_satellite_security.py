@@ -2,7 +2,7 @@
 import unittest
 from types import SimpleNamespace
 
-from core.satellite import _origine_locale_ou_lan
+from core.satellite import _origine_locale_ou_lan, _phrase_progression
 
 
 def _ws(hote, **entetes):
@@ -24,6 +24,16 @@ class SatelliteSecurityTests(unittest.TestCase):
 
     def test_client_sans_adresse_est_refuse(self):
         self.assertFalse(_origine_locale_ou_lan(_ws("")))
+
+    def test_progression_est_liee_a_l_intention(self):
+        self.assertEqual(_phrase_progression("Cherche les dernières nouvelles"),
+                         "Je lance la recherche.")
+        self.assertEqual(_phrase_progression("Quelle heure est-il ?"),
+                         "Je vérifie l'heure.")
+        self.assertEqual(_phrase_progression("Allume la lumière"),
+                         "Je m'en occupe.")
+        self.assertEqual(_phrase_progression("Explique-moi cette idée"),
+                         "Mmh, je réfléchis.")
 
 
 if __name__ == "__main__":

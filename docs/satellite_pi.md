@@ -119,6 +119,17 @@ Dire « Hey Jarvis », attendre le signal sonore, puis poser une question. Le te
 affiche la connexion, la détection du mot d'activation, la transcription et les
 éventuelles erreurs audio ou réseau.
 
+Après chaque réponse, le satellite garde par défaut une fenêtre de conversation de
+8 secondes : on peut enchaîner une question sans répéter « Hey Jarvis ». La clé
+`fenetre_relance` de `config.yaml` règle cette durée (`0` la désactive). Pendant une
+transcription ou une recherche lente, Jarvis prononce de courts accusés et étapes de
+progression ; les seuils correspondants se règlent côté PC dans `satellite_lan`.
+
+Par défaut, deux blocs audio très courts sont ignorés après le bip pour éviter que
+le micro réentende le haut-parleur. Avec un speakerphone doté d'une annulation
+d'écho, `blocs_purge_bip: 0` permet de dire « Hey Jarvis, quelle heure est-il ? »
+d'une traite, sans perdre le début de la question.
+
 ## 6. Démarrage automatique
 
 Le service fourni emploie `%h` et ne dépend donc pas d'un nom d'utilisateur

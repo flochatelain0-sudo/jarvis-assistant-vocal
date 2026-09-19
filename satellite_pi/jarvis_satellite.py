@@ -58,8 +58,12 @@ class Micro:
         self.silence_fin = float(conf.get("silence_fin", 1.0))
         self.duree_max = float(conf.get("duree_max", 15))
         self.attente_parole = float(conf.get("attente_parole", 3.0))
+        self.fenetre_relance = float(conf.get("fenetre_relance", 8.0))
+        self.blocs_purge_bip = max(0, int(conf.get("blocs_purge_bip", 2)))
         self.device = conf.get("micro", None)
         self.sortie = conf.get("haut_parleur", None)
+        self._relance_jusqua = 0.0
+        self._relance_lock = threading.Lock()
         try:
             info = sd.query_devices(self.device, "input")
             self.taux_capture = int(round(info.get("default_samplerate") or TAUX))
@@ -89,6 +93,52 @@ class Micro:
     def _lire_bloc(self, flux):
         bloc, _ = flux.read(self.bloc_capture)
         return self._vers_16k(bloc.flatten())
+
+    def ouvrir_relance(self, secondes=None):
+        """Autorise une phrase de suivi sans nouveau mot d'activation."""
+        try:
+            duree = float(self.fenetre_relance if secondes is None else secondes)
+        except (TypeError, ValueError):
+            duree = self.fenetre_relance
+        with self._relance_lock:
+            self._relance_jusqua = time.monotonic() + max(0.0, min(duree, 30.0))
+
+    def fermer_relance(self):
+        with self._relance_lock:
+            self._relance_jusqua = 0.0
+
+    def _relance_restante(self):
+        with self._relance_lock:
+            return max(0.0, self._relance_jusqua - time.monotonic())
+
+    def _capturer_enonce(self, flux, attente, message_vide):
+        """Attend le début de la voix, puis capture jusqu'au silence."""
+        morceaux, debut, dernier = [], time.monotonic(), None
+        while not self.stop.is_set():
+            b = self._lire_bloc(flux)
+            maintenant = time.monotonic()
+            if self._niveau(b) > self.seuil_silence:
+                dernier = maintenant
+            if dernier is not None:
+                morceaux.append(b)
+                if maintenant - dernier > self.silence_fin:
+                    break
+            elif maintenant - debut > attente:
+                print(message_vide)
+                break
+            if maintenant - debut > self.duree_max:
+                break
+        if not morceaux:
+            return None
+        audio = np.concatenate(morceaux)
+        print(
+            f"  [micro] capture {len(audio) / TAUX:.2f}s "
+            f"rms={self._niveau(audio):.4f} "
+            f"pic={float(np.max(np.abs(audio))):.4f} "
+            f"gain_envoi=x{self.gain_audio:g}"
+        )
+        audio_envoi = np.clip(audio * self.gain_audio, -1, 1)
+        return (audio_envoi * 32767).astype(np.int16).tobytes()
 
     def _bip(self):
         """Petit accusé sonore local : l'utilisateur peut parler après le bip."""
@@ -131,6 +181,17 @@ class Micro:
                 if self.occupe.is_set():
                     reveil.reset()
                     continue
+                relance = self._relance_restante()
+                if relance > 0:
+                    reveil.reset()
+                    print(f"  [conversation] écoute ouverte {relance:.0f}s")
+                    pcm = self._capturer_enonce(
+                        flux, relance, "  [conversation] retour en veille")
+                    self.fermer_relance()
+                    if pcm:
+                        self.occupe.set()
+                        self.file.put(pcm)
+                    continue
                 bloc_reveil = np.clip(bloc * self.gain_reveil, -1, 1)
                 scores = reveil.predict((bloc_reveil * 32767).astype(np.int16))
                 if max(scores.values()) < self.seuil_reveil:
@@ -141,36 +202,13 @@ class Micro:
                 # Le micro continue de tourner pendant le bip. Purge son écho
                 # résiduel avant d'attendre la question, sinon Whisper reçoit
                 # parfois seulement le bip puis du silence.
-                for _ in range(2):
+                for _ in range(self.blocs_purge_bip):
                     self._lire_bloc(flux)
-                # Capture la question APRES le wake word. On attend d'abord le
-                # début de la parole, puis `silence_fin` secondes de silence.
-                morceaux, debut, dernier = [], time.time(), None
-                while not self.stop.is_set():
-                    b = self._lire_bloc(flux)
-                    maintenant = time.time()
-                    if self._niveau(b) > self.seuil_silence:
-                        dernier = maintenant
-                    if dernier is not None:
-                        morceaux.append(b)
-                        if maintenant - dernier > self.silence_fin:
-                            break
-                    elif maintenant - debut > self.attente_parole:
-                        print("  [micro] aucune question après le wake word")
-                        break
-                    if maintenant - debut > self.duree_max:
-                        break
-                if not morceaux:
+                pcm = self._capturer_enonce(
+                    flux, self.attente_parole,
+                    "  [micro] aucune question après le wake word")
+                if not pcm:
                     continue
-                audio = np.concatenate(morceaux)
-                print(
-                    f"  [micro] capture {len(audio) / TAUX:.2f}s "
-                    f"rms={self._niveau(audio):.4f} "
-                    f"pic={float(np.max(np.abs(audio))):.4f} "
-                    f"gain_envoi=x{self.gain_audio:g}"
-                )
-                audio_envoi = np.clip(audio * self.gain_audio, -1, 1)
-                pcm = (audio_envoi * 32767).astype(np.int16).tobytes()
                 self.occupe.set()
                 self.file.put(pcm)
         finally:
@@ -178,16 +216,35 @@ class Micro:
 
 
 def _jouer(pcm, freq):
-    """Joue du PCM 16-bit mono à `freq` Hz sur le haut-parleur."""
+    """Joue du PCM mono en l'adaptant au taux natif du haut-parleur.
+
+    Certains périphériques USB, notamment les speakerphones, n'acceptent que
+    48 kHz alors que le TTS peut renvoyer du 16, 22,05 ou 24 kHz. PortAudio
+    refuse alors d'ouvrir la sortie avec ``paInvalidSampleRate``. Le satellite
+    rééchantillonne donc la réponse avant de la lire.
+    """
     try:
         audio = np.frombuffer(pcm, dtype=np.int16).astype(np.float32) / 32768.0
-        sd.play(audio, samplerate=freq, device=CONF.get("haut_parleur", None))
+        sortie = CONF.get("haut_parleur", None)
+        taux_source = max(1, int(freq))
+        info = sd.query_devices(sortie, "output")
+        taux_sortie = int(round(info.get("default_samplerate") or taux_source))
+        if taux_sortie != taux_source:
+            facteur = gcd(taux_source, taux_sortie)
+            audio = resample_poly(
+                audio, taux_sortie // facteur, taux_source // facteur
+            ).astype(np.float32)
+            print(
+                f"  [audio] réponse {taux_source} Hz -> "
+                f"{taux_sortie} Hz"
+            )
+        sd.play(audio, samplerate=taux_sortie, device=sortie)
         sd.wait()
     except Exception as e:
         print("  [audio] lecture impossible:", e)
 
 
-async def _session(url, satellite, token, file_audio, occupe):
+async def _session(url, satellite, token, file_audio, occupe, micro):
     """Une connexion au PC : envoie les énoncés de la file, joue les réponses."""
     import websockets
     async with websockets.connect(url, max_size=None) as ws:
@@ -227,26 +284,32 @@ async def _session(url, satellite, token, file_audio, occupe):
                         occupe.clear()
                 elif t == "transcription":
                     print(f"  [entendu] {d.get('texte')}")
+                elif t == "progression":
+                    print(f"  [progression] {d.get('texte')}")
                 elif t == "texte":
                     print(f"  [réponse] {d.get('texte')}")
                 elif t == "audio_debut":
                     audio, freq = bytearray(), int(d.get("freq", TAUX))
                 elif t == "audio_fin":
                     _jouer(bytes(audio), freq); audio = bytearray()
+                elif t == "relance":
+                    micro.ouvrir_relance(d.get("secondes"))
+                    occupe.clear()
                 elif t == "erreur":
                     print("  [erreur]", d.get("message"))
         finally:
             tache_emet.cancel()
 
 
-async def _boucle(url, satellite, token, file_audio, occupe):
+async def _boucle(url, satellite, token, file_audio, occupe, micro):
     """Reconnexion automatique tant que le PC n'est pas joignable."""
     prevenu = False
     while True:
         try:
-            await _session(url, satellite, token, file_audio, occupe)
+            await _session(url, satellite, token, file_audio, occupe, micro)
             prevenu = False
         except Exception as e:
+            micro.fermer_relance()
             occupe.clear()
             if not prevenu:
                 print(f"  [serveur] injoignable ({str(e)[:60]}) — nouvelle tentative…")
@@ -278,7 +341,7 @@ def main():
     micro = Micro(CONF, file_audio, occupe)
     threading.Thread(target=micro.run, name="micro", daemon=True).start()
     try:
-        asyncio.run(_boucle(url, satellite, token, file_audio, occupe))
+        asyncio.run(_boucle(url, satellite, token, file_audio, occupe, micro))
     except KeyboardInterrupt:
         micro.stop.set()
         print("\nAu revoir.")

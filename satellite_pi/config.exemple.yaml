@@ -12,4 +12,6 @@ gain_audio: 1.0                # amplification de la question envoyee a Whisper
 seuil_silence: 0.010           # niveau en dessous duquel c'est du silence
 silence_fin: 1.0               # secondes de silence = fin de phrase
 attente_parole: 3.0            # délai pour commencer la question après le bip
+fenetre_relance: 8.0           # délai pour reparler sans répéter « Hey Jarvis »
+blocs_purge_bip: 2             # 0 avec speakerphone anti-écho pour parler sans pause
 duree_max: 15                  # duree max d'un enonce (s)

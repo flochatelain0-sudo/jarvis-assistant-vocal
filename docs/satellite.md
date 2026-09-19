@@ -32,16 +32,24 @@ l'identique**. Deux types de trames :
 | `{"type":"pret","piece":"cuisine"}` | Auth acceptée ; pièce du satellite. |
 | `{"type":"etat","etat":"..."}` | État pour le visage/HUD : `veille`, `ecoute`, `reflexion`, `parole`, `attente_confirmation`. |
 | `{"type":"transcription","texte":"..."}` | Ce que le serveur a entendu. |
+| `{"type":"progression","texte":"..."}` | Accusé ou étape vocale pendant une transcription/recherche longue. |
 | `{"type":"texte","texte":"..."}` | Texte de la réponse (affichage). |
 | `{"type":"audio_debut","freq":24000}` | Début de l'audio de réponse (fréquence des trames binaires qui suivent). |
 | *(trames binaires)* | Audio PCM de la réponse. |
 | `{"type":"audio_fin"}` | Fin de l'audio. |
+| `{"type":"relance","secondes":8}` | Ouvre une courte écoute de suivi sans répéter le mot d'activation. |
 | `{"type":"erreur","message":"..."}` | Erreur. |
 
 ### Cycle type
 `hello` → `pret` → *(binaire audio…)* → `fin_parole` → `etat:reflexion` →
 `transcription` → `etat:parole` + `texte` + `audio_debut` + *(binaire…)* +
-`audio_fin` → `etat:veille`.
+`audio_fin` → `relance` → `etat:veille`. Pendant les étapes lentes, un ou plusieurs
+messages `progression` et leurs trames audio peuvent précéder la réponse finale.
+
+Après la lecture de la réponse, le client écoute pendant quelques secondes. Une
+question posée dans cette fenêtre repart directement au PC ; en l'absence de voix,
+le satellite revient automatiquement à l'attente de « Hey Jarvis ». Le micro reste
+verrouillé pendant que Jarvis parle afin de ne pas réécouter sa propre réponse.
 
 ## Multi-pièces
 

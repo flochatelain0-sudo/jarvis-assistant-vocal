@@ -36,6 +36,7 @@ un satellite Pi qui, PC éteint, assurerait la domotique en autonomie et
 réveillerait le PC via la Tapo (cf. wol.md). Rien ici ne le rend impossible :
 le dispatch est isolé (_traiter), la détection « PC éteint » se ferait côté Pi.
 """
+import asyncio
 import json
 import ipaddress
 import logging
@@ -110,6 +111,7 @@ class _Session:
         self.audio = bytearray()
         self.historique = []
         self.en_attente = None     # (Outil, args) N3 à confirmer, ou None
+        self.accuse_index = 0
 
 
 def _transcrire(pcm_bytes):
@@ -166,6 +168,57 @@ def _tts_pcm(texte):
     except Exception:
         LOG.exception("satellite: TTS")
         return b"", 0
+
+
+_TTS_COURT = {}
+_TTS_COURT_LOCK = threading.Lock()
+_ACCUSES_COURTS = (
+    "Mmh, je vois.",
+    "D'accord, un instant.",
+    "Oui, je regarde.",
+)
+
+
+def _tts_pcm_court(texte):
+    """TTS mis en cache pour les accusés répétés du satellite.
+
+    Le premier passage utilise le moteur vocal configuré ; les suivants évitent
+    un nouvel appel cloud et partent presque immédiatement.
+    """
+    with _TTS_COURT_LOCK:
+        if texte in _TTS_COURT:
+            return _TTS_COURT[texte]
+        resultat = _tts_pcm(texte)
+        if resultat[0]:
+            _TTS_COURT[texte] = resultat
+        return resultat
+
+
+def _accuse_court(session):
+    texte = _ACCUSES_COURTS[session.accuse_index % len(_ACCUSES_COURTS)]
+    session.accuse_index += 1
+    return texte
+
+
+def _phrase_progression(phrase):
+    """Retour vocal court, relié à l'intention, pendant un traitement long."""
+    from core.util import sans_accents
+    p = sans_accents((phrase or "").lower())
+    if any(m in p for m in (
+            "cherche", "recherche", "sur internet", "sur le web", "trouve-moi",
+            "trouve moi", "actualite", "derniere nouvelle")):
+        return "Je lance la recherche."
+    if "meteo" in p or "temps fait" in p:
+        return "Je regarde la météo."
+    if any(m in p for m in ("quelle heure", "donne-moi l'heure", "donne moi l'heure")):
+        return "Je vérifie l'heure."
+    if any(m in p for m in (
+            "allume", "eteins", "éteins", "ouvre", "ferme", "lance", "mets ",
+            "augmente", "baisse")):
+        return "Je m'en occupe."
+    if any(m in p for m in ("pourquoi", "comment", "quel", "quelle", "est-ce")):
+        return "Je vérifie ça."
+    return "Mmh, je réfléchis."
 
 
 def _executer_outil(nom, args):
@@ -267,16 +320,39 @@ def monter_routes(app):
         async def etat(e):
             await envoyer({"type": "etat", "etat": e})
 
-        async def parler(texte):
-            """Envoie le texte (affichage) puis l'audio TTS (frames binaires)."""
-            await envoyer({"type": "texte", "texte": texte})
-            await etat("parole")
-            pcm, freq = _tts_pcm(texte)
+        async def envoyer_audio(texte, court=False):
+            synthese = _tts_pcm_court if court else _tts_pcm
+            pcm, freq = await asyncio.to_thread(synthese, texte)
             if pcm:
                 await envoyer({"type": "audio_debut", "freq": freq})
                 for i in range(0, len(pcm), 4096):
                     await ws.send_bytes(pcm[i:i + 4096])
                 await envoyer({"type": "audio_fin"})
+
+        async def parler(texte):
+            """Envoie le texte (affichage) puis l'audio TTS (frames binaires)."""
+            await envoyer({"type": "texte", "texte": texte})
+            await etat("parole")
+            await envoyer_audio(texte)
+
+        async def progresser(texte):
+            """Parle brièvement sans ajouter l'accusé à l'historique LLM."""
+            await envoyer({"type": "progression", "texte": texte})
+            await etat("parole")
+            await envoyer_audio(texte, court=True)
+            await etat("reflexion")
+
+        async def proposer_relance(secondes=None):
+            if not bool(reglage("satellite_lan.conversation_suivie", True)):
+                return
+            try:
+                duree = float(secondes if secondes is not None else reglage(
+                    "satellite_lan.fenetre_relance", 8.0))
+            except (TypeError, ValueError):
+                duree = 8.0
+            duree = max(0.0, min(duree, 30.0))
+            if duree:
+                await envoyer({"type": "relance", "secondes": duree})
 
         try:
             while True:
@@ -317,29 +393,54 @@ def monter_routes(app):
                     audio = bytes(sess.audio)
                     sess.audio = bytearray()
                     await etat("reflexion")
-                    phrase = _transcrire(audio)
+                    transcription = asyncio.create_task(
+                        asyncio.to_thread(_transcrire, audio))
+                    if bool(reglage("satellite_lan.accuse_immediat", True)):
+                        await progresser(_accuse_court(sess))
+                    try:
+                        attente_stt = float(reglage(
+                            "satellite_lan.progression_transcription_apres", 5.0))
+                    except (TypeError, ValueError):
+                        attente_stt = 5.0
+                    try:
+                        phrase = await asyncio.wait_for(
+                            asyncio.shield(transcription), timeout=max(0.1, attente_stt))
+                    except asyncio.TimeoutError:
+                        await progresser("Je t'ai bien entendue, je traite ça.")
+                        phrase = await transcription
                     if not phrase:
                         await parler("Je n'ai rien entendu.")
+                        await proposer_relance()
                         await etat("veille")
                         continue
                     await envoyer({"type": "transcription", "texte": phrase})
                     if sess.en_attente:                         # réponse à une confirmation N3
                         rep = _resoudre_confirmation(sess, phrase)
                         await parler(rep)
+                        await proposer_relance()
                         await etat("veille")
                         continue
-                    r = traiter_texte(sess, phrase)
+                    traitement = asyncio.create_task(
+                        asyncio.to_thread(traiter_texte, sess, phrase))
+                    try:
+                        attente_llm = float(reglage(
+                            "satellite_lan.progression_traitement_apres", 4.0))
+                    except (TypeError, ValueError):
+                        attente_llm = 4.0
+                    try:
+                        r = await asyncio.wait_for(
+                            asyncio.shield(traitement), timeout=max(0.1, attente_llm))
+                    except asyncio.TimeoutError:
+                        await progresser(_phrase_progression(phrase))
+                        r = await traitement
                     if r["attente_confirmation"]:
                         await envoyer({"type": "texte", "texte": r["reponse"]})
                         await etat("attente_confirmation")
-                        pcm, freq = _tts_pcm(r["reponse"])
-                        if pcm:
-                            await envoyer({"type": "audio_debut", "freq": freq})
-                            for i in range(0, len(pcm), 4096):
-                                await ws.send_bytes(pcm[i:i + 4096])
-                            await envoyer({"type": "audio_fin"})
+                        await envoyer_audio(r["reponse"])
+                        await proposer_relance(12.0)
                     else:
                         await parler(r["reponse"])
+                        await proposer_relance()
                         await etat("veille")
 
                 elif typ == "ping":
