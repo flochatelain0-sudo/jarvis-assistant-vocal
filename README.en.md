@@ -21,11 +21,13 @@ local [Hermes](docs/hermes.md) agent. The boundary is explicit: **Hermes orchest
 and thinks; Jarvis holds the keys and the body**. Jarvis alone performs actions, and
 credentials never enter the Hermes environment.
 
-**📡 Jarvis in every room.** Add one or more **Raspberry Pi satellites** to move
+**📡 Jarvis in every room.** Add one or more **network audio satellites** to move
 the microphone and speaker into a kitchen, living room, or any other room. The PC
-remains the central brain; each satellite detects *"Hey Jarvis"* locally and talks
-to it over the local network/Wi-Fi, **with no long cable back to the PC**
-([how it works](docs/satellite.md) · [setup guide](docs/satellite_pi.md)).
+remains the central brain, with no long cable back to it. The available client
+currently targets Raspberry Pi/Linux, while the protocol is designed to support
+cheaper endpoints later: a reused Android phone, an audio-capable ESP32, or a Pi
+Zero ([options and protocol](docs/satellite.md) ·
+[Raspberry/Linux setup](docs/satellite_pi.md)).
 
 > Personal project shared as-is. Targets **Windows 11**, needs a microphone and (for
 > cloud mode) an API key from the selected provider. Consumer subscriptions and APIs
@@ -62,7 +64,7 @@ to it over the local network/Wi-Fi, **with no long cable back to the PC**
 - 📊 **Private local cockpit** — subscriptions, upcoming charges, Gmail receipt detection, and CSV transaction import; financial data remains gitignored and unavailable to Hermes/MCP ([docs/cockpit.md](docs/cockpit.md))
 - ⏻ **Safe PC shutdown / wake-up** — voice-confirmed N3 shutdown with a cancellable delay; hardware-dependent wake methods are documented generically ([docs/wol.md](docs/wol.md))
 - ✋ **Optional camera and hand-gesture control** — when a webcam is configured, **Window** (switch/scroll) and **Audio** (volume/tracks) modes complement light/media/OBS actions; processing stays 100% local and no image leaves the tracker ([docs/gestes.md](docs/gestes.md))
-- 📡 **Multi-room satellites** — move Jarvis's microphone and speaker to a Raspberry Pi with on-device wake word, authenticated LAN audio, room context, and spoken N3 confirmations ([protocol](docs/satellite.md) · [Pi setup](docs/satellite_pi.md))
+- 📡 **Multi-room satellites** — move the microphone and speaker to a network client; Raspberry/Linux is available, while reused Android phones, audio-capable ESP32 boards, and Pi Zero devices are planned low-cost targets. Local wake word, authenticated LAN audio, room context, and spoken N3 confirmations ([options and protocol](docs/satellite.md) · [Raspberry/Linux setup](docs/satellite_pi.md))
 - 🎵 **Music recognition** — identify room audio or a video's system audio on demand ([docs/musique.md](docs/musique.md))
 - 🪟 **Response overlay** — a no-focus-steal floating text window, configurable display, OBS-safe capture behavior, and visual silent mode ([docs/overlay.md](docs/overlay.md))
 - 🏠 **Google Home / Nest** — *(experimental)* device listing and status ([docs/google_home.md](docs/google_home.md))
@@ -83,7 +85,7 @@ flowchart LR
     LLM --> TTS{{Configurable voice<br/>ElevenLabs · Piper · Kokoro · Windows}}
     TTS --> SPK([🔊 Speakers])
 
-    SAT([📡 Raspberry Pi satellite<br/>mic · speaker]) -->|authenticated LAN audio| STT
+    SAT([📡 Network audio satellite<br/>Android · ESP32 · Linux]) -->|authenticated LAN audio| STT
     TTS -->|LAN audio| SAT
     CAM([📷 Optional webcam]) --> GEST[✋ Local gestures]
     GEST --> TOOLS
@@ -181,7 +183,7 @@ Everything lives in a single **untracked** `config.yaml` (copy from
 | **Routing, costs and budgets** | [docs/costs.md](docs/costs.md) |
 | **Safe shutdown / wake-up** | [docs/wol.md](docs/wol.md) |
 | **Camera hand gestures** | [docs/gestes.md](docs/gestes.md) |
-| **Raspberry Pi satellite** | [docs/satellite.md](docs/satellite.md) · [docs/satellite_pi.md](docs/satellite_pi.md) |
+| **Multi-room audio satellites** | [docs/satellite.md](docs/satellite.md) · [docs/satellite_pi.md](docs/satellite_pi.md) |
 | **Music recognition** | [docs/musique.md](docs/musique.md) |
 | **Private local cockpit** | [docs/cockpit.md](docs/cockpit.md) |
 | **Response overlay** | [docs/overlay.md](docs/overlay.md) |
@@ -209,7 +211,8 @@ Trust is built in, not bolted on:
 - [x] Automatic startup, daily brief, and clean shutdown scenes
 - [x] Camera hand gestures v2 with Window and Audio modes
 - [x] Private local cockpit phase 1 (subscriptions, receipt detection, CSV transactions)
-- [x] Raspberry Pi satellite software (audio client, wake word, authenticated LAN protocol, multi-room); each installation can choose its own audio hardware
+- [x] Raspberry Pi/Linux satellite client (audio, wake word, authenticated LAN protocol, multi-room); each installation can choose its own audio hardware
+- [ ] Low-cost satellite clients for reused Android phones and audio-capable ESP32 boards, using the same protocol while the PC remains the central brain
 - [ ] Godox video-light control (currently Hue only)
 - [x] Notes / ideas (+ iPhone bridge via Shortcuts) — scheduled reminders next
 - [ ] Sentence-by-sentence streaming TTS (see [docs/latency.md](docs/latency.md))

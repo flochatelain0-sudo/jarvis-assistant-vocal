@@ -23,11 +23,13 @@ et le corps** — c'est toujours Jarvis qui exécute les actions, jamais Hermes,
 **aucun identifiant ne vit dans l'environnement d'Hermes** (il lit le Vault et les
 outils sûrs, écrit seulement des brouillons).
 
-**📡 Jarvis dans chaque pièce.** Ajoute un ou plusieurs **satellites Raspberry Pi**
+**📡 Jarvis dans chaque pièce.** Ajoute un ou plusieurs **satellites audio réseau**
 pour déporter le micro et le haut-parleur dans la cuisine, le salon ou une autre
-pièce. Le PC reste le cerveau central ; chaque satellite détecte *« Hey Jarvis »*
-sur place et communique avec lui sur le réseau local/Wi-Fi, **sans long câble
-jusqu'au PC** ([fonctionnement](docs/satellite.md) · [installation](docs/satellite_pi.md)).
+pièce. Le PC reste le cerveau central ; aucun long câble ne le relie aux pièces.
+Le client disponible aujourd'hui cible Raspberry Pi/Linux, mais le protocole est
+prévu pour accueillir des solutions moins chères : ancien téléphone Android,
+ESP32 avec audio ou Pi Zero ([options et fonctionnement](docs/satellite.md) ·
+[installation Raspberry/Linux](docs/satellite_pi.md)).
 
 > Projet perso partagé tel quel. Cible **Windows 11**, nécessite un micro et (en mode
 > cloud) une clé API du fournisseur choisi. Les abonnements grand public et les API
@@ -64,7 +66,7 @@ jusqu'au PC** ([fonctionnement](docs/satellite.md) · [installation](docs/satell
 - 📊 **Cockpit personnel local** — abonnements, échéances, détection par reçus Gmail et import CSV de transactions ; les données financières restent gitignorées et ne sont jamais exposées à Hermes/MCP ([docs/cockpit.md](docs/cockpit.md))
 - ⏻ **Extinction / réveil du PC** — extinction propre à la voix (confirmation N3, délai annulable) ; méthodes génériques de réveil documentées selon le matériel ([docs/wol.md](docs/wol.md))
 - ✋ **Contrôle optionnel par caméra et gestes** — avec une webcam configurée, les modes **Fenêtres** (changer/défiler) et **Audio** (volume/pistes) complètent les actions lumière/média/OBS ; traitement **100 % local**, aucune image ne sort ([docs/gestes.md](docs/gestes.md))
-- 📡 **Satellites multi-pièces** — déporte le micro et le haut-parleur de Jarvis sur un Raspberry Pi : wake word local, audio sur le LAN authentifié, contexte de la pièce et confirmations vocales N3 ([protocole](docs/satellite.md) · [installation Pi](docs/satellite_pi.md))
+- 📡 **Satellites multi-pièces** — déporte micro et haut-parleur sur un client réseau ; Raspberry/Linux est disponible, Android recyclé, ESP32 audio et Pi Zero sont des cibles économiques prévues. Wake word local, LAN authentifié, contexte de la pièce et confirmations vocales N3 ([options et protocole](docs/satellite.md) · [installation Raspberry/Linux](docs/satellite_pi.md))
 - 🎵 **Reconnaissance musicale** — « c'est quoi cette musique ? » (micro de la pièce **ou** son d'une vidéo/reel via loopback), à la demande uniquement ([docs/musique.md](docs/musique.md))
 - 🪟 **Overlay de réponses** — mini-fenêtre flottante qui affiche à l'écrit ce que Jarvis dit, sans jamais voler le focus (topmost, clic-transparent, invisible en stream), 2e écran configurable + mode silencieux visuel ([docs/overlay.md](docs/overlay.md))
 - 🏠 **Google Home / Nest** — *(⚠️ expérimental)* liste des appareils Nest + état ([docs/google_home.md](docs/google_home.md))
@@ -85,7 +87,7 @@ flowchart LR
     LLM --> TTS{{Voix configurable<br/>ElevenLabs · Piper · Kokoro · Windows}}
     TTS --> SPK([🔊 Haut-parleurs])
 
-    SAT([📡 Satellite Pi<br/>micro · haut-parleur]) -->|audio LAN authentifié| STT
+    SAT([📡 Satellite audio réseau<br/>Android · ESP32 · Linux]) -->|audio LAN authentifié| STT
     TTS -->|audio LAN| SAT
     CAM([📷 Webcam optionnelle]) --> GEST[✋ Gestes locaux]
     GEST --> TOOLS
@@ -190,7 +192,7 @@ de contenus), `securite.toujours` (autorisations N2 mémorisées), `budget.prix`
 | **Panneau web (modèles · état · permissions)** | [docs/panneau.md](docs/panneau.md) |
 | **Extinction / Wake-on-LAN** | [docs/wol.md](docs/wol.md) |
 | **Gestes de la main (webcam)** | [docs/gestes.md](docs/gestes.md) |
-| **Satellite Raspberry Pi (multi-pièces)** | [docs/satellite.md](docs/satellite.md) · [docs/satellite_pi.md](docs/satellite_pi.md) |
+| **Satellites audio multi-pièces** | [docs/satellite.md](docs/satellite.md) · [docs/satellite_pi.md](docs/satellite_pi.md) |
 | **Reconnaissance musicale (Shazam-like)** | [docs/musique.md](docs/musique.md) |
 | **Spotify (playlist des musiques reconnues)** | [docs/spotify.md](docs/spotify.md) |
 | **Cockpit (tableau de bord perso, local)** | [docs/cockpit.md](docs/cockpit.md) |
@@ -223,7 +225,8 @@ La confiance est intégrée, pas rajoutée :
 - [x] **Extinction propre du PC** (N3, délai annulable) — options de réveil documentées séparément selon le matériel
 - [x] **Contrôle caméra/gestes v2** : modes Fenêtres et Audio, calibration locale et garde-fous anti-faux-positifs
 - [x] **Cockpit local — phase 1** : abonnements, détection par mail et transactions CSV
-- [x] **Logiciel satellite Raspberry Pi** : client audio, wake word, protocole LAN sécurisé et multi-pièces — matériel audio choisi librement par chaque installation
+- [x] **Client satellite Raspberry Pi/Linux** : audio, wake word, protocole LAN sécurisé et multi-pièces — matériel audio choisi librement par chaque installation
+- [ ] **Clients satellites économiques** : ancien téléphone Android et ESP32 audio, sur le même protocole sans déplacer le cerveau hors du PC
 - [ ] Contrôle des lampes vidéo Godox (aujourd'hui Hue seulement)
 - [x] Notes / idées (+ pont iPhone via Raccourcis) — rappels programmés à venir
 - [ ] Adaptateur générique de réveil/alimentation avec vérification d'état robuste

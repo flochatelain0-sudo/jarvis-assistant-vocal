@@ -1,13 +1,36 @@
 # Satellites — Jarvis dans d'autres pièces
 
 Un **satellite** est une extension du **corps** de Jarvis : oreilles + bouche +
-visage déportés dans une autre pièce (Raspberry Pi aujourd'hui, ESP32 demain). Le
-**cerveau reste sur le PC** — le satellite capte l'audio, le PC transcrit
+éventuellement visage déportés dans une autre pièce. Le **cerveau reste sur le
+PC** — le satellite capte l'audio, le PC transcrit
 (Whisper) → LLM + outils → TTS, et renvoie l'audio + des états pour l'écran.
 Hermes n'est pas concerné.
 
 Statut : **côté PC fait** (endpoint + protocole + multi-pièces + token + client de
 test). Client Raspberry Pi : voir [satellite_pi.md](satellite_pi.md).
+
+## Choisir un matériel sans surdimensionner chaque pièce
+
+Un micro et un haut-parleur passifs ne peuvent pas rejoindre seuls le réseau : il
+faut dans chaque pièce un petit **client Wi-Fi** qui capte le son, dialogue avec le
+PC et joue sa réponse. Ce client ne fait ni transcription ni appel au LLM.
+
+| Option | Coût relatif | Points forts | Limites et état du projet |
+|---|---:|---|---|
+| **Ancien téléphone Android** | minimal si déjà disponible | micro, haut-parleur, Wi-Fi, batterie et écran déjà intégrés | meilleur candidat économique ; application Jarvis à développer, non fournie aujourd'hui |
+| **ESP32 audio / Atom Echo** | faible | minuscule, basse consommation, wake word embarquable | audio plus modeste et firmware Jarvis à développer |
+| **Raspberry Pi Zero 2 W / petit Linux ARM64** | faible à moyen | environnement Linux proche du client actuel | adaptateur audio, alimentation et carte micro-SD peuvent réduire l'économie ; non validé officiellement |
+| **Raspberry Pi 4/5 ou mini-PC Linux** | moyen à élevé | USB audio simple, maintenance et extensions faciles | solution de référence actuellement documentée, mais surdimensionnée pour le seul relais audio |
+
+Le choix conseillé est donc : recycler d'abord un téléphone Android disponible ;
+choisir un ESP32 pour un point vocal compact et basique ; réserver un ordinateur
+Linux complet aux pièces qui demandent un meilleur périphérique audio ou de futures
+extensions. Tous doivent utiliser une identité et un token distincts par pièce.
+
+Le protocole ci-dessous est volontairement indépendant du matériel. **La
+compatibilité architecturale ne signifie toutefois pas que tous ces clients sont
+déjà implémentés** : le dépôt fournit actuellement le client Raspberry Pi/Linux et
+le simulateur de test ; Android et ESP32 restent dans la feuille de route.
 
 ## Le protocole (WebSocket `/satellite`)
 
