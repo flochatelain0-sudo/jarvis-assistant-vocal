@@ -40,7 +40,7 @@ def main():
     }
     env = dict(os.environ, GESTES_CONF=json.dumps(conf))
     print("Calibration : t/T maintien, c/C cooldown, w/W swipe horizontal, "
-          "v/V swipe vertical, z/Z seuil zoom, x/X tenue zoom, "
+          "v/V swipe vertical, z/Z zoom avant, r/R zoom arrière, x/X tenue zoom, "
           "i inverser vertical, s sauver, q quitter")
     subprocess.run([str(PY), str(RACINE / "gestes" / "tracker.py"), "--calibrate"],
                    env=env, cwd=str(RACINE))

@@ -119,8 +119,9 @@ python scripts/gestes_calibrer.py
 
 Affiche la caméra + les landmarks, la pose et le mode en direct. Réglages :
 `t/T` maintien −/+, `c/C` cooldown −/+, `w/W` swipe horizontal −/+,
-`v/V` swipe vertical −/+, `z/Z` seuil du zoom −/+, `x/X` temps de stabilisation
-du zoom −/+, `i` inverse haut/bas, `s` sauvegarde vers
+`v/V` swipe vertical −/+, `z/Z` seuil du zoom avant −/+, `r/R` seuil du zoom
+arrière −/+, `x/X` temps de stabilisation du zoom −/+, `i` inverse haut/bas,
+`s` sauvegarde vers
 `gestes/calibration.json`, `q`
 quitte. Le fichier sauvegardé est rechargé à la prochaine ouverture. **Aucune
 image n'est enregistrée** pendant la calibration.

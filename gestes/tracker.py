@@ -151,6 +151,7 @@ class MachineGestes:
         self.inverser_vertical = bool(s.get("inverser_vertical", False))
         self.mode_duree_s = float(s.get("mode_duree_s", 30.0))
         self.zoom_seuil = float(s.get("zoom_seuil", 0.12))
+        self.zoom_reduire_seuil = float(s.get("zoom_reduire_seuil", 0.08))
         self.zoom_tenue_s = float(s.get("zoom_tenue_s", 0.45))
         self.zoom_stabilite_seuil = float(s.get("zoom_stabilite_seuil", 0.035))
 
@@ -408,7 +409,8 @@ class MachineGestes:
             return None
 
         delta = distance - self._zoom_reference
-        if abs(delta) < self.zoom_seuil or not self._cooldown_ok(t):
+        seuil = self.zoom_seuil if delta >= 0 else self.zoom_reduire_seuil
+        if abs(delta) < seuil or not self._cooldown_ok(t):
             return None
 
         resultat = "zoom_agrandir" if delta > 0 else "zoom_reduire"
@@ -532,9 +534,11 @@ def _afficher_calibration(frame, mains, fsm, historique_gestes, maintenant,
               f"pret:{fsm.swipe_pret_s:.2f}",
               f"cooldown:{fsm.cooldown_s:.2f}  swipe H:{fsm.swipe_seuil:.2f} "
               f"V:{fsm.swipe_vertical_seuil:.2f}  axe V:{'inverse' if fsm.inverser_vertical else 'normal'}",
-              f"zoom seuil:{fsm.zoom_seuil:.2f}  zoom tenue:{fsm.zoom_tenue_s:.2f}",
+              f"zoom avant:{fsm.zoom_seuil:.2f}  arriere:{fsm.zoom_reduire_seuil:.2f} "
+              f"tenue:{fsm.zoom_tenue_s:.2f}",
               "[t/T] tenue -/+  [c/C] cooldown -/+  [w/W] swipe H -/+",
-              "[v/V] swipe V -/+  [z/Z] zoom -/+  [x/X] tenue zoom -/+",
+              "[v/V] swipe V -/+  [z/Z] zoom avant -/+  [r/R] zoom arriere -/+",
+              "[x/X] tenue zoom -/+",
               "[i] inverser V  [s] sauver  [q] quitter"]
     if demo:
         infos.insert(0, ">>> MODE DEMO : ACTIONS PC ACTIVES")
@@ -577,6 +581,10 @@ def _touches_calibration(k, fsm):
         fsm.zoom_seuil = max(0.05, fsm.zoom_seuil - 0.01)
     elif k == ord("Z"):
         fsm.zoom_seuil = min(0.40, fsm.zoom_seuil + 0.01)
+    elif k == ord("r"):
+        fsm.zoom_reduire_seuil = max(0.03, fsm.zoom_reduire_seuil - 0.01)
+    elif k == ord("R"):
+        fsm.zoom_reduire_seuil = min(0.30, fsm.zoom_reduire_seuil + 0.01)
     elif k == ord("x"):
         fsm.zoom_tenue_s = max(0.20, fsm.zoom_tenue_s - 0.05)
     elif k == ord("X"):
@@ -597,6 +605,7 @@ def _touches_calibration(k, fsm):
             "inverser_vertical": fsm.inverser_vertical,
             "mode_duree_s": round(fsm.mode_duree_s, 2),
             "zoom_seuil": round(fsm.zoom_seuil, 3),
+            "zoom_reduire_seuil": round(fsm.zoom_reduire_seuil, 3),
             "zoom_tenue_s": round(fsm.zoom_tenue_s, 2),
             "zoom_stabilite_seuil": round(fsm.zoom_stabilite_seuil, 3),
         }

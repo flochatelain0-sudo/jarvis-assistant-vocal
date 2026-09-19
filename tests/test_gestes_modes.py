@@ -72,6 +72,7 @@ def _fsm():
         "stabilite_seuil": 0.06,
         "mode_duree_s": 5.0,
         "zoom_seuil": 0.12,
+        "zoom_reduire_seuil": 0.08,
         "zoom_tenue_s": 0.4,
         "zoom_stabilite_seuil": 0.03,
     }})
@@ -119,6 +120,22 @@ class ModesTests(unittest.TestCase):
         # Une main sortie du cadre autorise ensuite une nouvelle stabilisation.
         self.assertIsNone(fsm.alimenter_plusieurs([_main(4, x=0.3)], 1.30))
         self.assertEqual(fsm.etat_zoom, "montre 2 mains ouvertes")
+
+    def test_zoom_arriere_est_plus_sensible_que_zoom_avant(self):
+        fsm = _fsm()
+        mains = [_main(4, x=0.25), _main(4, x=0.75)]
+        fsm.alimenter_plusieurs(mains, 0.0)
+        fsm.alimenter_plusieurs(mains, 0.45)
+        # Un rapprochement de 0,09 dépasse le seuil arrière (0,08).
+        self.assertEqual(fsm.alimenter_plusieurs(
+            [_main(4, x=0.295), _main(4, x=0.705)], 0.55), "zoom_reduire")
+
+        fsm.alimenter_plusieurs([_main(4, x=0.3)], 0.65)
+        fsm.alimenter_plusieurs(mains, 0.75)
+        fsm.alimenter_plusieurs(mains, 1.20)
+        # Le même écartement reste sous le seuil avant (0,12).
+        self.assertIsNone(fsm.alimenter_plusieurs(
+            [_main(4, x=0.205), _main(4, x=0.795)], 1.30))
 
     def test_deux_mains_non_ouvertes_ne_declenchent_pas_le_zoom(self):
         fsm = _fsm()

@@ -315,6 +315,7 @@ gestes:                        # controle par gestes de la main (webcam USB) ; v
     inverser_vertical: false   # activer si haut/bas sont inversés par la caméra
     mode_duree_s: 30.0         # expiration du mode si aucun swipe
     zoom_seuil: 0.12           # variation minimale de distance entre deux paumes
+    zoom_reduire_seuil: 0.08   # rapprochement plus sensible (amplitude naturelle plus courte)
     zoom_tenue_s: 0.45         # stabilité des deux mains avant d'armer le zoom
     zoom_stabilite_seuil: 0.035 # mouvement toléré pendant cette stabilisation
   mapping:                     # geste -> action (N1/N2 UNIQUEMENT ; jamais N3)
