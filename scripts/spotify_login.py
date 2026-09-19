@@ -37,7 +37,8 @@ for _f in (sys.stdout, sys.stderr):
 PORT = 8899
 REDIRECT = f"http://127.0.0.1:{PORT}/callback"
 SCOPES = ("playlist-modify-private playlist-modify-public playlist-read-private "
-          "user-read-email user-read-private")
+          "user-read-email user-read-private user-read-playback-state "
+          "user-modify-playback-state")
 _CODE = {}
 
 
@@ -112,8 +113,11 @@ def main():
         print("   ⚠️ Le droit d'écriture des playlists (playlist-modify) N'EST PAS "
               "accordé — l'ajout échouera (403). Refais l'autorisation en cliquant "
               "bien « Agree » sur l'écran qui liste les permissions.")
-    print("   Redémarre Jarvis. Dis « ajoute-la à ma playlist », ou active "
-          "spotify.auto_ajout: true pour l'ajout automatique.")
+    if "user-modify-playback-state" not in scopes:
+        print("   ⚠️ Le contrôle de lecture n'est pas accordé. Les titres pourront "
+              "être ouverts, mais pas lancés automatiquement.")
+    print("   Redémarre Jarvis. Tu peux ensuite dire « lance ma playlist Chill » "
+          "ou « ajoute-la à ma playlist ».")
 
 
 if __name__ == "__main__":

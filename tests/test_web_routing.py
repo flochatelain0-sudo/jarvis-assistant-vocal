@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch
 
 from core import registre
-from tools import navigateur, systeme
+from tools import apps, navigateur, systeme
 
 
 class WebRoutingTests(unittest.TestCase):
@@ -35,6 +35,41 @@ class WebRoutingTests(unittest.TestCase):
 
         self.assertEqual(resultat, "calculatrice lance.")
         startfile.assert_called_once_with("calc")
+
+    def test_ouvertures_simples_contournent_astra(self):
+        with patch("tools.apps._apps", return_value={"spotify": "spotify:"}):
+            self.assertEqual(
+                apps.router_ouverture_simple("Hey Jarvis, ouvre Spotify"),
+                ("launch_app", {"nom": "spotify"}),
+            )
+        self.assertEqual(
+            apps.router_ouverture_simple("Ouvre Netflix s'il te plaît"),
+            ("browser_open", {"url": "netflix"}),
+        )
+        self.assertEqual(
+            apps.router_ouverture_simple("Lance la calculatrice sur mon PC"),
+            ("ouvrir_application", {"nom": "calculatrice"}),
+        )
+        self.assertEqual(
+            apps.router_ouverture_simple("Tu peux m'ouvrir Spotify ?"),
+            ("launch_app", {"nom": "spotify"}),
+        )
+
+    def test_ouverture_inconnue_utilise_le_lanceur_pas_astra(self):
+        with patch("tools.apps._apps", return_value={}):
+            self.assertEqual(
+                apps.router_ouverture_simple("ouvre mon logiciel de montage"),
+                ("launch_app", {"nom": "mon logiciel de montage"}),
+            )
+
+    def test_demandes_complexes_ou_non_imperatives_restent_au_modele(self):
+        for phrase in (
+                "Ouvre Spotify et cherche ma playlist",
+                "Ouvre Netflix puis lance ma série",
+                "Est-ce que Spotify est ouvert ?",
+                "Ouvre ce fichier"):
+            with self.subTest(phrase=phrase):
+                self.assertIsNone(apps.router_ouverture_simple(phrase))
 
 
 if __name__ == "__main__":

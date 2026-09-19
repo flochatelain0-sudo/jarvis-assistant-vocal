@@ -8,9 +8,11 @@ N1/N2 (écriture dans TA playlist). Non exposé au MCP par défaut. Voir docs/sp
 """
 import base64
 import json
+import os
 import threading
 import time
 from pathlib import Path
+from urllib.parse import quote
 
 try:
     import truststore
@@ -126,6 +128,25 @@ def _chercher_uri(titre, artiste):
     return items[0]["uri"] if items else None
 
 
+def _chercher_media(recherche, type_media):
+    """Premier titre/playlist Spotify correspondant à la recherche."""
+    type_api = "playlist" if type_media == "playlist" else "track"
+    r = requests.get(f"{_API}/search", headers=_h(), params={
+        "q": recherche, "type": type_api, "limit": 1,
+    }, timeout=15)
+    r.raise_for_status()
+    bloc = r.json().get(f"{type_api}s", {}) or {}
+    items = [item for item in (bloc.get("items", []) or []) if item]
+    return items[0] if items else None
+
+
+def _demarrer_lecture(uri, type_media):
+    corps = ({"context_uri": uri} if type_media == "playlist"
+             else {"uris": [uri]})
+    return requests.put(f"{_API}/me/player/play", headers=_h(),
+                        data=json.dumps(corps), timeout=15)
+
+
 def _deja_present(pid, uri):
     """Évite les doublons : l'URI est-elle déjà dans la playlist ?"""
     try:
@@ -221,6 +242,67 @@ def ajouter_a_playlist(titre: str = "", artiste: str = "", playlist: str = "") -
                     "playlists n'est pas accordé, soit l'app est en mode développement "
                     "avec un autre compte. Relance « python scripts/spotify_login.py » "
                     "et clique bien « Agree » sur l'écran des permissions.")
+        return f"Spotify a échoué ({str(e)[:120]})."
+    except Exception as e:
+        return f"Spotify a échoué ({str(e)[:120]})."
+
+
+@outil(
+    nom="lire_spotify",
+    description="Recherche puis lance directement un morceau ou une playlist Spotify. "
+                "Pour « joue Blinding Lights sur Spotify », « lance ma playlist Chill ». "
+                "Ne sert pas à ajouter un morceau à une playlist.",
+    parametres={
+        "type": "object",
+        "properties": {
+            "recherche": {"type": "string", "description": "Nom du titre ou de la playlist."},
+            "type_media": {"type": "string", "enum": ["titre", "playlist"]},
+        },
+        "required": ["recherche"],
+    },
+    lent=True,
+    phrase_attente="Je cherche ça sur Spotify.",
+    mcp_expose=False,
+    affichage="jamais",
+)
+def lire_spotify(recherche: str, type_media: str = "titre") -> str:
+    """Lance via Spotify Connect, avec repli sur l'application de bureau."""
+    recherche = str(recherche or "").strip()
+    type_media = "playlist" if type_media == "playlist" else "titre"
+    if not recherche:
+        return "Dis-moi quel titre ou quelle playlist lancer."
+
+    if not _configure():
+        try:
+            os.startfile("spotify:search:" + quote(recherche, safe=""))
+            return f"J'ai ouvert la recherche Spotify pour « {recherche} »."
+        except Exception:
+            return _msg_config()
+
+    try:
+        item = None
+        if type_media == "playlist":
+            pid = _playlist_id(recherche, creer=False)
+            if pid:
+                item = {"uri": f"spotify:playlist:{pid}", "name": recherche}
+        if item is None:
+            item = _chercher_media(recherche, type_media)
+        if not item or not item.get("uri"):
+            return f"Je n'ai pas trouvé « {recherche} » sur Spotify."
+
+        nom = item.get("name") or recherche
+        reponse = _demarrer_lecture(item["uri"], type_media)
+        if reponse.status_code == 204:
+            return f"Je lance « {nom} » sur Spotify."
+
+        # Sans appareil Spotify Connect actif, sans Premium ou avec un ancien
+        # jeton OAuth, le lien profond reste une action sûre et sans Astra.
+        os.startfile(item["uri"])
+        if reponse.status_code == 403:
+            return (f"J'ai ouvert « {nom} » dans Spotify. Pour la lecture automatique, "
+                    "reconnecte Spotify une fois afin d'autoriser le contrôle de lecture.")
+        return f"J'ai ouvert « {nom} » dans Spotify."
+    except requests.HTTPError as e:
         return f"Spotify a échoué ({str(e)[:120]})."
     except Exception as e:
         return f"Spotify a échoué ({str(e)[:120]})."

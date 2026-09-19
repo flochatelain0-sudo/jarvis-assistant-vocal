@@ -7,10 +7,123 @@ Si l'app demandee est inconnue, Jarvis propose de l'ajouter ; l'ajout passe par
 ajouter_app (confirmation requise) qui ecrit dans config.yaml.
 """
 import os
+import re
 
 from core.config import definir, reglage
 from core.registre import outil
 from core.util import sans_accents
+
+
+_VERBES_OUVERTURE = {
+    "ouvre", "ouvrir", "lance", "lancer", "demarre", "demarrer",
+}
+_PREFIXES_POLITES = (
+    ("hey", "jarvis"), ("jarvis",),
+    ("est", "ce", "que", "tu", "peux"),
+    ("peux", "tu"), ("tu", "peux"),
+    ("s", "il", "te", "plait"), ("stp",),
+)
+_SUFFIXES_POLITES = (
+    ("s", "il", "te", "plait"), ("stp",), ("merci",),
+)
+_PREFIXES_CIBLE = (
+    ("l", "application"), ("l", "appli"), ("le", "logiciel"),
+    ("le", "site"), ("l", "utilitaire"),
+    ("le",), ("la",), ("l",),
+)
+_SUFFIXES_PC = (
+    ("sur", "mon", "pc"), ("sur", "le", "pc"),
+    ("sur", "mon", "ordinateur"), ("sur", "l", "ordinateur"),
+)
+_CONNECTEURS_MULTI_ETAPES = {
+    "et", "puis", "ensuite", "apres", "pour", "clique", "cliquer",
+    "cherche", "chercher", "recherche", "rechercher", "ecris", "ecrire",
+    "tape", "taper", "connecte", "connecter", "selectionne", "selectionner",
+}
+_CIBLES_GENERIQUES = {
+    "fichier", "un fichier", "ce fichier", "dossier", "un dossier",
+    "ce dossier", "document", "un document", "ce document", "telechargements",
+}
+_UTILITAIRES = {
+    "spotify": "spotify",
+    "discord": "discord",
+    "calculatrice": "calculatrice",
+    "calculette": "calculatrice",
+    "bloc notes": "bloc-notes",
+    "notepad": "bloc-notes",
+    "explorateur": "explorateur",
+    "explorateur de fichiers": "explorateur",
+    "parametres": "parametres",
+    "reglages": "parametres",
+}
+
+
+def _retirer_prefixe(mots, prefixes):
+    change = True
+    while mots and change:
+        change = False
+        for prefixe in prefixes:
+            if tuple(mots[:len(prefixe)]) == prefixe:
+                del mots[:len(prefixe)]
+                change = True
+                break
+
+
+def _retirer_suffixe(mots, suffixes):
+    change = True
+    while mots and change:
+        change = False
+        for suffixe in suffixes:
+            if tuple(mots[-len(suffixe):]) == suffixe:
+                del mots[-len(suffixe):]
+                change = True
+                break
+
+
+def router_ouverture_simple(phrase):
+    """Route une ouverture mono-étape sans laisser le LLM choisir Astra.
+
+    Renvoie ``(nom_outil, arguments)`` pour les formulations explicites du type
+    « ouvre Spotify » ou « lance Netflix ». Une demande comportant une seconde
+    action reste confiée au LLM/Astra. Les cibles inconnues passent volontairement
+    par ``launch_app`` : il proposera de les configurer au lieu de piloter l'écran.
+    """
+    mots = re.sub(
+        r"[^a-z0-9]+", " ", sans_accents(str(phrase or ""))
+    ).split()
+    _retirer_prefixe(mots, _PREFIXES_POLITES)
+    if len(mots) >= 2 and mots[0] in {"m", "me"} and mots[1] in _VERBES_OUVERTURE:
+        del mots[0]
+    if not mots or mots[0] not in _VERBES_OUVERTURE:
+        return None
+    del mots[0]
+    if mots and mots[0] in {"m", "me", "moi"}:
+        del mots[0]
+    _retirer_prefixe(mots, _PREFIXES_CIBLE)
+    _retirer_suffixe(mots, _SUFFIXES_POLITES)
+    _retirer_suffixe(mots, _SUFFIXES_PC)
+    if not mots or any(mot in _CONNECTEURS_MULTI_ETAPES for mot in mots):
+        return None
+
+    cible = " ".join(mots)
+    if cible in _CIBLES_GENERIQUES:
+        return None
+
+    from tools.navigateur import est_demande_web
+    if est_demande_web(cible):
+        return "browser_open", {"url": cible}
+
+    clef = _trouver(cible, _apps())
+    if clef is not None:
+        return "launch_app", {"nom": clef}
+
+    utilitaire = _UTILITAIRES.get(cible)
+    if utilitaire:
+        return "ouvrir_application", {"nom": utilitaire}
+
+    # Une ouverture simple d'application inconnue ne justifie jamais Astra.
+    # launch_app expliquera comment ajouter son chemin à la configuration.
+    return "launch_app", {"nom": cible}
 
 
 def _apps():
