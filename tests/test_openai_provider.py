@@ -4,6 +4,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from core import cloud
 from core.llm import Bloc, OpenAIProvider
 
 
@@ -61,6 +62,26 @@ class OpenAIProviderTests(unittest.TestCase):
         self.assertEqual(items[0]["type"], "function_call")
         self.assertEqual(items[1]["type"], "function_call_output")
         self.assertTrue(items[2]["content"][0]["image_url"].startswith("data:image/jpeg;base64,"))
+
+    def test_vision_peut_forcer_astra_meme_si_claude_est_le_provider_courant(self):
+        sortie = SimpleNamespace(
+            output=[SimpleNamespace(
+                type="function_call", arguments=json.dumps({"action": "termine"}))],
+            usage=None,
+        )
+        client = SimpleNamespace(responses=_Responses(sortie))
+        schema = {"type": "object", "properties": {
+            "action": {"type": "string"}}, "required": ["action"]}
+        with patch("core.cloud.fournisseur", return_value="anthropic"), \
+                patch("core.cloud.client_openai", return_value=client), \
+                patch("core.cloud.enregistrer_usage"):
+            action = cloud.decider_action_vision(
+                "Operateur", "Observe", "YWJj", schema,
+                nom_modele="gpt-6-astra", qualite=True,
+                fournisseur_force="openai")
+        self.assertEqual(action, {"action": "termine"})
+        self.assertEqual(client.responses.kwargs["model"], "gpt-6-astra")
+        self.assertEqual(client.responses.kwargs["reasoning"], {"effort": "high"})
 
 
 if __name__ == "__main__":

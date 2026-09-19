@@ -99,7 +99,9 @@ def _systeme(piece):
     """Prompt système du satellite : Jarvis, avec le contexte de pièce."""
     base = ("Tu es Jarvis, assistant vocal, répondant depuis un satellite dans une "
             "pièce de la maison. Réponds en UNE à deux phrases courtes, en français, "
-            "avec ta personnalité. Utilise les outils quand c'est utile.")
+            "avec ta personnalité. Utilise les outils quand c'est utile. Si une tâche "
+            "exige plusieurs clics ou saisies sur le PC et qu'aucun outil direct ne "
+            "suffit, appelle controle_pc_astra afin de demander l'autorisation.")
     if piece:
         base += (f" CONTEXTE : ce satellite est dans « {piece} ». Si l'utilisateur "
                  f"parle d'une lumière/pièce SANS préciser laquelle, utilise « {piece} » "
@@ -266,6 +268,20 @@ def traiter_texte(session, phrase):
     {reponse, attente_confirmation(bool)}."""
     from core import registre
     session.historique.append({"role": "user", "content": phrase})
+
+    # Une invocation explicite prononcée à la maison vaut autorisation pour la
+    # tâche sûre décrite. Les garde-fous internes bloquent toujours N3/secrets.
+    try:
+        from tools.astra_pc import extraire_commande_explicite, executer_controle
+        tache_astra = extraire_commande_explicite(phrase)
+    except Exception:
+        LOG.exception("satellite: routage Astra explicite")
+        tache_astra = None
+    if tache_astra is not None:
+        texte = (executer_controle(tache_astra) if tache_astra else
+                 "Dis-moi quelle tâche tu veux que je fasse sur le PC avec Astra.")
+        session.historique.append({"role": "assistant", "content": texte})
+        return {"reponse": texte, "attente_confirmation": False}
 
     # Les commandes Alexa explicites et domestiques ne dépendent pas du choix du
     # LLM : la destination est décidée ici de façon déterministe.

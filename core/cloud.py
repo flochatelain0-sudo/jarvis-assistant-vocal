@@ -145,10 +145,16 @@ def repondre_texte(systeme: str, historique: list, max_tokens: int = 500,
 def decider_action_vision(systeme: str, texte: str, image_b64: str,
                           schema: dict, nom_outil: str = "agir",
                           description: str = "Decide de la prochaine action.",
-                          nom_modele: str = "") -> dict:
+                          nom_modele: str = "", qualite: bool = False,
+                          fournisseur_force: str = "") -> dict:
     """Demande UNE action structuree a partir d'une capture JPEG."""
-    provider = fournisseur()
-    cible = modele(surcharge=nom_modele)
+    provider = (fournisseur_force or fournisseur()).strip().lower()
+    cible = str(nom_modele or "").strip()
+    incompatible = ((provider == "openai" and cible.lower().startswith("claude"))
+                    or (provider == "anthropic"
+                        and cible.lower().startswith(("gpt-", "o1", "o3", "o4"))))
+    if not cible or incompatible:
+        cible = modele(qualite=qualite)
     if provider == "openai":
         client = client_openai()
         if client is None:
@@ -168,7 +174,7 @@ def decider_action_vision(systeme: str, texte: str, image_b64: str,
             "max_output_tokens": 1200,
             "store": False,
         }
-        raisonnement = _raisonnement(cible)
+        raisonnement = _raisonnement(cible, qualite)
         if raisonnement:
             kwargs["reasoning"] = raisonnement
         rep = client.responses.create(**kwargs)

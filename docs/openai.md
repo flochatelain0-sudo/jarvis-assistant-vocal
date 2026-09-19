@@ -11,6 +11,34 @@ Jarvis utilise l'API **Responses** d'OpenAI pour la conversation, la vision et l
 appels d'outils. Le modèle recommandé au quotidien est `gpt-5.6-terra` ;
 `gpt-6-astra` est disponible pour le mode qualité.
 
+## Mode opérateur Astra sur le PC
+
+Deux formulations déclenchent directement une tâche locale bornée :
+
+- « Jarvis, utilise Astra pour ouvrir le dossier Téléchargements » ;
+- « Jarvis, prends le contrôle de mon PC pour chercher ce réglage ».
+
+Si une demande ordinaire nécessite plusieurs clics ou saisies et qu'aucun outil
+direct ne suffit, Jarvis propose lui-même le mode opérateur et demande une
+confirmation vocale avant de démarrer. Le contrôle est local, jamais exposé à
+Hermes/MCP ni au pont distant. **Échap** interrompt immédiatement la boucle.
+
+Astra reçoit une capture puis choisit une seule action structurée ; Jarvis exécute
+l'action et renvoie une nouvelle capture. Il n'obtient aucun shell libre. Le mode
+refuse les mots de passe/codes, achats et paiements, envois/publications,
+suppressions, installations et commandes système : ces opérations restent dans
+leurs outils spécialisés avec leurs confirmations propres.
+
+Réglages optionnels :
+
+```yaml
+astra_pc:
+  actif: true
+  modele: "gpt-6-astra"
+  max_actions: 12
+  timeout: 90
+```
+
 ## Point important : ChatGPT et l'API sont séparés
 
 Un abonnement ChatGPT (Plus, Pro, etc.) ne fournit pas automatiquement un solde

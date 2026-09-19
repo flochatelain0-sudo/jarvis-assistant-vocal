@@ -95,6 +95,7 @@ _NON_LOCAUX = {
     "book_appointment", "confirmer_reservation",
     "browser_current_page", "browser_tabs", "browser_close_tabs",
     "browser_interact",
+    "controle_pc_astra",
     "call_with_message", "call_and_book", "cout_appels",
     "instagram_resume", "rafraichir_instagram",
     "get_mentions_summary", "get_channel_summary",
@@ -135,6 +136,7 @@ _N3 = frozenset({
     "book_appointment", "confirmer_reservation",
     "delete_event",
     "eteindre_pc",
+    "controle_pc_astra",
 })
 
 

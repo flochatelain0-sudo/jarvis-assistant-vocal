@@ -108,7 +108,10 @@ SYSTEME_BASE = (
     "ca, cette erreur, mon ecran, ce message), appelle capture_screen puis reponds "
     "d'apres l'image. Pour ouvrir un site, une URL, Netflix/YouTube ou faire une "
     "recherche web, utilise browser_open. Pour un logiciel configure, utilise "
-    "launch_app. N'utilise ouvrir_application que pour les utilitaires Windows."
+    "launch_app. N'utilise ouvrir_application que pour les utilitaires Windows. "
+    "Si une demande exige plusieurs clics ou saisies dans une interface et qu'aucun "
+    "outil direct ne suffit, appelle controle_pc_astra : le systeme demandera alors "
+    "l'autorisation avant de laisser Astra piloter le PC."
 )
 
 # Consigne systeme courante (persona + regles + memoire). Passee a chaque appel
@@ -623,6 +626,32 @@ def _repondre_route_alexa(historique):
     return texte
 
 
+def _repondre_route_astra(historique):
+    """Execute immediatement une invocation locale explicite du mode operateur."""
+    question = next((m.get("content") for m in reversed(historique)
+                     if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
+    try:
+        from tools.astra_pc import extraire_commande_explicite, executer_controle
+        tache = extraire_commande_explicite(question)
+    except Exception:
+        LOG.exception("routage Astra explicite")
+        return None
+    if tache is None:
+        return None
+    if not tache:
+        texte = "Dis-moi quelle tache tu veux que je fasse sur le PC avec Astra."
+    else:
+        _hud("etat", "parole")
+        dire("D'accord, Astra prend le controle du PC. Appuie sur Echap pour arreter.")
+        _hud("etat", "reflexion")
+        texte = executer_controle(tache)
+    historique.append({"role": "assistant", "content": texte})
+    _hud("etat", "parole")
+    if texte and not _INTERRUPTION.is_set():
+        dire(texte)
+    return texte
+
+
 def repondre(historique):
     """Interroge le LLM actif et boucle sur les appels d'outils jusqu'a la reponse.
 
@@ -630,6 +659,10 @@ def repondre(historique):
     les outils a confirmation, prononce l'annonce et renvoie SENTINEL_CONFIRM
     (la suite est geree par traiter, qui capture la reponse oui/non).
     """
+    prioritaire = _repondre_route_astra(historique)
+    if prioritaire is not None:
+        return prioritaire
+
     prioritaire = _repondre_route_alexa(historique)
     if prioritaire is not None:
         return prioritaire

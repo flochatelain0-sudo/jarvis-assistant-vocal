@@ -21,6 +21,12 @@ openai:
   timeout: 90                  # secondes max par appel
   max_retries: 1
 
+astra_pc:                      # operateur Windows local, declenche a la voix
+  actif: true
+  modele: "gpt-6-astra"
+  max_actions: 12             # arret automatique anti-boucle
+  timeout: 90                 # secondes ; Echap arrete immediatement
+
 ollama:                        # mode local : modele de langage local (http://localhost:11434)
   hote: "http://localhost:11434"
   modele: "qwen3.5:4b"         # famille qwen3.5 (teste, bon en function calling + vision).
