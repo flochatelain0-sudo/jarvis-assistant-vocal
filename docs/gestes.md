@@ -89,7 +89,8 @@ confirmation vocale locale.
 
 - présente deux paumes ouvertes et stabilise-les brièvement ;
 - écarte-les pour zoomer, rapproche-les pour dézoomer ;
-- retire au moins une main du cadre avant le zoom suivant.
+- garde-les visibles : continue le mouvement pour plusieurs crans ou inverse-le
+  directement pour changer le sens du zoom.
 
 Le zoom envoie `Ctrl+=` ou `Ctrl+-` à l'application active. Il fonctionne donc
 dans les navigateurs, les lecteurs PDF et la plupart des applications qui

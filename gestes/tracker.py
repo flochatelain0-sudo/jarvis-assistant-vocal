@@ -194,7 +194,6 @@ class MachineGestes:
         self._zoom_reference = None     # distance des paumes après stabilisation
         self._zoom_depuis = 0.0         # début de la stabilisation à deux mains
         self._zoom_pret = False
-        self._zoom_attend_absence = False
         self.zoom_distance = None       # diagnostic local pour la calibration
         self.evenement_pointeur = None  # {x, y, clic}, consommé par la boucle I/O
         self._pointeur_lisse = None
@@ -231,13 +230,11 @@ class MachineGestes:
         self._pincement_arme = False
         self.souris_ratio_pincement = None
 
-    def _reinitialiser_zoom(self, garder_absence=False):
+    def _reinitialiser_zoom(self):
         self._zoom_reference = None
         self._zoom_depuis = 0.0
         self._zoom_pret = False
         self.zoom_distance = None
-        if not garder_absence:
-            self._zoom_attend_absence = False
 
     @property
     def etat_swipe(self):
@@ -255,8 +252,6 @@ class MachineGestes:
     @property
     def etat_zoom(self):
         """État lisible du geste à deux mains pour l'écran de calibration."""
-        if self._zoom_attend_absence:
-            return "retire au moins une main"
         if self.zoom_distance is None:
             return "montre 2 mains ouvertes"
         if not self._zoom_pret:
@@ -465,8 +460,8 @@ class MachineGestes:
         """Route une ou deux mains et reconnaît le zoom à deux mains.
 
         Deux paumes ouvertes doivent d'abord rester stables. Leur écartement
-        relatif déclenche ensuite un seul zoom, puis au moins une main doit
-        quitter le cadre avant de pouvoir recommencer.
+        relatif déclenche ensuite des crans de zoom continus : la distance
+        courante devient la nouvelle référence après chaque action.
         """
         mains = list(mains or [])
         if len(mains) < 2:
@@ -483,8 +478,6 @@ class MachineGestes:
         # deux paumes franchement déployées pour ne pas partir en discutant.
         self._reinitialiser_tenue()
         self._reinitialiser_pret()
-        if self._zoom_attend_absence:
-            return None
         if not all(est_main_deployee(lm) for lm in mains[:2]):
             self._reinitialiser_zoom()
             return None
@@ -520,8 +513,10 @@ class MachineGestes:
 
         resultat = "zoom_agrandir" if delta > 0 else "zoom_reduire"
         self._dernier_envoi = t
-        self._zoom_attend_absence = True
-        self._reinitialiser_zoom(garder_absence=True)
+        self._zoom_reference = distance
+        self._zoom_depuis = t
+        self._zoom_pret = True
+        self.debug_evenement = resultat
         return resultat
 
 

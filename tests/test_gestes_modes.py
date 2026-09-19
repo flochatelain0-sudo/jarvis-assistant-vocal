@@ -143,22 +143,20 @@ class ModesTests(unittest.TestCase):
             [_main(4, x=0.26), _main(4, x=0.64)], 0.55))
         self.assertEqual(fsm.alimenter_plusieurs(
             [_main(4, x=0.20), _main(4, x=0.75)], 0.65), "zoom_agrandir")
-        self.assertEqual(fsm.etat_zoom, "retire au moins une main")
+        self.assertEqual(fsm.etat_zoom, "PRET - ecarte ou rapproche")
 
-    def test_deux_mains_rapprochees_zoom_arriere_et_exigent_une_absence(self):
+    def test_zoom_peut_inverser_sans_sortir_les_mains(self):
         fsm = _fsm()
         mains = [_main(4, x=0.20), _main(4, x=0.80)]
         fsm.alimenter_plusieurs(mains, 0.0)
         fsm.alimenter_plusieurs(mains, 0.45)
         self.assertEqual(fsm.alimenter_plusieurs(
             [_main(4, x=0.32), _main(4, x=0.68)], 0.60), "zoom_reduire")
-        # Garder deux mains, même sans deux paumes ouvertes, ne réarme pas le zoom.
         self.assertIsNone(fsm.alimenter_plusieurs(
-            [_main(2, x=0.32), _main(4, x=0.68)], 1.20))
-        self.assertEqual(fsm.etat_zoom, "retire au moins une main")
-        # Une main sortie du cadre autorise ensuite une nouvelle stabilisation.
-        self.assertIsNone(fsm.alimenter_plusieurs([_main(4, x=0.3)], 1.30))
-        self.assertEqual(fsm.etat_zoom, "montre 2 mains ouvertes")
+            [_main(4, x=0.28), _main(4, x=0.72)], 1.20))
+        self.assertEqual(fsm.alimenter_plusieurs(
+            [_main(4, x=0.20), _main(4, x=0.80)], 1.45), "zoom_agrandir")
+        self.assertEqual(fsm.etat_zoom, "PRET - ecarte ou rapproche")
 
     def test_zoom_arriere_est_plus_sensible_que_zoom_avant(self):
         fsm = _fsm()
@@ -169,12 +167,20 @@ class ModesTests(unittest.TestCase):
         self.assertEqual(fsm.alimenter_plusieurs(
             [_main(4, x=0.295), _main(4, x=0.705)], 0.55), "zoom_reduire")
 
-        fsm.alimenter_plusieurs([_main(4, x=0.3)], 0.65)
-        fsm.alimenter_plusieurs(mains, 0.75)
-        fsm.alimenter_plusieurs(mains, 1.20)
-        # Le même écartement reste sous le seuil avant (0,12).
+        # Le même écartement reste sous le seuil avant (0,12), même après le
+        # cooldown, sans obliger les mains à quitter le cadre.
         self.assertIsNone(fsm.alimenter_plusieurs(
-            [_main(4, x=0.205), _main(4, x=0.795)], 1.30))
+            [_main(4, x=0.25), _main(4, x=0.75)], 1.40))
+
+    def test_zoom_continue_plusieurs_crans_dans_le_meme_sens(self):
+        fsm = _fsm()
+        mains = [_main(4, x=0.30), _main(4, x=0.60)]
+        fsm.alimenter_plusieurs(mains, 0.0)
+        fsm.alimenter_plusieurs(mains, 0.45)
+        self.assertEqual(fsm.alimenter_plusieurs(
+            [_main(4, x=0.20), _main(4, x=0.75)], 0.60), "zoom_agrandir")
+        self.assertEqual(fsm.alimenter_plusieurs(
+            [_main(4, x=0.12), _main(4, x=0.87)], 1.45), "zoom_agrandir")
 
     def test_deux_mains_non_ouvertes_ne_declenchent_pas_le_zoom(self):
         fsm = _fsm()
