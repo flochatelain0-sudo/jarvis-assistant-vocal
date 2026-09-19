@@ -48,13 +48,13 @@ Des gestes **tenus** (pas d'instantané) pour éviter les faux positifs :
 
 | Geste | Action par défaut |
 |---|---|
-| **Main ouverte immobile** tenue | Pause (touche média lecture/pause) |
+| **Main ouverte immobile, 5 doigts** tenue | Pause (touche média lecture/pause) |
 | **Pouce levé** tenu | Lecture/reprise (touche média lecture/pause) |
 | **Poing** tenu | Coupe immédiatement le TTS et annule le mode courant |
 | **2 doigts** tenus | Arme le mode **Onglets** |
 | **3 doigts** tenus | Arme le mode **Audio** |
 | **4 doigts, pouce replié** | Arme le mode **Souris** |
-| **Deux mains ouvertes** | Écarter = zoom avant ; rapprocher = zoom arrière |
+| **Deux mains ouvertes, 5 doigts chacune** | Écarter = zoom avant ; rapprocher = zoom arrière |
 
 Chaque geste reconnu = **feedback discret** (petit bip + flash HUD) pour savoir que
 c'est pris. Le mapping est **entièrement éditable** dans `config.yaml → gestes.mapping`.
@@ -62,7 +62,7 @@ c'est pris. Le mapping est **entièrement éditable** dans `config.yaml → gest
 ### Mode Onglets — 2 doigts
 
 - tiens index + majeur environ 1 seconde → overlay `🗂 Mode onglets` ;
-- passe à la main entière ouverte et garde-la brièvement immobile ;
+- passe à la main entière ouverte, pouce compris, et garde-la brièvement immobile ;
 - clique d'abord dans le navigateur ou l'application à piloter ;
 - swipe gauche/droite → onglet ou vue précédente/suivante de cette application
   (`Ctrl+Shift+Tab` / `Ctrl+Tab`) ;
@@ -77,7 +77,7 @@ applications, règle `gestes.navigation_horizontale: applications`.
 ### Mode Audio — 3 doigts
 
 - tiens index + majeur + annulaire environ 1 seconde → overlay `🔊 Mode audio` ;
-- passe à la main entière ouverte et garde-la brièvement immobile ;
+- passe à la main entière ouverte, pouce compris, et garde-la brièvement immobile ;
 - swipe haut/bas → volume +/− ;
 - swipe gauche/droite → piste précédente/suivante.
 
@@ -87,7 +87,7 @@ confirmation vocale locale.
 
 ### Zoom à deux mains
 
-- présente deux paumes ouvertes et stabilise-les brièvement ;
+- présente deux paumes entièrement ouvertes, pouce compris, et stabilise-les brièvement ;
 - écarte-les pour zoomer, rapproche-les pour dézoomer ;
 - garde-les visibles : continue le mouvement pour plusieurs crans ou inverse-le
   directement pour changer le sens du zoom.
@@ -119,7 +119,7 @@ calibration locale permet de l'activer avec `p`, puis de sauvegarder avec `s`.
   ordre involontaire. Le même mode accepte ensuite plusieurs swipes successifs.
 - **Expiration** du mode après `mode_duree_s` secondes sans nouvelle action
   (30 s par défaut), ou immédiatement avec un poing tenu.
-- **Stabilisation** : la main déployée (3 ou 4 doigts visibles) doit rester presque immobile pendant
+- **Stabilisation** : la main déployée (5 doigts, pouce compris) doit rester presque immobile pendant
   `swipe_pret_s` (0,35 s par défaut). Le changement de pose ou le trajet d'entrée
   dans le cadre ne peut donc plus être interprété comme un swipe.
 - **Déplacement minimal + axe dominant** : un mouvement diagonal ambigu est ignoré.

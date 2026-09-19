@@ -57,8 +57,9 @@ def doigt_leve(lm, tip, pip):
 
 
 def pouce_ouvert(lm):
-    """Pouce ecarte : bout du pouce loin du bord interne de la main (index MCP)."""
-    return _d(lm[POUCE_TIP], lm[INDEX_MCP]) > 0.10
+    """Pouce écarté, avec une mesure relative à la taille de la paume."""
+    echelle = max(0.04, _d(lm[POIGNET], lm[MAJEUR_MCP]))
+    return _d(lm[POUCE_TIP], lm[INDEX_MCP]) > 0.85 * echelle
 
 
 def doigts_tendus(lm):
@@ -66,6 +67,11 @@ def doigts_tendus(lm):
     paires = ((INDEX_TIP, INDEX_PIP), (MAJEUR_TIP, MAJEUR_PIP),
               (ANN_TIP, ANN_PIP), (AURIC_TIP, AURIC_PIP))
     return sum(1 for tip, pip in paires if doigt_leve(lm, tip, pip))
+
+
+def doigts_detectes(lm):
+    """Nombre total de doigts ouverts, pouce compris, pour la calibration."""
+    return doigts_tendus(lm) + int(pouce_ouvert(lm))
 
 
 def _doigts(lm):
@@ -76,15 +82,16 @@ def _doigts(lm):
 
 
 def est_main_ouverte(lm):
-    # 4 doigts tendus (index..auriculaire) suffisent : la detection du pouce ecarte
-    # est trop variable selon la main/l'angle pour etre exigee.
-    return doigts_tendus(lm) >= 4
+    """Paume complète : les quatre doigts longs et le pouce sont déployés."""
+    return doigts_tendus(lm) == 4 and pouce_ouvert(lm)
 
 
 def est_quatre_doigts(lm):
     """Les quatre doigts levés avec le pouce replié : sélection Souris."""
     echelle = max(0.04, _d(lm[POIGNET], lm[MAJEUR_MCP]))
-    pouce_replie = _d(lm[POUCE_TIP], lm[INDEX_MCP]) <= 0.8 * echelle
+    # La zone neutre entre 0,55 et 0,85 évite qu'un pouce mal vu fasse
+    # basculer directement une paume ouverte vers le mode souris.
+    pouce_replie = _d(lm[POUCE_TIP], lm[INDEX_MCP]) <= 0.55 * echelle
     return _doigts(lm) == (True, True, True, True) and pouce_replie
 
 
@@ -102,10 +109,10 @@ def ratio_pincement(lm):
 def est_main_deployee(lm):
     """Paume assez ouverte pour piloter un mode déjà explicitement armé.
 
-    Trois doigts suffisent ici : le choix 2/3 doigts a déjà été validé et le
-    cooldown empêche cette tolérance de sélectionner accidentellement un mode.
+    Les cinq doigts sont exigés pour que la transition vers un swipe ou un zoom
+    ne puisse jamais être confondue avec les quatre doigts du mode souris.
     """
-    return doigts_tendus(lm) >= 3
+    return est_main_ouverte(lm)
 
 
 def est_deux_doigts(lm):
@@ -628,11 +635,11 @@ def _afficher_calibration(frame, mains, fsm, historique_gestes, maintenant,
                 cv2.circle(frame, (int(x * w), int(y * h)), 4,
                            couleurs[numero], -1)
         poses = " | ".join(
-            f"M{i + 1}:{pose(lm) or '-'} ({doigts_tendus(lm)} doigts)"
+            f"M{i + 1}:{pose(lm) or '-'} ({doigts_detectes(lm)} doigts)"
             for i, lm in enumerate(mains[:2]))
         lm = mains[0]
         infos = [f"mains:{len(mains)}  {poses}",
-                 f"M1 ouverte:{est_main_ouverte(lm)}  pouce:{est_pouce_leve(lm)}  "
+                 f"M1 ouverte:{est_main_ouverte(lm)}  pouce ouvert:{pouce_ouvert(lm)}  "
                  f"2:{est_deux_doigts(lm)}  3:{est_trois_doigts(lm)}  poing:{est_poing(lm)}",
                  f"main deployee pour swipe:{est_main_deployee(lm)}"]
     else:
