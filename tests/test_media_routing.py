@@ -32,6 +32,24 @@ class MediaRoutingTests(unittest.TestCase):
             ("lire_spotify", {
                 "recherche": "blinding lights", "type_media": "titre"}),
         )
+        self.assertEqual(
+            media.router_commande_media(
+                "Lance ma playlist Chill sur Spotify", piece="cuisine"),
+            ("lire_spotify", {
+                "recherche": "chill", "type_media": "playlist",
+                "piece": "cuisine",
+            }),
+        )
+
+    def test_commandes_transport_du_satellite_ciblent_spotify_connect(self):
+        self.assertEqual(
+            media.router_commande_media("musique suivante", piece="cuisine"),
+            ("controler_spotify", {"action": "suivant", "piece": "cuisine"}),
+        )
+        self.assertEqual(
+            media.router_commande_media("reprends la musique", piece="cuisine"),
+            ("controler_spotify", {"action": "reprendre", "piece": "cuisine"}),
+        )
 
     def test_serie_netflix_est_routee_sans_astra(self):
         self.assertEqual(
@@ -48,7 +66,8 @@ class MediaRoutingTests(unittest.TestCase):
                 self.assertIsNone(media.router_commande_media(phrase))
 
     def test_outils_media_ne_demandent_pas_confirmation(self):
-        for nom in ("controler_media", "lancer_spotify", "lire_spotify", "lire_netflix"):
+        for nom in ("controler_media", "controler_spotify", "lancer_spotify",
+                    "lire_spotify", "lire_netflix"):
             with self.subTest(nom=nom):
                 outil = registre.get(nom)
                 self.assertIsNotNone(outil)
@@ -81,6 +100,36 @@ class MediaRoutingTests(unittest.TestCase):
         self.assertEqual(resultat, "Spotify est ouvert et déjà en lecture.")
         ouvrir.assert_called_once_with()
         reprendre.assert_not_called()
+
+    def test_lancer_spotify_depuis_cuisine_transfere_vers_enceinte(self):
+        appareil = {"id": "device-cuisine", "name": "Jarvis Cuisine"}
+        with patch("tools.spotify._configure", return_value=True), \
+                patch("tools.spotify._appareil_piece",
+                      return_value=(appareil, "Jarvis Cuisine")), \
+                patch("tools.spotify._transferer_lecture",
+                      return_value=SimpleNamespace(status_code=204)) as transferer, \
+                patch("tools.spotify._ouvrir_application_spotify") as ouvrir:
+            resultat = spotify.lancer_spotify(piece="cuisine")
+
+        self.assertEqual(resultat, "Je lance Spotify sur Jarvis Cuisine.")
+        transferer.assert_called_once_with("device-cuisine", lecture=True)
+        ouvrir.assert_not_called()
+
+    def test_titre_spotify_depuis_cuisine_cible_l_appareil(self):
+        appareil = {"id": "device-cuisine", "name": "Jarvis Cuisine"}
+        with patch("tools.spotify._configure", return_value=True), \
+                patch("tools.spotify._appareil_piece",
+                      return_value=(appareil, "Jarvis Cuisine")), \
+                patch("tools.spotify._chercher_media", return_value={
+                    "uri": "spotify:track:abc", "name": "Blinding Lights"}), \
+                patch("tools.spotify._demarrer_lecture",
+                      return_value=SimpleNamespace(status_code=204)) as demarrer:
+            resultat = spotify.lire_spotify("Blinding Lights", piece="cuisine")
+
+        self.assertEqual(
+            resultat, "Je lance « Blinding Lights » sur Jarvis Cuisine.")
+        demarrer.assert_called_once_with(
+            "spotify:track:abc", "titre", device_id="device-cuisine")
 
     def test_spotify_connect_lance_le_resultat_exact(self):
         with patch("tools.spotify._configure", return_value=True), \

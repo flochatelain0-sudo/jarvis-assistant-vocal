@@ -21,6 +21,7 @@ spotify:
   client_secret: "ton-client-secret"
   playlist: "Jarvis Finds"     # nom de la playlist cible
   auto_ajout: false            # true = ajout AUTO à chaque musique reconnue
+  appareils: {}                # ex. {cuisine: "Jarvis Cuisine"}
 ```
 
 ### 3. Connexion
@@ -42,12 +43,37 @@ Ton navigateur s'ouvre → autorise. Le **refresh_token** est sauvé dans
 - Lecture : « joue *Blinding Lights* sur Spotify », « lance ma playlist Chill ».
 - Contrôles locaux : « pause », « musique suivante », « musique précédente ».
 
+## Lecture dans les pièces satellites
+
+Un satellite audio peut aussi devenir un récepteur **Spotify Connect**. Installe
+un client compatible (par exemple [Raspotify](https://github.com/dtcooper/raspotify)
+ou [librespot](https://github.com/librespot-org/librespot)) sur l'appareil de la
+pièce, donne-lui un nom distinct, puis associe la pièce à ce nom :
+
+```yaml
+spotify:
+  appareils:
+    cuisine: "Jarvis Cuisine"
+    salon: "Jarvis Salon"
+```
+
+La `piece` déclarée dans `satellites[]` est transmise automatiquement aux outils
+Spotify. Ainsi, « lance Spotify » ou « lance ma playlist Chill » depuis la cuisine
+cible son récepteur ; pause, précédent et suivant restent dans la même pièce. Une
+commande prononcée sur le PC conserve la sortie locale.
+
+Après l'installation d'un nouveau récepteur, sélectionne-le une première fois dans
+**Appareils disponibles** de l'application Spotify officielle. Spotify Premium est
+requis par librespot/Raspotify.
+
 ## Les outils
 
 | Outil | Niveau | MCP | Effet |
 |---|---|---|---|
 | `ajouter_a_playlist` | N1 | non | ajoute la dernière musique reconnue (ou un titre donné) |
+| `lancer_spotify` | N1 | non | ouvre Spotify localement ou reprend dans la pièce du satellite |
 | `lire_spotify` | N1 | non | recherche et lance un titre ou une playlist |
+| `controler_spotify` | N1 | non | pause/reprend ou change de piste dans une pièce satellite |
 
 ## Sécurité / vie privée
 

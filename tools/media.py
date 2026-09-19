@@ -59,7 +59,7 @@ def _retirer_service(mots, service):
     return sortie
 
 
-def router_commande_media(phrase):
+def router_commande_media(phrase, piece=""):
     """Renvoie ``(outil, arguments)`` pour une commande média non ambiguë."""
     mots = _mots(phrase)
     if not mots or "alexa" in mots or "echo" in mots:
@@ -74,11 +74,16 @@ def router_commande_media(phrase):
           "reviens a la precedente", "morceau precedent"), "precedent"),
         (("mets en pause", "met en pause", "pause la musique", "pause"), "pause"),
         (("reprends la musique", "reprend la musique", "remets la musique",
-          "remet la musique", "reprends la lecture", "reprend la lecture"), "pause"),
+          "remet la musique", "reprends la lecture", "reprend la lecture"),
+         "reprendre"),
     )
     for formulations, action in commandes:
         if texte in formulations:
-            return "controler_media", {"action": action}
+            if piece:
+                return "controler_spotify", {"action": action, "piece": piece}
+            return "controler_media", {
+                "action": "pause" if action == "reprendre" else action,
+            }
 
     if mots[0] not in _VERBES_LECTURE:
         return None
@@ -118,7 +123,10 @@ def router_commande_media(phrase):
                 break
     recherche = " ".join(mots).strip()
     if recherche and (spotify_explicit or type_media == "playlist"):
-        return "lire_spotify", {"recherche": recherche, "type_media": type_media}
+        args = {"recherche": recherche, "type_media": type_media}
+        if piece:
+            args["piece"] = piece
+        return "lire_spotify", args
     return None
 
 

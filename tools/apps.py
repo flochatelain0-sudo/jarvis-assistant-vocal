@@ -80,7 +80,7 @@ def _retirer_suffixe(mots, suffixes):
                 break
 
 
-def router_ouverture_simple(phrase):
+def router_ouverture_simple(phrase, piece=""):
     """Route une ouverture mono-étape sans laisser le LLM choisir Astra.
 
     Renvoie ``(nom_outil, arguments)`` pour les formulations explicites du type
@@ -112,7 +112,8 @@ def router_ouverture_simple(phrase):
     # Spotify a son propre lanceur : il ouvre l'application puis reprend la
     # lecture sans passer par Astra (et sans risquer un Play/Pause aveugle).
     if cible == "spotify":
-        return "lancer_spotify", {}
+        args = {"piece": piece} if piece else {}
+        return "lancer_spotify", args
 
     from tools.navigateur import est_demande_web
     if est_demande_web(cible):

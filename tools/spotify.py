@@ -140,11 +140,12 @@ def _chercher_media(recherche, type_media):
     return items[0] if items else None
 
 
-def _demarrer_lecture(uri, type_media):
+def _demarrer_lecture(uri, type_media, device_id=None):
     corps = ({"context_uri": uri} if type_media == "playlist"
              else {"uris": [uri]})
+    params = {"device_id": device_id} if device_id else None
     return requests.put(f"{_API}/me/player/play", headers=_h(),
-                        data=json.dumps(corps), timeout=15)
+                        params=params, data=json.dumps(corps), timeout=15)
 
 
 def _etat_lecture():
@@ -156,9 +157,58 @@ def _etat_lecture():
     return r.json() or {}
 
 
-def _reprendre_lecture():
+def _reprendre_lecture(device_id=None):
     """Reprend la file Spotify courante sans imposer de titre."""
-    return requests.put(f"{_API}/me/player/play", headers=_h(), timeout=15)
+    params = {"device_id": device_id} if device_id else None
+    return requests.put(f"{_API}/me/player/play", headers=_h(),
+                        params=params, timeout=15)
+
+
+def _nom_appareil_piece(piece):
+    """Nom Spotify Connect d'une pièce, configurable avec un défaut lisible."""
+    piece = str(piece or "").strip()
+    if not piece:
+        return ""
+    appareils = reglage("spotify.appareils", {}) or {}
+    cible = sans_accents(piece).lower()
+    for nom_piece, nom_appareil in appareils.items():
+        if sans_accents(str(nom_piece)).lower() == cible and nom_appareil:
+            return str(nom_appareil).strip()
+    return f"Jarvis {piece.title()}"
+
+
+def _appareil_piece(piece):
+    """Renvoie (appareil Spotify, nom attendu) pour une pièce donnée."""
+    attendu = _nom_appareil_piece(piece)
+    if not attendu:
+        return None, ""
+    r = requests.get(f"{_API}/me/player/devices", headers=_h(), timeout=15)
+    r.raise_for_status()
+    cible = sans_accents(attendu).lower()
+    for appareil in (r.json().get("devices", []) or []):
+        if sans_accents(str(appareil.get("name", ""))).lower() == cible:
+            return appareil, attendu
+    return None, attendu
+
+
+def _transferer_lecture(device_id, lecture=True):
+    """Transfère la file Spotify vers un appareil Connect précis."""
+    return requests.put(f"{_API}/me/player", headers=_h(), data=json.dumps({
+        "device_ids": [device_id], "play": bool(lecture),
+    }), timeout=15)
+
+
+def _commande_lecture(device_id, action):
+    """Pause, piste suivante ou précédente sur un appareil Spotify précis."""
+    chemins = {
+        "pause": ("put", "pause"),
+        "suivant": ("post", "next"),
+        "precedent": ("post", "previous"),
+    }
+    methode, chemin = chemins[action]
+    appel = requests.put if methode == "put" else requests.post
+    return appel(f"{_API}/me/player/{chemin}", headers=_h(),
+                 params={"device_id": device_id}, timeout=15)
 
 
 def _ouvrir_application_spotify():
@@ -228,14 +278,34 @@ def auto_ajouter(titre, artiste):
     nom="lancer_spotify",
     description="Ouvre Spotify puis reprend immédiatement la lecture en cours. "
                 "Pour « lance Spotify » ou « ouvre Spotify ». N'utilise pas Astra.",
-    parametres={"type": "object", "properties": {}},
+    parametres={
+        "type": "object",
+        "properties": {
+            "piece": {"type": "string", "description": "Pièce du satellite audio."},
+        },
+    },
     mcp_expose=False,
     affichage="jamais",
 )
-def lancer_spotify() -> str:
+def lancer_spotify(piece: str = "") -> str:
     """Ouvre l'app et reprend la lecture, sans basculer une musique déjà active."""
     configure = _configure()
     etat_avant = {}
+
+    if piece:
+        if not configure:
+            return _msg_config()
+        try:
+            appareil, attendu = _appareil_piece(piece)
+            if not appareil:
+                return (f"Je ne vois pas encore {attendu}. Dans Spotify, sélectionne-le "
+                        "une première fois dans Appareils disponibles.")
+            r = _transferer_lecture(appareil["id"], lecture=True)
+            if r.status_code == 204:
+                return f"Je lance Spotify sur {attendu}."
+            return f"Spotify n'a pas pu lancer la lecture sur {attendu}."
+        except Exception as e:
+            return f"Spotify a échoué ({str(e)[:120]})."
 
     if configure:
         try:
@@ -287,6 +357,49 @@ def lancer_spotify() -> str:
         return "Spotify est lancé et j'ai envoyé la commande lecture."
     except Exception:
         return "Spotify est lancé, mais je n'ai pas pu démarrer la lecture."
+
+
+@outil(
+    nom="controler_spotify",
+    description="Contrôle Spotify sur l'enceinte de la pièce du satellite : pause, "
+                "reprendre, morceau suivant ou précédent.",
+    parametres={
+        "type": "object",
+        "properties": {
+            "action": {"type": "string",
+                       "enum": ["pause", "reprendre", "suivant", "precedent"]},
+            "piece": {"type": "string"},
+        },
+        "required": ["action", "piece"],
+    },
+    mcp_expose=False,
+    affichage="jamais",
+)
+def controler_spotify(action: str, piece: str) -> str:
+    if not _configure():
+        return _msg_config()
+    if action not in {"pause", "reprendre", "suivant", "precedent"}:
+        return "Commande Spotify inconnue."
+    try:
+        appareil, attendu = _appareil_piece(piece)
+        if not appareil:
+            return (f"Je ne vois pas encore {attendu}. Sélectionne-le une première "
+                    "fois dans les appareils Spotify.")
+        if action == "reprendre":
+            r = _reprendre_lecture(appareil["id"])
+        else:
+            r = _commande_lecture(appareil["id"], action)
+        if r.status_code != 204:
+            return f"Spotify n'a pas pu exécuter la commande sur {attendu}."
+        messages = {
+            "pause": "Musique en pause.",
+            "reprendre": "Je reprends la musique.",
+            "suivant": "Je passe au morceau suivant.",
+            "precedent": "Je reviens au morceau précédent.",
+        }
+        return messages[action]
+    except Exception as e:
+        return f"Spotify a échoué ({str(e)[:120]})."
 
 @outil(
     nom="ajouter_a_playlist",
@@ -345,6 +458,7 @@ def ajouter_a_playlist(titre: str = "", artiste: str = "", playlist: str = "") -
         "properties": {
             "recherche": {"type": "string", "description": "Nom du titre ou de la playlist."},
             "type_media": {"type": "string", "enum": ["titre", "playlist"]},
+            "piece": {"type": "string", "description": "Pièce du satellite audio."},
         },
         "required": ["recherche"],
     },
@@ -353,7 +467,7 @@ def ajouter_a_playlist(titre: str = "", artiste: str = "", playlist: str = "") -
     mcp_expose=False,
     affichage="jamais",
 )
-def lire_spotify(recherche: str, type_media: str = "titre") -> str:
+def lire_spotify(recherche: str, type_media: str = "titre", piece: str = "") -> str:
     """Lance via Spotify Connect, avec repli sur l'application de bureau."""
     recherche = str(recherche or "").strip()
     type_media = "playlist" if type_media == "playlist" else "titre"
@@ -361,6 +475,8 @@ def lire_spotify(recherche: str, type_media: str = "titre") -> str:
         return "Dis-moi quel titre ou quelle playlist lancer."
 
     if not _configure():
+        if piece:
+            return _msg_config()
         try:
             os.startfile("spotify:search:" + quote(recherche, safe=""))
             return f"J'ai ouvert la recherche Spotify pour « {recherche} »."
@@ -368,6 +484,15 @@ def lire_spotify(recherche: str, type_media: str = "titre") -> str:
             return _msg_config()
 
     try:
+        device_id = None
+        attendu = ""
+        if piece:
+            appareil, attendu = _appareil_piece(piece)
+            if not appareil:
+                return (f"Je ne vois pas encore {attendu}. Dans Spotify, sélectionne-le "
+                        "une première fois dans Appareils disponibles.")
+            device_id = appareil["id"]
+
         item = None
         if type_media == "playlist":
             pid = _playlist_id(recherche, creer=False)
@@ -379,9 +504,13 @@ def lire_spotify(recherche: str, type_media: str = "titre") -> str:
             return f"Je n'ai pas trouvé « {recherche} » sur Spotify."
 
         nom = item.get("name") or recherche
-        reponse = _demarrer_lecture(item["uri"], type_media)
+        reponse = _demarrer_lecture(item["uri"], type_media, device_id=device_id)
         if reponse.status_code == 204:
-            return f"Je lance « {nom} » sur Spotify."
+            destination = f" sur {attendu}" if attendu else " sur Spotify"
+            return f"Je lance « {nom} »{destination}."
+
+        if piece:
+            return f"Spotify n'a pas pu lancer « {nom} » sur {attendu}."
 
         # Sans appareil Spotify Connect actif, sans Premium ou avec un ancien
         # jeton OAuth, le lien profond reste une action sûre et sans Astra.

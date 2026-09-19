@@ -385,7 +385,7 @@ def traiter_texte(session, phrase):
     # Lecture et contrôle média : actions locales et réversibles, sans Astra.
     try:
         from tools.media import router_commande_media
-        route = router_commande_media(phrase)
+        route = router_commande_media(phrase, piece=session.piece)
     except Exception:
         LOG.exception("satellite: routage média")
         route = None
@@ -399,7 +399,7 @@ def traiter_texte(session, phrase):
     # utilise directement le navigateur ou le lanceur, jamais Astra.
     try:
         from tools.apps import router_ouverture_simple
-        route = router_ouverture_simple(phrase)
+        route = router_ouverture_simple(phrase, piece=session.piece)
     except Exception:
         LOG.exception("satellite: routage ouverture simple")
         route = None
