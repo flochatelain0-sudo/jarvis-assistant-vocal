@@ -66,6 +66,25 @@ Après l'installation d'un nouveau récepteur, sélectionne-le une première foi
 **Appareils disponibles** de l'application Spotify officielle. Spotify Premium est
 requis par librespot/Raspotify.
 
+Sur un satellite Linux où Jarvis et Spotify partagent la même enceinte, privilégie
+le backend ALSA avec le périphérique `dmix` de la carte. Il conserve l'isolation
+systemd de Raspotify tout en permettant le mixage des deux sources :
+
+```bash
+sudo install -d -m 755 /etc/systemd/system/raspotify.service.d
+sudo systemctl edit raspotify
+# Ajouter dans le drop-in :
+# [Service]
+# Environment="LIBRESPOT_BACKEND=alsa"
+# Environment="LIBRESPOT_DEVICE=dmix:CARD=<NOM_CARTE_ALSA>,DEV=0"
+sudo systemctl daemon-reload
+sudo systemctl restart raspotify
+```
+
+`aplay -l` donne le nom de carte à placer après `CARD=`. Évite de désactiver
+`PrivateUsers` uniquement pour joindre PulseAudio : le backend ALSA est plus
+adapté au service système durci fourni par Raspotify.
+
 ## Les outils
 
 | Outil | Niveau | MCP | Effet |

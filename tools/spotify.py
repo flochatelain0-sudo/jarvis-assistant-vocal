@@ -131,6 +131,16 @@ def _chercher_uri(titre, artiste):
 def _chercher_media(recherche, type_media):
     """Premier titre/playlist Spotify correspondant à la recherche."""
     type_api = "playlist" if type_media == "playlist" else "track"
+    if type_api == "playlist":
+        # Une demande « ma playlist X » doit privilégier une playlist exacte du
+        # compte. La recherche publique renvoie souvent une playlist populaire
+        # au nom approchant avant celle de l'utilisateur.
+        personnelle = _playlist_id(recherche, creer=False)
+        if personnelle:
+            return {
+                "uri": f"spotify:playlist:{personnelle}",
+                "name": str(recherche).strip(),
+            }
     r = requests.get(f"{_API}/search", headers=_h(), params={
         "q": recherche, "type": type_api, "limit": 1,
     }, timeout=15)
