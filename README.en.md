@@ -27,7 +27,8 @@ remains the central brain, with no long cable back to it. The available client
 currently targets Raspberry Pi/Linux, while the protocol is designed to support
 cheaper endpoints later: a reused Android phone, an audio-capable ESP32, or a Pi
 Zero ([options and protocol](docs/satellite.md) ·
-[Raspberry/Linux setup](docs/satellite_pi.md)).
+[hardware choice and installation](docs/satellite_installation.md) ·
+[detailed Raspberry/Linux setup](docs/satellite_pi.md)).
 
 > Personal project shared as-is. Targets **Windows 11**, needs a microphone and (for
 > cloud mode) an API key from the selected provider. Consumer subscriptions and APIs
@@ -64,7 +65,7 @@ Zero ([options and protocol](docs/satellite.md) ·
 - 📊 **Private local cockpit** — subscriptions, upcoming charges, Gmail receipt detection, and CSV transaction import; financial data remains gitignored and unavailable to Hermes/MCP ([docs/cockpit.md](docs/cockpit.md))
 - ⏻ **Safe PC shutdown / wake-up** — voice-confirmed N3 shutdown with a cancellable delay; hardware-dependent wake methods are documented generically ([docs/wol.md](docs/wol.md))
 - ✋ **Optional camera and hand-gesture control** — when a webcam is configured, **Window** (switch/scroll) and **Audio** (volume/tracks) modes complement light/media/OBS actions; processing stays 100% local and no image leaves the tracker ([docs/gestes.md](docs/gestes.md))
-- 📡 **Multi-room satellites** — move the microphone and speaker to a network client; Raspberry/Linux is available, while reused Android phones, audio-capable ESP32 boards, and Pi Zero devices are planned low-cost targets. Local wake word, authenticated LAN audio, room context, and spoken N3 confirmations ([options and protocol](docs/satellite.md) · [Raspberry/Linux setup](docs/satellite_pi.md))
+- 📡 **Multi-room satellites** — move the microphone and speaker to a network client; Raspberry/Linux is available, Pi Zero 2 W is experimental, and Android/audio-capable ESP32 clients still need to be developed. Local wake word, authenticated LAN audio, room context, and spoken confirmations for sensitive actions ([installation and hardware status](docs/satellite_installation.md) · [protocol](docs/satellite.md))
 - 🎵 **Music recognition** — identify room audio or a video's system audio on demand ([docs/musique.md](docs/musique.md))
 - 🪟 **Response overlay** — a no-focus-steal floating text window, configurable display, OBS-safe capture behavior, and visual silent mode ([docs/overlay.md](docs/overlay.md))
 - 🏠 **Google Home / Nest** — *(experimental)* device listing and status ([docs/google_home.md](docs/google_home.md))
@@ -189,7 +190,7 @@ Everything lives in a single **untracked** `config.yaml` (copy from
 | **Routing, costs and budgets** | [docs/costs.md](docs/costs.md) |
 | **Safe shutdown / wake-up** | [docs/wol.md](docs/wol.md) |
 | **Camera hand gestures** | [docs/gestes.md](docs/gestes.md) |
-| **Multi-room audio satellites** | [docs/satellite.md](docs/satellite.md) · [docs/satellite_pi.md](docs/satellite_pi.md) |
+| **Multi-room audio satellites** | [installation and hardware](docs/satellite_installation.md) · [protocol](docs/satellite.md) · [detailed Raspberry/Linux setup](docs/satellite_pi.md) |
 | **Music recognition** | [docs/musique.md](docs/musique.md) |
 | **Private local cockpit** | [docs/cockpit.md](docs/cockpit.md) |
 | **Response overlay** | [docs/overlay.md](docs/overlay.md) |

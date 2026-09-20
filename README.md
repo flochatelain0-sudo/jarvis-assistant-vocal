@@ -29,7 +29,8 @@ pièce. Le PC reste le cerveau central ; aucun long câble ne le relie aux pièc
 Le client disponible aujourd'hui cible Raspberry Pi/Linux, mais le protocole est
 prévu pour accueillir des solutions moins chères : ancien téléphone Android,
 ESP32 avec audio ou Pi Zero ([options et fonctionnement](docs/satellite.md) ·
-[installation Raspberry/Linux](docs/satellite_pi.md)).
+[guide de choix et d'installation](docs/satellite_installation.md) ·
+[installation Raspberry/Linux détaillée](docs/satellite_pi.md)).
 
 > Projet perso partagé tel quel. Cible **Windows 11**, nécessite un micro et (en mode
 > cloud) une clé API du fournisseur choisi. Les abonnements grand public et les API
@@ -66,7 +67,7 @@ ESP32 avec audio ou Pi Zero ([options et fonctionnement](docs/satellite.md) ·
 - 📊 **Cockpit personnel local** — abonnements, échéances, détection par reçus Gmail et import CSV de transactions ; les données financières restent gitignorées et ne sont jamais exposées à Hermes/MCP ([docs/cockpit.md](docs/cockpit.md))
 - ⏻ **Extinction / réveil du PC** — extinction propre à la voix (confirmation N3, délai annulable) ; méthodes génériques de réveil documentées selon le matériel ([docs/wol.md](docs/wol.md))
 - ✋ **Contrôle optionnel par caméra et gestes** — avec une webcam configurée, les modes **Fenêtres** (changer/défiler) et **Audio** (volume/pistes) complètent les actions lumière/média/OBS ; traitement **100 % local**, aucune image ne sort ([docs/gestes.md](docs/gestes.md))
-- 📡 **Satellites multi-pièces** — déporte micro et haut-parleur sur un client réseau ; Raspberry/Linux est disponible, Android recyclé, ESP32 audio et Pi Zero sont des cibles économiques prévues. Wake word local, LAN authentifié, contexte de la pièce et confirmations vocales N3 ([options et protocole](docs/satellite.md) · [installation Raspberry/Linux](docs/satellite_pi.md))
+- 📡 **Satellites multi-pièces** — déporte micro et haut-parleur sur un client réseau ; Raspberry/Linux est disponible, le Pi Zero 2 W est expérimental, et Android/ESP32 audio restent des cibles à développer. Wake word local, LAN authentifié, contexte de la pièce et confirmations vocales sensibles ([installation et choix du matériel](docs/satellite_installation.md) · [protocole](docs/satellite.md))
 - 🎵 **Reconnaissance musicale** — « c'est quoi cette musique ? » (micro de la pièce **ou** son d'une vidéo/reel via loopback), à la demande uniquement ([docs/musique.md](docs/musique.md))
 - 🪟 **Overlay de réponses** — mini-fenêtre flottante qui affiche à l'écrit ce que Jarvis dit, sans jamais voler le focus (topmost, clic-transparent, invisible en stream), 2e écran configurable + mode silencieux visuel ([docs/overlay.md](docs/overlay.md))
 - 🏠 **Google Home / Nest** — *(⚠️ expérimental)* liste des appareils Nest + état ([docs/google_home.md](docs/google_home.md))
@@ -198,7 +199,7 @@ de contenus), `securite.toujours` (autorisations N2 mémorisées), `budget.prix`
 | **Panneau web (modèles · état · permissions)** | [docs/panneau.md](docs/panneau.md) |
 | **Extinction / Wake-on-LAN** | [docs/wol.md](docs/wol.md) |
 | **Gestes de la main (webcam)** | [docs/gestes.md](docs/gestes.md) |
-| **Satellites audio multi-pièces** | [docs/satellite.md](docs/satellite.md) · [docs/satellite_pi.md](docs/satellite_pi.md) |
+| **Satellites audio multi-pièces** | [installation et matériel](docs/satellite_installation.md) · [protocole](docs/satellite.md) · [Raspberry/Linux détaillé](docs/satellite_pi.md) |
 | **Reconnaissance musicale (Shazam-like)** | [docs/musique.md](docs/musique.md) |
 | **Spotify (playlist des musiques reconnues)** | [docs/spotify.md](docs/spotify.md) |
 | **Cockpit (tableau de bord perso, local)** | [docs/cockpit.md](docs/cockpit.md) |

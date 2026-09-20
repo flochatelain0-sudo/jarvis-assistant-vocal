@@ -6,8 +6,11 @@ PC** — le satellite capte l'audio, le PC transcrit
 (Whisper) → LLM + outils → TTS, et renvoie l'audio + des états pour l'écran.
 Hermes n'est pas concerné.
 
-Statut : **côté PC fait** (endpoint + protocole + multi-pièces + token + client de
-test). Client Raspberry Pi : voir [satellite_pi.md](satellite_pi.md).
+Statut : **côté PC et client Raspberry/Linux faits** (endpoint, protocole,
+multi-pièces, token et audio). Commencer par le
+[guide de choix et d'installation](satellite_installation.md), puis consulter le
+[guide Raspberry/Linux détaillé](satellite_pi.md). Le firmware ESP32/ATOM Echo et
+l'application Android ne sont pas encore fournis.
 
 ## Choisir un matériel sans surdimensionner chaque pièce
 
@@ -22,10 +25,11 @@ PC et joue sa réponse. Ce client ne fait ni transcription ni appel au LLM.
 | **Raspberry Pi Zero 2 W / petit Linux ARM64** | faible à moyen | environnement Linux proche du client actuel | adaptateur audio, alimentation et carte micro-SD peuvent réduire l'économie ; non validé officiellement |
 | **Raspberry Pi 4/5 ou mini-PC Linux** | moyen à élevé | USB audio simple, maintenance et extensions faciles | solution de référence actuellement documentée, mais surdimensionnée pour le seul relais audio |
 
-Le choix conseillé est donc : recycler d'abord un téléphone Android disponible ;
-choisir un ESP32 pour un point vocal compact et basique ; réserver un ordinateur
-Linux complet aux pièces qui demandent un meilleur périphérique audio ou de futures
-extensions. Tous doivent utiliser une identité et un token distincts par pièce.
+Pour installer quelque chose **maintenant**, choisir le client Raspberry/Linux.
+Le Pi Zero 2 W peut être essayé comme variante expérimentale. Un téléphone Android
+ou un ESP32 ne devient pas encore un satellite Jarvis sans développer le client
+manquant. Tous les futurs clients devront utiliser une identité et un token
+distincts par pièce.
 
 Le protocole ci-dessous est volontairement indépendant du matériel. **La
 compatibilité architecturale ne signifie toutefois pas que tous ces clients sont
@@ -100,9 +104,9 @@ si deux matériels ont des gains très différents.
 - `appareil` *(recommandé)* : le satellite détecte « Hey Jarvis » **lui-même**,
   puis n'envoie QUE l'énoncé (moins de trafic, plus rapide). C'est le mode du
   client de test et du futur ESP32-S3-BOX-3.
-- `serveur` : le satellite envoie un **flux continu**, le PC détecte le wake word
-  avec l'openWakeWord existant. Plus de trafic ; utile si le satellite n'a pas de
-  wake word embarqué.
+- `serveur` : valeur réservée au futur client à flux continu. Le client
+  Raspberry/Linux fourni utilise actuellement `appareil`; ne pas sélectionner ce
+  mode en pensant qu'il active déjà la détection distante.
 
 ## Sécurité
 
@@ -111,9 +115,10 @@ si deux matériels ont des gains très différents.
   satellite est configuré, un listener dédié `0.0.0.0:8791` est lancé avec
   **uniquement** `/satellite` ; panneau, cockpit, inbox et Twilio n'y existent pas.
 - **Token par satellite** (`satellites[].token`), comparé en **timing-safe**.
-- **Droits = commande vocale à la maison** : N1/N2 direct ; **N3 (mail, appel,
-  extinction…) avec CONFIRMATION vocale sur le satellite** (le serveur passe en
-  `attente_confirmation` et attend un « oui » dans l'énoncé suivant).
+- **Droits = commande vocale à la maison** : N1 direct ; N2 demande une
+  confirmation qui peut être mémorisée ; **N3 (mail, appel, extinction…) exige une
+  CONFIRMATION vocale à chaque fois**. Le serveur passe en
+  `attente_confirmation` et attend un « oui » dans l'énoncé suivant.
 
 ## Tester sans matériel
 

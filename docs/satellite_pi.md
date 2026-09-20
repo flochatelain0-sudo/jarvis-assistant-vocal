@@ -13,7 +13,7 @@ dans [satellite.md](satellite.md).
 
 | Élément | Requis | Recommandation générale |
 |---|---:|---|
-| Ordinateur monocarte | oui | Raspberry Pi 4 ou 5 sous Raspberry Pi OS 64 bits. D'autres machines Linux ARM64 peuvent fonctionner, mais ne sont pas validées. |
+| Ordinateur monocarte | oui | Raspberry Pi 4 ou 5 sous Raspberry Pi OS 64 bits. Le Pi Zero 2 W et d'autres machines Linux ARM64 sont expérimentaux et doivent être validés avec leurs périphériques audio. |
 | Stockage | oui | Carte micro-SD ou SSD de 16 Go minimum. |
 | Alimentation | oui | Alimentation conforme au modèle de carte utilisé ; éviter les chargeurs sous-dimensionnés. |
 | Entrée audio | oui | Tout microphone exposé à ALSA : USB, interface audio USB ou carte/HAT audio compatible. |
@@ -39,6 +39,10 @@ connectique :
 La qualité de captation dépend surtout de la distance, du bruit de la pièce et de
 l'annulation d'écho du périphérique. Une webcam n'est jamais requise par le
 satellite.
+
+Pour le Pi Zero 2 W, prévoir un hub/adaptateur USB OTG ou une carte audio I2S et
+utiliser Raspberry Pi OS Lite 64 bits. Le guide central détaille les limites :
+[satellite_installation.md](satellite_installation.md).
 
 ## 2. Installer le client
 
