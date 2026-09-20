@@ -142,6 +142,50 @@ def repondre_texte(systeme: str, historique: list, max_tokens: int = 500,
                    if getattr(b, "type", None) == "text").strip()
 
 
+def repondre_vision(systeme: str, texte: str, image_b64: str,
+                    max_tokens: int = 700, nom_modele: str = "",
+                    qualite: bool = False) -> str:
+    """Réponse visuelle ponctuelle sans catalogue d'outils ni boucle opérateur."""
+    provider = fournisseur()
+    cible = modele(qualite=qualite, surcharge=nom_modele)
+    if provider == "openai":
+        client = client_openai()
+        if client is None:
+            raise RuntimeError("cle OpenAI absente (openai.cle)")
+        kwargs = {
+            "model": cible,
+            "instructions": systeme,
+            "input": [{"role": "user", "content": [
+                {"type": "input_image",
+                 "image_url": f"data:image/jpeg;base64,{image_b64}"},
+                {"type": "input_text", "text": texte},
+            ]}],
+            "max_output_tokens": max(max_tokens, 1024),
+            "store": False,
+        }
+        raisonnement = _raisonnement(cible, qualite)
+        if raisonnement:
+            kwargs["reasoning"] = raisonnement
+        rep = client.responses.create(**kwargs)
+        enregistrer_usage(rep, "OpenAI (Jarvis)", cible)
+        return (rep.output_text or "").strip()
+
+    client = client_anthropic()
+    if client is None:
+        raise RuntimeError("cle Anthropic absente (anthropic.cle)")
+    rep = client.messages.create(
+        model=cible, max_tokens=max_tokens, system=systeme,
+        messages=[{"role": "user", "content": [
+            {"type": "image", "source": {"type": "base64",
+             "media_type": "image/jpeg", "data": image_b64}},
+            {"type": "text", "text": texte},
+        ]}],
+    )
+    enregistrer_usage(rep, "Claude (Jarvis)", cible)
+    return "".join(b.text for b in rep.content
+                   if getattr(b, "type", None) == "text").strip()
+
+
 def decider_action_vision(systeme: str, texte: str, image_b64: str,
                           schema: dict, nom_outil: str = "agir",
                           description: str = "Decide de la prochaine action.",

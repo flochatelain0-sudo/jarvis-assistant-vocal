@@ -63,6 +63,16 @@ class OpenAIProviderTests(unittest.TestCase):
         self.assertEqual(items[1]["type"], "function_call_output")
         self.assertTrue(items[2]["content"][0]["image_url"].startswith("data:image/jpeg;base64,"))
 
+    def test_conversation_simple_n_envoie_pas_un_catalogue_vide(self):
+        sortie = SimpleNamespace(output_text="Bonjour.", output=[], usage=None)
+        p = self._provider(sortie)
+        with patch("core.cloud.enregistrer_usage"):
+            rep = p.repondre(
+                "Tu es Jarvis.", [{"role": "user", "content": "Bonjour"}], [])
+        self.assertEqual(rep.content[0].text, "Bonjour.")
+        self.assertNotIn("tools", p.client.responses.kwargs)
+        self.assertNotIn("parallel_tool_calls", p.client.responses.kwargs)
+
     def test_vision_peut_forcer_astra_meme_si_claude_est_le_provider_courant(self):
         sortie = SimpleNamespace(
             output=[SimpleNamespace(
@@ -82,6 +92,19 @@ class OpenAIProviderTests(unittest.TestCase):
         self.assertEqual(action, {"action": "termine"})
         self.assertEqual(client.responses.kwargs["model"], "gpt-6-astra")
         self.assertEqual(client.responses.kwargs["reasoning"], {"effort": "high"})
+
+    def test_lecture_vision_ponctuelle_n_expose_aucun_outil(self):
+        sortie = SimpleNamespace(output_text="Une erreur est affichée.", output=[], usage=None)
+        client = SimpleNamespace(responses=_Responses(sortie))
+        with patch("core.cloud.fournisseur", return_value="openai"), \
+                patch("core.cloud.modele", return_value="gpt-5.6-terra"), \
+                patch("core.cloud.client_openai", return_value=client), \
+                patch("core.cloud.enregistrer_usage"):
+            texte = cloud.repondre_vision("Lis l'écran", "Quelle erreur ?", "YWJj")
+        self.assertEqual(texte, "Une erreur est affichée.")
+        self.assertEqual(client.responses.kwargs["model"], "gpt-5.6-terra")
+        self.assertNotIn("tools", client.responses.kwargs)
+        self.assertFalse(client.responses.kwargs["store"])
 
 
 if __name__ == "__main__":

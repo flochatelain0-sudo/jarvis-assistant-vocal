@@ -29,9 +29,9 @@ Serveur -> client :
   {"type":"erreur","message":"..."}
 
 SÉCURITÉ : LAN-only (jamais exposé via ngrok — cf. la garde X-Forwarded), un
-TOKEN par satellite (config satellites[].token, comparé en timing-safe). Un
-satellite a les droits d'une commande vocale à la maison : N1/N2 direct, N3 avec
-CONFIRMATION vocale sur le satellite lui-même (aller-retour attente_confirmation).
+TOKEN par satellite (config satellites[].token, comparé en timing-safe). Les
+actions marquées sensibles demandent la même CONFIRMATION vocale qu'au bureau :
+N2 peut être mémorisé, N3 doit être reconfirmé à chaque fois.
 
 MULTI-PIÈCES : chaque satellite a une `piece` (config) injectée en contexte -> «
 allume la lumière » depuis la cuisine cible la cuisine par défaut.
@@ -244,6 +244,8 @@ def _progression_initiale(phrase):
         return "Je lance la recherche."
     if any(m in p for m in ("agenda", "calendrier", "rendez-vous", "rendez vous")):
         return "Je regarde ton agenda."
+    if any(m in p for m in ("ecran", "cette erreur", "ce message", "ce qui est affiche")):
+        return "Je regarde ton écran."
     if "meteo" in p or "temps fait" in p or "prevision" in p:
         return "Je regarde la météo."
     if any(m in p for m in ("facture", "recu", "recus", "depense", "budget")):
@@ -297,7 +299,7 @@ def _demande_veille(phrase):
 
 
 def _executer_outil(nom, args):
-    """Exécute un outil N1/N2 (les N3 ne passent JAMAIS par ici)."""
+    """Exécute un outil après application de la politique de confirmation."""
     from core import registre
     outil = registre.get(nom)
     if outil is None:
@@ -309,135 +311,89 @@ def _executer_outil(nom, args):
         return "Erreur pendant l'action."
 
 
-def traiter_texte(session, phrase):
-    """Fait tourner la phrase dans le LLM + outils, avec contexte pièce et droits
-    maison (N1/N2 direct, N3 -> mis en attente de confirmation). Renvoie un dict
-    {reponse, attente_confirmation(bool)}."""
+def _executer_decision_prioritaire(session, decision):
+    """Exécute sur un satellite une décision du routeur partagé."""
     from core import registre
-    session.historique.append({"role": "user", "content": phrase})
 
-    try:
-        from tools.gestes import (controler_gestes,
-                                  demande_calibration_gestes,
-                                  demande_mode_regard, demande_mode_visio,
-                                  lancer_calibration_gestes, lancer_demo_gestes,
-                                  lancer_mode_regard, quitter_mode_regard)
-        regard = demande_mode_regard(phrase)
-        visio = demande_mode_visio(phrase)
-        calibration = demande_calibration_gestes(phrase)
-    except Exception:
-        LOG.exception("satellite: routage caméra et gestes")
-        regard = None
-        visio = None
-        calibration = False
-    if regard is not None:
-        texte = lancer_mode_regard() if regard else quitter_mode_regard()
-        session.historique.append({"role": "assistant", "content": texte})
-        return {"reponse": texte, "attente_confirmation": False}
-    if visio is not None:
-        texte = lancer_demo_gestes() if visio else controler_gestes(False)
-        session.historique.append({"role": "assistant", "content": texte})
-        return {"reponse": texte, "attente_confirmation": False}
-    if calibration:
-        texte = lancer_calibration_gestes()
-        session.historique.append({"role": "assistant", "content": texte})
-        return {"reponse": texte, "attente_confirmation": False}
-
-    # Une invocation explicite prononcée à la maison vaut autorisation pour la
-    # tâche sûre décrite. Les garde-fous internes bloquent toujours N3/secrets.
-    try:
-        from tools.astra_pc import extraire_commande_explicite, executer_controle
-        tache_astra = extraire_commande_explicite(phrase)
-    except Exception:
-        LOG.exception("satellite: routage Astra explicite")
-        tache_astra = None
-    if tache_astra is not None:
-        texte = (executer_controle(tache_astra) if tache_astra else
+    if decision.type == "astra":
+        from tools.astra_pc import executer_controle
+        texte = (executer_controle(decision.tache) if decision.tache else
                  "Dis-moi quelle tâche tu veux que je fasse sur le PC avec Astra.")
-        session.historique.append({"role": "assistant", "content": texte})
-        return {"reponse": texte, "attente_confirmation": False}
-
-    # Les commandes Alexa explicites et domestiques ne dépendent pas du choix du
-    # LLM : la destination est décidée ici de façon déterministe.
-    try:
-        from tools.alexa import router_commande
-        route = router_commande(phrase, piece=session.piece)
-    except Exception:
-        LOG.exception("satellite: routage Alexa prioritaire")
-        route = None
-    if route:
-        nom, args = route
+    elif decision.type == "vision":
+        from tools.ecran import analyser_ecran
+        texte = analyser_ecran(decision.tache)
+    elif decision.type == "hermes":
+        from tools.deleguer_a_hermes import deleguer_en_fond
+        texte = deleguer_en_fond(
+            decision.tache,
+            intro="Hermes a terminé le travail de contenu. ",
+            nom_thread="contenu-hermes",
+        )
+    else:
+        nom, args = decision.outil, decision.arguments
         o = registre.get(nom)
-        if o is not None and o.confirmation and not registre.est_autorise(nom):
+        if o is None:
+            return None
+        if o.confirmation and not registre.est_autorise(nom):
             session.en_attente = (nom, args)
             try:
                 annonce = o.annonce(args) if o.annonce else None
             except Exception:
                 annonce = None
-            return {
-                "reponse": (annonce or f"Je vais exécuter {nom}.")
-                            + " Tu confirmes ? (oui / non)",
-                "attente_confirmation": True,
-            }
-        resultat = _executer_outil(nom, args)
-        session.historique.append({"role": "assistant", "content": resultat})
-        return {"reponse": resultat, "attente_confirmation": False}
+            niveau = registre.niveau(nom)
+            suffixe = " Tu confirmes ? (oui / non)"
+            if niveau == "N2":
+                suffixe += " Tu peux aussi dire oui, toujours."
+            return {"reponse": (annonce or f"Je vais exécuter {nom}.") + suffixe,
+                    "attente_confirmation": True}
+        texte = _executer_outil(nom, args)
 
-    # Lecture et contrôle média : actions locales et réversibles, sans Astra.
-    try:
-        from tools.media import router_commande_media
-        route = router_commande_media(phrase, piece=session.piece)
-    except Exception:
-        LOG.exception("satellite: routage média")
-        route = None
-    if route:
-        nom, args = route
-        resultat = _executer_outil(nom, args)
-        session.historique.append({"role": "assistant", "content": resultat})
-        return {"reponse": resultat, "attente_confirmation": False}
+    session.historique.append({"role": "assistant", "content": texte})
+    return {"reponse": texte, "attente_confirmation": False}
 
-    # Même comportement que sur le micro principal : une ouverture mono-étape
-    # utilise directement le navigateur ou le lanceur, jamais Astra.
-    try:
-        from tools.apps import router_ouverture_simple
-        route = router_ouverture_simple(phrase, piece=session.piece)
-    except Exception:
-        LOG.exception("satellite: routage ouverture simple")
-        route = None
-    if route:
-        nom, args = route
-        resultat = _executer_outil(nom, args)
-        session.historique.append({"role": "assistant", "content": resultat})
-        return {"reponse": resultat, "attente_confirmation": False}
 
-    # Scripts, hooks et analyses d'inspirations sont des travaux de fond : ils
-    # partent directement chez Hermes. Le classifieur exige une intention de
-    # creation ; mentionner simplement une video ne suffit pas.
-    try:
-        from tools.deleguer_a_hermes import extraire_tache_contenu, deleguer_en_fond
-        tache_contenu = extraire_tache_contenu(phrase)
-    except Exception:
-        LOG.exception("satellite: routage Hermes contenu")
-        tache_contenu = None
-    if tache_contenu is not None:
-        texte = deleguer_en_fond(
-            tache_contenu,
-            intro="Hermes a terminé le travail de contenu. ",
-            nom_thread="contenu-hermes",
-        )
-        session.historique.append({"role": "assistant", "content": texte})
-        return {"reponse": texte, "attente_confirmation": False}
+def traiter_texte(session, phrase):
+    """Fait tourner la phrase dans le LLM + outils, avec contexte pièce et droits
+    maison (N2 confirmable/mémorisable, N3 toujours confirmée). Renvoie un dict
+    {reponse, attente_confirmation(bool)}."""
+    from core import registre
+    session.historique.append({"role": "user", "content": phrase})
+
+    from core.routage_intentions import decider_prioritaire
+    decision = decider_prioritaire(phrase, piece=session.piece)
+    if decision is not None:
+        resultat = _executer_decision_prioritaire(session, decision)
+        if resultat is not None:
+            return resultat
 
     from core.llm import llm
     P = llm()
     if not P.disponible():
         return {"reponse": "Le cerveau de Jarvis n'est pas disponible.", "attente_confirmation": False}
 
+    from core.routage_intentions import modules_pour_phrase
+    modules_outils = modules_pour_phrase(phrase)
     faits = []
-    for _ in range(5):
+    max_tours = max(1, min(int(reglage("assistant.max_tours_outils", 6) or 6), 12))
+    max_appels = max(1, min(int(reglage("assistant.max_appels_outils", 12) or 12), 30))
+    timeout_tour = max(15.0, min(
+        float(reglage("assistant.timeout_tour", 120) or 120), 300.0))
+    debut_tour = time.monotonic()
+    appels = 0
+    for numero_tour in range(max_tours + 1):
+        if time.monotonic() - debut_tour > timeout_tour:
+            LOG.warning("satellite: tour interrompu après %.1fs",
+                        time.monotonic() - debut_tour)
+            return {"reponse": "J'arrête cette demande : elle prend trop de temps.",
+                    "attente_confirmation": False}
         try:
+            debut_llm = time.monotonic()
             rep = P.repondre(_systeme(session.piece), session.historique,
-                             registre.schemas_api(local_seulement=(P.nom == "Ollama")))
+                             registre.schemas_api(local_seulement=(P.nom == "Ollama"),
+                                                  modules=modules_outils))
+            LOG.info("satellite %s: latence LLM %s %.3fs (tour=%s)",
+                     session.piece or session.satellite or "?", P.nom,
+                     time.monotonic() - debut_llm, numero_tour + 1)
         except Exception as e:
             LOG.exception("satellite: appel modèle")
             return {"reponse": f"Erreur du cerveau ({e}).", "attente_confirmation": False}
@@ -451,22 +407,32 @@ def traiter_texte(session, phrase):
                     "attente_confirmation": False}
 
         session.historique.append({"role": "assistant", "content": rep.content})
+        nouveaux = [b for b in rep.content if getattr(b, "type", None) == "tool_use"]
+        if numero_tour >= max_tours or appels + len(nouveaux) > max_appels:
+            LOG.warning("satellite: limite d'outils atteinte (tours=%s, appels=%s)",
+                        numero_tour, appels)
+            return {"reponse": "J'arrête ici pour éviter une boucle d'actions.",
+                    "attente_confirmation": False}
+        appels += len(nouveaux)
         resultats = []
         for b in rep.content:
             if getattr(b, "type", None) != "tool_use":
                 continue
-            # N3 : action critique -> on NE l'exécute pas ; on la met en attente et
-            # on demande confirmation vocale sur le satellite (aller-retour).
-            if registre.est_n3(b.name):
+            # Toute action marquée sensible suit la même politique qu'au bureau.
+            # N2 mémorisé peut passer ; N3 ne l'est jamais.
+            o = registre.get(b.name)
+            if o is not None and o.confirmation and not registre.est_autorise(b.name):
                 session.en_attente = (b.name, b.input or {})
-                o = registre.get(b.name)
                 q = None
                 if o is not None and getattr(o, "annonce", None):
                     try:
                         q = o.annonce(b.input or {})
                     except Exception:
                         q = None
-                return {"reponse": (q or "C'est une action critique.") + " Tu confirmes ? (oui / non)",
+                suffixe = " Tu confirmes ? (oui / non)"
+                if registre.niveau(b.name) == "N2":
+                    suffixe += " Tu peux aussi dire oui, toujours."
+                return {"reponse": (q or "C'est une action sensible.") + suffixe,
                         "attente_confirmation": True}
             res = _executer_outil(b.name, b.input or {})
             faits.append(b.name)
@@ -476,7 +442,8 @@ def traiter_texte(session, phrase):
 
 
 def _resoudre_confirmation(session, phrase):
-    """L'utilisateur répond oui/non à une action N3 en attente. Renvoie le texte."""
+    """L'utilisateur répond oui/non à une action sensible en attente."""
+    from core import registre
     from core.util import sans_accents
     nom, args = session.en_attente
     session.en_attente = None
@@ -484,7 +451,14 @@ def _resoudre_confirmation(session, phrase):
     oui = any(m in p for m in ("oui", "ok", "vas-y", "vas y", "confirme", "d'accord", "daccord", "fais"))
     if not oui:
         return "D'accord, j'annule."
-    return _executer_outil(nom, args)
+    resultat = _executer_outil(nom, args)
+    if "toujours" in p:
+        if registre.autoriser_toujours(nom):
+            resultat += " Je ne te le redemanderai plus pour cette action."
+        else:
+            resultat += (" Mais c'est une action critique : je te demanderai "
+                         "toujours confirmation.")
+    return resultat
 
 
 # ---------------------------------------------------------------- WebSocket

@@ -71,6 +71,8 @@ hermes:
   modele_facturation: ""              # optionnel si l'API ne renvoie pas le modele
   timeout: 900                       # une recherche de fond peut être longue
   resume_max: 500                    # longueur max du résumé vocal
+  journaliser: true                  # false = aucun compte rendu local durable
+  retention_jours: 30                # purge automatique des anciens comptes rendus
 ```
 
 La clé provient du `.env` d'Hermes (`API_SERVER_KEY`). En transport `auto`, l'API
@@ -85,6 +87,8 @@ strictement l'ancienne passerelle.
 - La délégation locale ne demande pas de confirmation, afin que le routage des
   tâches de fond puisse être automatique.
 - **Filtre de confidentialité** sur le texte lu à voix haute (dernier garde-fou).
+- Les comptes rendus locaux sont caviardés avant écriture, peuvent être désactivés
+  et sont purgés après `retention_jours`. Ils ne sont jamais destinés au dépôt public.
 - L'API 8642 est en **loopback** et protégée par la clé `API_SERVER_KEY`.
 - Rappel (voir `HERMES_NOTES.md` §14) : Hermes n'a **aucun credential** de tes comptes ; toute
   action sensible reste côté Jarvis avec confirmation. La délégation sert à **réfléchir/chercher**,

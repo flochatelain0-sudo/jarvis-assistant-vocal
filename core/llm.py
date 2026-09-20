@@ -145,11 +145,13 @@ class OpenAIProvider(ProviderLLM):
             "model": self.modele,
             "instructions": systeme,
             "input": self._traduire(historique),
-            "tools": self._outils(outils),
-            "parallel_tool_calls": True,
             "max_output_tokens": int(reglage("openai.max_output_tokens", 2048)),
             "store": False,
         }
+        outils_api = self._outils(outils)
+        if outils_api:
+            kwargs["tools"] = outils_api
+            kwargs["parallel_tool_calls"] = True
         raisonnement = cloud._raisonnement(self.modele, self.qualite)
         if raisonnement:
             kwargs["reasoning"] = raisonnement
@@ -195,14 +197,16 @@ class ClaudeProvider(ProviderLLM):
 
     def repondre(self, systeme, historique, outils):
         # La reponse native Anthropic a deja la bonne forme (.stop_reason/.content).
-        rep = self.client.messages.create(
-            model=self.modele,
-            max_tokens=1024,
-            system=[{"type": "text", "text": systeme,
-                     "cache_control": {"type": "ephemeral"}}],
-            messages=historique,
-            tools=outils,
-        )
+        kwargs = {
+            "model": self.modele,
+            "max_tokens": 1024,
+            "system": [{"type": "text", "text": systeme,
+                        "cache_control": {"type": "ephemeral"}}],
+            "messages": historique,
+        }
+        if outils:
+            kwargs["tools"] = outils
+        rep = self.client.messages.create(**kwargs)
         # Comptabilite (N9) : tokens + cout estime, par jour, cote Jarvis.
         try:
             u = getattr(rep, "usage", None)
@@ -284,10 +288,13 @@ class OllamaProvider(ProviderLLM):
         # think=false : desactive le "raisonnement" natif (qwen3.5, etc.). Sinon le
         # modele est tres lent et rend parfois ses appels d'outils en texte au lieu
         # de les executer. Un modele sans thinking ignore ce parametre.
-        r = requests.post(f"{self.hote}/api/chat", timeout=120, json={
+        corps = {
             "model": self.modele, "messages": messages, "tools": tools,
             "stream": False, "think": bool(reglage("ollama.think", False)),
-            "options": {"temperature": 0.3}})
+            "options": {"temperature": 0.3}}
+        if not tools:
+            corps.pop("tools")
+        r = requests.post(f"{self.hote}/api/chat", timeout=120, json=corps)
         r.raise_for_status()
         return r.json()
 

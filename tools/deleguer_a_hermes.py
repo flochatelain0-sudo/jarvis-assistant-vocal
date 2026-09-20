@@ -116,13 +116,27 @@ def _charger_taches():
         taches = json.loads(_FICHIER_TACHES.read_text(encoding="utf-8"))
         if not isinstance(taches, list):
             return []
+        modifie = False
         maintenant = time.time()
+        retention_jours = max(0, int(reglage("hermes.retention_jours", 30) or 0))
+        if retention_jours:
+            limite = maintenant - retention_jours * 86400
+            conservees = [t for t in taches
+                           if float(t.get("debut") or maintenant) >= limite]
+            modifie = len(conservees) != len(taches)
+            taches = conservees
         for t in taches:
             if t.get("statut") == "en_cours":
                 t.update(statut="echouee", fin=maintenant,
                          duree=round(maintenant - float(t.get("debut") or maintenant), 1),
                          resume="Interrompue par un redemarrage de Jarvis.")
-        return taches[-_MAX_TACHES:]
+                modifie = True
+        recentes = taches[-_MAX_TACHES:]
+        if modifie or len(recentes) != len(taches):
+            _FICHIER_TACHES.write_text(
+                json.dumps(recentes, ensure_ascii=False, indent=2),
+                encoding="utf-8")
+        return recentes
     except (OSError, ValueError, TypeError):
         return []
 
@@ -360,13 +374,27 @@ def _resume_vocal(texte: str) -> str:
 
 
 def _journaliser(tache: str, resultat: str) -> None:
-    """Garde le resultat COMPLET dans logs/hermes/ (la voix ne dit que le resume)."""
+    """Conserve localement un résultat caviardé, jamais les secrets évidents."""
+    if not bool(reglage("hermes.journaliser", True)):
+        return
     try:
         dossier = Path(__file__).resolve().parent.parent / "logs" / "hermes"
         dossier.mkdir(parents=True, exist_ok=True)
+        retention_jours = max(0, int(reglage("hermes.retention_jours", 30) or 0))
+        if retention_jours:
+            limite = time.time() - retention_jours * 86400
+            for ancien in dossier.glob("delegation-*.md"):
+                try:
+                    if ancien.stat().st_mtime < limite:
+                        ancien.unlink()
+                except OSError:
+                    pass
         horo = datetime.now().strftime("%Y%m%d-%H%M%S")
+        tache_sure = confidentialite.caviarder(tache)
+        resultat_sur = confidentialite.caviarder(resultat)
         (dossier / f"delegation-{horo}.md").write_text(
-            f"# Delegation {horo}\n\n## Tache\n{tache}\n\n## Resultat\n{resultat}\n",
+            f"# Delegation {horo}\n\n## Tache\n{tache_sure}\n\n"
+            f"## Resultat\n{resultat_sur}\n",
             encoding="utf-8")
     except Exception:
         pass

@@ -110,6 +110,9 @@ assistant:
   silence_fin: 1.2             # secondes de silence avant de considerer la phrase finie
   duree_max: 20                # duree max d'un enregistrement (secondes)
   attente_confirmation: 3.0    # secondes laissees pour repondre oui/non a une confirmation
+  max_tours_outils: 6           # anti-boucle : nb max de cycles LLM -> outils par demande
+  max_appels_outils: 12         # anti-emballement si le modele appelle plusieurs outils a la fois
+  timeout_tour: 120             # duree totale max d'une demande, hors taches Hermes en fond
 
 obs:                           # OBS Studio 28+ -> Outils -> Parametres du serveur WebSocket
   host: "localhost"
@@ -254,6 +257,8 @@ hermes:                        # delegation a Hermes Agent (facultatif ; voir do
   modele_facturation: ""              # si l'API ne renvoie pas le modele : ex. "opus" pour estimer le cout
   timeout: 900                       # secondes max d'une delegation (une recherche de fond peut durer)
   resume_max: 500                    # longueur max du resume lu a voix haute (filtre de confidentialite)
+  journaliser: true                  # false = ne conserve pas les resultats complets dans logs/hermes
+  retention_jours: 30               # purge automatique des journaux/taches plus anciens ; 0 = illimite
 
 integrations:                  # chemins des projets externes (hub de contenu ; voir docs/hub_contenu.md)
   vault: "C:/Users/TON-NOM/Vault"                  # base des fiches Insta/TikTok (ingest.py, index.md, build_vault.py)
@@ -412,7 +417,7 @@ satellites:                    # Jarvis dans d'autres pieces (Raspberry Pi, futu
   # - id: "cuisine"            # identifiant unique du satellite
   #   piece: "cuisine"         # piece par defaut (contexte : "allume la lumiere" -> cuisine)
   #   token: "un-secret-long-par-satellite"   # genere : python -c "import secrets;print(secrets.token_urlsafe(24))"
-  #   wake: "appareil"         # "appareil" (wake word sur le satellite) | "serveur" (flux continu, openWakeWord PC)
+  #   wake: "appareil"         # pris en charge ; "serveur" est reserve a un futur client a flux continu
   #   priorite_micro: 1.0      # ajustement optionnel du score si ce micro gagne trop/pas assez souvent
 
 satellite_lan:

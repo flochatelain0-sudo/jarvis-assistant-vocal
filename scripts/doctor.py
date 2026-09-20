@@ -60,10 +60,10 @@ def reglage(chemin, defaut=None):
 def v_python():
     titre("Python")
     v = sys.version_info
-    if v >= (3, 10):
+    if v >= (3, 13):
         ok(f"Python {v.major}.{v.minor}.{v.micro}")
     else:
-        ko(f"Python {v.major}.{v.minor} trop ancien", "installe Python 3.10+ (3.13 recommande).")
+        ko(f"Python {v.major}.{v.minor} trop ancien", "installe Python 3.13+.")
 
 
 def v_dependances():
@@ -148,10 +148,15 @@ def v_llm():
         except Exception:
             ko("Ollama injoignable", "installe/lance Ollama (ollama.com), puis 'ollama serve'.")
     else:
-        if reglage("anthropic.cle", ""):
-            ok("cle Anthropic (Claude) presente")
+        from core.cloud import fournisseur
+        provider = fournisseur()
+        chemin = "openai.cle" if provider == "openai" else "anthropic.cle"
+        libelle = "OpenAI" if provider == "openai" else "Anthropic (Claude)"
+        if reglage(chemin, ""):
+            ok(f"cle {libelle} presente")
         else:
-            ko("cle Anthropic absente", "mets anthropic.cle (console.anthropic.com) dans config.yaml.")
+            ko(f"cle {libelle} absente",
+               f"mets {chemin} dans config.yaml pour le fournisseur sélectionné.")
 
 
 def v_voix():

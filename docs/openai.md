@@ -11,6 +11,31 @@ Jarvis utilise l'API **Responses** d'OpenAI pour la conversation, la vision et l
 appels d'outils. Le modèle recommandé au quotidien est `gpt-5.6-terra` ;
 `gpt-6-astra` est disponible pour le mode qualité.
 
+## Quel cerveau reçoit quelle tâche ?
+
+Jarvis ne transmet plus systématiquement ses quelque cent outils au modèle. Un
+routeur commun au PC et aux satellites choisit d'abord le chemin le plus court :
+
+- **conversation simple** : le modèle répond sans catalogue d'outils ;
+- **heure, météo, média, domotique, agenda…** : seulement les outils du domaine ;
+- **lecture ponctuelle de l'écran** : capture de la fenêtre active et modèle
+  quotidien avec vision, sans contrôle du PC ;
+- **action Windows en plusieurs étapes** : Astra, uniquement sur demande explicite
+  ou après confirmation quand aucun outil direct ne suffit ;
+- **recherche de fond et création de contenu** : Hermes, en arrière-plan ;
+- **navigation web spécialisée** : les outils navigateur bornés du domaine.
+
+Une commande directe comme « ouvre Spotify » ou « éteins la lumière » n'emploie
+donc pas Astra. Le nombre de tours et d'appels d'outils est aussi borné pour éviter
+une boucle autonome. Les limites peuvent être ajustées dans `config.yaml` :
+
+```yaml
+assistant:
+  max_tours_outils: 6
+  max_appels_outils: 12
+  timeout_tour: 120
+```
+
 ## Mode opérateur Astra sur le PC
 
 Deux formulations déclenchent directement une tâche locale bornée :

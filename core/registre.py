@@ -29,6 +29,9 @@ class Outil:
         self.annonce = annonce                # fn(args) -> phrase de confirmation
         self.mcp_expose = mcp_expose          # visible via le serveur MCP externe ?
         self.affichage = affichage            # overlay : "toujours" | "jamais" | "auto"
+        # Domaine déduit du module (tools.mail -> mail). Il permet de ne transmettre
+        # au LLM que les outils utiles à la demande courante.
+        self.module = fonction.__module__.rsplit(".", 1)[-1]
 
 
 def outil(nom, description, parametres=None, confirmation=False, lent=False,
@@ -103,15 +106,18 @@ _NON_LOCAUX = {
 }
 
 
-def schemas_api(local_seulement=False):
+def schemas_api(local_seulement=False, modules=None):
     """Schemas au format Anthropic (name, description, input_schema).
 
     local_seulement=True : ne renvoie que les outils utilisables par un modele
     local (mode Ollama), en excluant les outils internet/vision (_NON_LOCAUX).
+    modules : ensemble optionnel de domaines (noms de fichiers dans tools/).
+    None conserve tout le catalogue ; un ensemble vide n'expose aucun outil.
     """
     return [{"name": o.nom, "description": o.description, "input_schema": o.parametres}
             for o in _REGISTRE.values()
-            if not (local_seulement and o.nom in _NON_LOCAUX)]
+            if not (local_seulement and o.nom in _NON_LOCAUX)
+            and (modules is None or o.module in modules)]
 
 
 def noms_lents():

@@ -541,6 +541,7 @@ def _executer_outils(blocs):
         nom = bloc.name
         arguments = bloc.input or {}
         outil = registre.get(nom)
+        debut_outil = time.monotonic()
 
         if outil is None:
             resultat = f"Outil inconnu : {nom}"
@@ -552,10 +553,11 @@ def _executer_outils(blocs):
             try:
                 resultat = outil.fonction(**arguments)
             except Exception:
-                LOG.exception("outil %s a plante (args=%s)", nom, arguments)
+                LOG.exception("outil %s a plante", nom)
                 resultat = "Desole, je n'ai pas reussi a faire ca."
 
-        LOG.info("outil %s args=%s -> %s", nom, arguments, str(resultat)[:200])
+        LOG.info("outil %s termine en %.3fs (type=%s)", nom,
+                 time.monotonic() - debut_outil, type(resultat).__name__)
         global _DERNIER_OUTIL
         _DERNIER_OUTIL = nom
 
@@ -563,7 +565,7 @@ def _executer_outils(blocs):
         if isinstance(resultat, dict) and resultat.get("image"):
             img = resultat["image"]
             apercu = resultat.get("apercu", "Capture d'ecran envoyee.")
-            print(f"  [outil] {nom}({arguments}) -> {apercu}")
+            print(f"  [outil] {nom} -> {apercu}")
             _hud("outil", nom, apercu[:60])
             contenu = [{
                 "type": "image",
@@ -571,8 +573,8 @@ def _executer_outils(blocs):
                            "data": img["data"]},
             }]
         else:
-            print(f"  [outil] {nom}({arguments}) -> {str(resultat)[:80]}")
-            _hud("outil", nom, str(resultat)[:60])
+            print(f"  [outil] {nom} -> termine")
+            _hud("outil", nom, "Action terminee")
             contenu = str(resultat)
 
         resultats.append({
@@ -587,220 +589,85 @@ def _executer_outils(blocs):
     return resultats
 
 
-def _repondre_route_alexa(historique):
-    """Exécute les commandes Alexa non ambiguës avant de solliciter le LLM."""
-    question = next((m.get("content") for m in reversed(historique)
-                     if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
-    try:
-        from tools.alexa import router_commande
-        route = router_commande(question)
-    except Exception:
-        LOG.exception("routage Alexa prioritaire")
-        return None
-    if not route:
-        return None
+def _repondre_route_prioritaire_commune(historique):
+    """Exécute la décision commune au micro principal et aux satellites.
 
-    from types import SimpleNamespace
-    nom, arguments = route
-    outil = registre.get(nom)
-    if outil is None:
-        return None
-
-    # Un petit retour immédiat masque le délai de l'API Alexa. Pour une action à
-    # confirmer, on prononce directement la demande de confirmation à la place.
-    fil_accuse = None
-    confirmation = outil.confirmation and not registre.est_autorise(nom)
-    if outil.lent and outil.phrase_attente and not confirmation:
-        _hud("etat", "parole")
-        fil_accuse = threading.Thread(
-            target=dire, args=(outil.phrase_attente,), daemon=True)
-        fil_accuse.start()
-
-    bloc = SimpleNamespace(
-        type="tool_use", name=nom, input=arguments, id="route-alexa-prioritaire")
-    resultats = _executer_outils([bloc])
-    if fil_accuse:
-        fil_accuse.join()
-
-    annonce = registre.annonce_en_attente()
-    if annonce:
-        _hud("etat", "parole")
-        phrase = annonce + " Tu confirmes ?"
-        if registre.niveau(nom) == "N2":
-            phrase += " Tu peux dire oui, toujours."
-        if not _INTERRUPTION.is_set():
-            dire(phrase, interruptible=False)
-        return SENTINEL_CONFIRM
-
-    texte = str(resultats[0]["content"] if resultats else "C'est fait.")
-    historique.append({"role": "assistant", "content": texte})
-    _hud("etat", "parole")
-    if texte and not _INTERRUPTION.is_set():
-        dire(texte)
-    return texte
-
-
-def _repondre_route_astra(historique):
-    """Execute immediatement une invocation locale explicite du mode operateur."""
-    question = next((m.get("content") for m in reversed(historique)
-                     if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
-    try:
-        from tools.astra_pc import extraire_commande_explicite, executer_controle
-        tache = extraire_commande_explicite(question)
-    except Exception:
-        LOG.exception("routage Astra explicite")
-        return None
-    if tache is None:
-        return None
-    if not tache:
-        texte = "Dis-moi quelle tache tu veux que je fasse sur le PC avec Astra."
-    else:
-        _hud("etat", "parole")
-        dire("D'accord, Astra prend le controle du PC. Appuie sur Echap pour arreter.")
-        _hud("etat", "reflexion")
-        texte = executer_controle(tache)
-    historique.append({"role": "assistant", "content": texte})
-    _hud("etat", "parole")
-    if texte and not _INTERRUPTION.is_set():
-        dire(texte)
-    return texte
-
-
-def _repondre_route_ouverture_simple(historique):
-    """Ouvre directement un site ou une application en une seule étape.
-
-    Cette route évite qu'un modèle envoie par erreur « ouvre Spotify » à Astra,
-    qui est réservé aux tâches nécessitant réellement plusieurs actions à l'écran.
+    La détection vit dans ``core.routage_intentions`` ; cette fonction ne garde
+    que les détails propres au poste principal (HUD, voix et registre global de
+    confirmation).
     """
     question = next((m.get("content") for m in reversed(historique)
                      if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
-    try:
-        from tools.apps import router_ouverture_simple
-        route = router_ouverture_simple(question)
-    except Exception:
-        LOG.exception("routage ouverture simple")
-        return None
-    if not route:
+    from core.routage_intentions import decider_prioritaire
+    decision = decider_prioritaire(question)
+    if decision is None:
         return None
 
-    from types import SimpleNamespace
-    nom, arguments = route
-    if registre.get(nom) is None:
-        return None
-    bloc = SimpleNamespace(
-        type="tool_use", name=nom, input=arguments, id="route-ouverture-simple")
-    resultats = _executer_outils([bloc])
-    texte = str(resultats[0]["content"] if resultats else "C'est fait.")
-    historique.append({"role": "assistant", "content": texte})
-    _hud("etat", "parole")
-    if texte and not _INTERRUPTION.is_set():
-        dire(texte)
-    return texte
-
-
-def _repondre_route_media(historique):
-    """Exécute les commandes média bornées sans contrôle général de l'écran."""
-    question = next((m.get("content") for m in reversed(historique)
-                     if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
-    try:
-        from tools.media import router_commande_media
-        route = router_commande_media(question)
-    except Exception:
-        LOG.exception("routage média")
-        return None
-    if not route:
-        return None
-
-    from types import SimpleNamespace
-    nom, arguments = route
-    outil = registre.get(nom)
-    if outil is None:
-        return None
-    fil_accuse = None
-    if outil.lent and outil.phrase_attente:
-        _hud("etat", "parole")
-        fil_accuse = threading.Thread(
-            target=dire, args=(outil.phrase_attente,), daemon=True)
-        fil_accuse.start()
-    bloc = SimpleNamespace(
-        type="tool_use", name=nom, input=arguments, id="route-media-directe")
-    resultats = _executer_outils([bloc])
-    if fil_accuse:
-        fil_accuse.join()
-    texte = str(resultats[0]["content"] if resultats else "C'est fait.")
-    historique.append({"role": "assistant", "content": texte})
-    _hud("etat", "parole")
-    if texte and not _INTERRUPTION.is_set():
-        dire(texte)
-    return texte
-
-
-def _repondre_route_calibration_gestes(historique):
-    """Route les ordres vocaux explicites de caméra et de gestes locaux."""
-    question = next((m.get("content") for m in reversed(historique)
-                     if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
-    try:
-        from tools.gestes import (controler_gestes,
-                                  demande_calibration_gestes,
-                                  demande_demo_gestes, demande_mode_regard,
-                                  demande_mode_visio,
-                                  lancer_calibration_gestes, lancer_demo_gestes,
-                                  lancer_mode_regard, quitter_mode_regard)
-        regard = demande_mode_regard(question)
-        visio = demande_mode_visio(question)
-        if regard is True:
-            texte = lancer_mode_regard()
-            outil_nom = "lancer_mode_regard"
-        elif regard is False:
-            texte = quitter_mode_regard()
-            outil_nom = "quitter_mode_regard"
-        elif visio is True:
-            texte = lancer_demo_gestes()
-            outil_nom = "lancer_demo_gestes"
-        elif visio is False:
-            texte = controler_gestes(False)
-            outil_nom = "controler_gestes"
-        elif demande_demo_gestes(question):
-            texte = lancer_demo_gestes()
-            outil_nom = "lancer_demo_gestes"
-        elif demande_calibration_gestes(question):
-            texte = lancer_calibration_gestes()
-            outil_nom = "lancer_calibration_gestes"
+    if decision.type == "astra":
+        from tools.astra_pc import executer_controle
+        if not decision.tache:
+            texte = "Dis-moi quelle tache tu veux que je fasse sur le PC avec Astra."
         else:
+            _hud("etat", "parole")
+            dire("D'accord, Astra prend le controle du PC. Appuie sur Echap pour arreter.")
+            _hud("etat", "reflexion")
+            texte = executer_controle(decision.tache)
+        nom_outil = "controle_pc_astra"
+
+    elif decision.type == "vision":
+        from tools.ecran import analyser_ecran
+        _hud("etat", "parole")
+        fil_vision = threading.Thread(
+            target=dire, args=("Je regarde ton écran.",), daemon=True)
+        fil_vision.start()
+        _hud("etat", "reflexion")
+        texte = analyser_ecran(decision.tache)
+        fil_vision.join()
+        nom_outil = "capture_screen"
+
+    elif decision.type == "hermes":
+        from tools.deleguer_a_hermes import deleguer_en_fond
+        texte = deleguer_en_fond(
+            decision.tache,
+            intro="Hermes a terminé le travail de contenu. ",
+            nom_thread="contenu-hermes",
+        )
+        nom_outil = "deleguer_a_hermes"
+
+    else:
+        nom_outil = decision.outil
+        outil = registre.get(nom_outil)
+        if outil is None:
             return None
-    except Exception:
-        LOG.exception("routage caméra et gestes")
-        texte = "Je n'ai pas pu changer le mode de détection de la caméra."
-        outil_nom = "lancer_mode_regard"
-    historique.append({"role": "assistant", "content": texte})
-    _hud("outil", outil_nom, texte[:60])
-    _hud("etat", "parole")
-    if not _INTERRUPTION.is_set():
-        dire(texte)
-    return texte
+        confirmation = outil.confirmation and not registre.est_autorise(nom_outil)
+        fil_accuse = None
+        if outil.lent and outil.phrase_attente and not confirmation:
+            _hud("etat", "parole")
+            fil_accuse = threading.Thread(
+                target=dire, args=(outil.phrase_attente,), daemon=True)
+            fil_accuse.start()
+        from types import SimpleNamespace
+        bloc = SimpleNamespace(type="tool_use", name=nom_outil,
+                               input=decision.arguments, id="route-prioritaire-commune")
+        resultats = _executer_outils([bloc])
+        if fil_accuse:
+            fil_accuse.join()
 
+        annonce = registre.annonce_en_attente()
+        if annonce:
+            _hud("etat", "parole")
+            phrase = annonce + " Tu confirmes ?"
+            if registre.niveau(nom_outil) == "N2":
+                phrase += " Tu peux dire oui, toujours."
+            if not _INTERRUPTION.is_set():
+                dire(phrase, interruptible=False)
+            return SENTINEL_CONFIRM
+        texte = str(resultats[0]["content"] if resultats else "C'est fait.")
 
-def _repondre_route_hermes_contenu(historique):
-    """Confie a Hermes une demande creative explicite avant l'appel au LLM."""
-    question = next((m.get("content") for m in reversed(historique)
-                     if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
-    try:
-        from tools.deleguer_a_hermes import extraire_tache_contenu, deleguer_en_fond
-        tache = extraire_tache_contenu(question)
-    except Exception:
-        LOG.exception("routage Hermes contenu")
-        return None
-    if tache is None:
-        return None
-    texte = deleguer_en_fond(
-        tache,
-        intro="Hermes a terminé le travail de contenu. ",
-        nom_thread="contenu-hermes",
-    )
     historique.append({"role": "assistant", "content": texte})
-    _hud("outil", "deleguer_a_hermes", question[:60])
+    _hud("outil", nom_outil, question[:60])
     _hud("etat", "parole")
-    if not _INTERRUPTION.is_set():
+    if texte and not _INTERRUPTION.is_set():
         dire(texte)
     return texte
 
@@ -812,27 +679,7 @@ def repondre(historique):
     les outils a confirmation, prononce l'annonce et renvoie SENTINEL_CONFIRM
     (la suite est geree par traiter, qui capture la reponse oui/non).
     """
-    prioritaire = _repondre_route_calibration_gestes(historique)
-    if prioritaire is not None:
-        return prioritaire
-
-    prioritaire = _repondre_route_astra(historique)
-    if prioritaire is not None:
-        return prioritaire
-
-    prioritaire = _repondre_route_alexa(historique)
-    if prioritaire is not None:
-        return prioritaire
-
-    prioritaire = _repondre_route_media(historique)
-    if prioritaire is not None:
-        return prioritaire
-
-    prioritaire = _repondre_route_ouverture_simple(historique)
-    if prioritaire is not None:
-        return prioritaire
-
-    prioritaire = _repondre_route_hermes_contenu(historique)
+    prioritaire = _repondre_route_prioritaire_commune(historique)
     if prioritaire is not None:
         return prioritaire
 
@@ -849,25 +696,68 @@ def repondre(historique):
 
     fil_accuse = None
     accuse_donne = False
+    question = next((m.get("content") for m in reversed(historique)
+                     if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
+    from core.routage_intentions import modules_pour_phrase
+    modules_outils = modules_pour_phrase(question)
+    max_tours_outils = max(1, min(
+        int(config.reglage("assistant.max_tours_outils", 6) or 6), 12))
+    max_appels_outils = max(1, min(
+        int(config.reglage("assistant.max_appels_outils", 12) or 12), 30))
+    timeout_tour = max(15.0, min(
+        float(config.reglage("assistant.timeout_tour", 120) or 120), 300.0))
+    debut_tour = time.monotonic()
+    appels_outils = 0
 
-    while True:
+    def arreter_tour(texte):
+        """Clôt proprement une erreur/limite et la rend audible."""
+        if fil_accuse:
+            fil_accuse.join(timeout=2)
+        historique.append({"role": "assistant", "content": texte})
+        _hud("etat", "parole")
+        if texte and not _INTERRUPTION.is_set():
+            dire(texte)
+        return texte
+
+    # max_tours_outils tours avec outils, puis un dernier appel autorisé pour
+    # formuler la réponse finale à partir des résultats.
+    for numero_tour in range(max_tours_outils + 1):
         if _INTERRUPTION.is_set():
             if fil_accuse:
                 fil_accuse.join(timeout=2)
             return ""
+        if time.monotonic() - debut_tour > timeout_tour:
+            LOG.warning("tour LLM interrompu après %.1fs", time.monotonic() - debut_tour)
+            return arreter_tour("J'arrête cette demande : elle prend trop de temps.")
         try:
+            debut_llm = time.monotonic()
             reponse = fournisseur.repondre(
                 SYSTEME_COURANT, historique,
-                registre.schemas_api(local_seulement=(fournisseur.nom == "Ollama")))
+                registre.schemas_api(
+                    local_seulement=(fournisseur.nom == "Ollama"),
+                    modules=modules_outils))
+            LOG.info("latence LLM %s %.3fs (tour=%s, outils=%s)",
+                     fournisseur.nom, time.monotonic() - debut_llm,
+                     numero_tour + 1,
+                     "tous" if modules_outils is None else len(modules_outils))
         except Exception as e:
             print(f"  [{fournisseur.nom}] erreur : {e}")
             LOG.exception("appel LLM en echec")
-            return "Je n'arrive pas a joindre le modele pour le moment."
+            return arreter_tour("Je n'arrive pas a joindre le modele pour le moment.")
 
         if reponse.stop_reason == "tool_use":
             _hud("etat", "reflexion")
             noms = [b.name for b in reponse.content
                     if getattr(b, "type", None) == "tool_use"]
+            if numero_tour >= max_tours_outils or appels_outils + len(noms) > max_appels_outils:
+                LOG.warning("limite d'outils atteinte (tours=%s, appels=%s, nouveaux=%s)",
+                            numero_tour, appels_outils, len(noms))
+                if fil_accuse:
+                    fil_accuse.join()
+                return arreter_tour(
+                    "J'arrête ici pour éviter une boucle d'actions. "
+                    "Reformule la tâche plus précisément si tu veux que je continue.")
+            appels_outils += len(noms)
             if (not accuse_donne and not _INTERRUPTION.is_set()
                     and any(n in registre.noms_lents() for n in noms)):
                 accuse_donne = True
@@ -906,6 +796,9 @@ def repondre(historique):
         if texte and not _INTERRUPTION.is_set():
             dire(texte)
         return texte
+
+    return arreter_tour(
+        "Je n'ai pas réussi à terminer cette demande sans dépasser mes limites.")
 
 
 # ---------------------------------------------------------------- whisper
@@ -1250,8 +1143,10 @@ def _tronquer(historique):
 
 def traiter(audio, whisper, historique, flux, reveil):
     """Transcrit, repond, parle. Renvoie True si on doit enchainer (relance)."""
+    debut_stt = time.monotonic()
     segments, _ = whisper.transcribe(audio, language="fr", beam_size=5)
     question = nettoyer(" ".join(s.text for s in segments).strip())
+    LOG.info("latence STT %.3fs", time.monotonic() - debut_stt)
 
     if not question or len(question) < 3:
         print("  (rien compris)\n")

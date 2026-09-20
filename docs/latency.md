@@ -107,17 +107,18 @@ d'attente ET meilleure UX. C'est cadré par le prompt système :
   phrases, sauf si on te demande des détails. »
 ```
 
-## 6. Mesurer (sinon on optimise à l'aveugle) 🟡
+## 6. Mesurer (sinon on optimise à l'aveugle) ✅
 
-Logger les timestamps de chaque étape pour savoir où part le temps. Aujourd'hui chaque
-appel d'outil est déjà loggé (`logs/jarvis.log`) ; ajouter les jalons du pipeline :
+Les durées STT, LLM et outils sont inscrites dans `logs/jarvis.log`, sans y recopier
+les arguments ni le résultat potentiellement sensible. Cela permet de savoir où
+part le temps sans transformer les journaux en historique personnel :
 
 ```python
 import time
 t0 = time.time()
-texte_dit = transcrire(audio);      LOG.info("STT %.2fs", time.time()-t0)
-reponse   = provider.repondre(...);  LOG.info("LLM 1er token %.2fs", time.time()-t0)
-dire(reponse);                       LOG.info("TTS 1er son %.2fs", time.time()-t0)
+texte_dit = transcrire(audio);       LOG.info("latence STT %.2fs", time.time()-t0)
+reponse   = provider.repondre(...);  LOG.info("latence LLM %.2fs", time.time()-t0)
+# Chaque outil journalise aussi sa durée et son type de résultat, pas son contenu.
 ```
 
 Cible : `TTS 1er son` < **1,5 s**. Si c'est le LLM qui domine → réponses plus courtes
@@ -130,4 +131,4 @@ ou modèle plus rapide (Haiku, ou `qwen3.5:4b` en local). Si c'est le TTS → st
 2. **Streaming TTS** (🟡→🗺️) — le plus gros gain de latence perçue, infra prête.
 3. **Réponses courtes** (✅) — gratuit, aide partout.
 4. **Varier l'attente** (🟡) + **combler les trous** (🗺️) — le vernis anti-robot.
-5. **Mesurer** (🟡) — pour viser le 1,5 s et savoir quoi optimiser.
+5. **Mesurer** (✅) — pour viser le 1,5 s et savoir quoi optimiser.

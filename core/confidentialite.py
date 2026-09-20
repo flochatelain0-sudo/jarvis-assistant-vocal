@@ -20,11 +20,17 @@ _MOTIFS = [
 ]
 
 
-def filtrer(texte: str, max_car: int = 500) -> str:
-    """Caviarde mails/cles/numeros/jetons et raccourcit pour une lecture vocale."""
-    t = (texte or "").strip()
+def caviarder(texte: str) -> str:
+    """Masque les motifs sensibles en conservant la mise en forme du texte."""
+    t = str(texte or "")
     for motif, remplacement in _MOTIFS:
         t = motif.sub(remplacement, t)
+    return t
+
+
+def filtrer(texte: str, max_car: int = 500) -> str:
+    """Caviarde mails/cles/numeros/jetons et raccourcit pour une lecture vocale."""
+    t = caviarder(texte).strip()
     t = " ".join(t.split())              # normalise espaces / sauts de ligne
     if len(t) > max_car:
         t = t[:max_car].rsplit(" ", 1)[0].rstrip(",;:.") + "..."
