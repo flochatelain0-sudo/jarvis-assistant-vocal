@@ -21,6 +21,20 @@ class AstraPcTests(unittest.TestCase):
     def test_invocation_sans_tache_est_reconnue(self):
         self.assertEqual(astra_pc.extraire_commande_explicite("Utilise Astra"), "")
 
+    def test_variantes_explicites_astra(self):
+        self.assertEqual(
+            astra_pc.extraire_commande_explicite(
+                "Passe par Astra pour ouvrir les paramètres audio"),
+            "ouvrir les paramètres audio")
+        self.assertEqual(
+            astra_pc.extraire_commande_explicite(
+                "Prends la main sur mon PC pour régler le volume"),
+            "régler le volume")
+        self.assertEqual(
+            astra_pc.extraire_commande_explicite(
+                "Ouvre les paramètres audio avec Astra"),
+            "Ouvre les paramètres audio")
+
     def test_demandes_sensibles_sont_bloquees_avant_capture(self):
         for tache in (
                 "achète ce produit", "tape mon mot de passe",

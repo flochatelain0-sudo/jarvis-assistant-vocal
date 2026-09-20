@@ -51,6 +51,30 @@ class MediaRoutingTests(unittest.TestCase):
             ("controler_spotify", {"action": "reprendre", "piece": "cuisine"}),
         )
 
+    def test_variantes_suivant_et_precedent(self):
+        suivants = (
+            "suivant", "next", "skip", "mets la suivante",
+            "saute ce morceau", "change de chanson", "prochaine chanson",
+        )
+        precedents = (
+            "précédent", "mets la précédente", "remets celle d'avant",
+            "chanson d'avant", "reviens d'un morceau",
+        )
+        for phrase in suivants:
+            with self.subTest(phrase=phrase):
+                self.assertEqual(
+                    media.router_commande_media(phrase, piece="cuisine"),
+                    ("controler_spotify", {
+                        "action": "suivant", "piece": "cuisine"}),
+                )
+        for phrase in precedents:
+            with self.subTest(phrase=phrase):
+                self.assertEqual(
+                    media.router_commande_media(phrase, piece="cuisine"),
+                    ("controler_spotify", {
+                        "action": "precedent", "piece": "cuisine"}),
+                )
+
     def test_variantes_pause_restent_deterministes_sur_satellite(self):
         for phrase in (
                 "mets pause", "mets Spotify en pause",
@@ -80,7 +104,8 @@ class MediaRoutingTests(unittest.TestCase):
                 "vas-y remets la musique", "rallume la musique",
                 "réactive Spotify", "fais reprendre la musique",
                 "reprends ce que j'écoutais", "lance la musique maintenant",
-                "mets-moi la musique Jarvis"):
+                "mets-moi la musique Jarvis",
+                "je veux que tu relances la musique"):
             with self.subTest(phrase=phrase):
                 self.assertEqual(
                     media.router_commande_media(phrase, piece="cuisine"),

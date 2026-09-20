@@ -30,6 +30,9 @@ _MARQUEURS_EXPLICITES = (
     "utilises astra",
     "lance astra",
     "active astra",
+    "passe par astra",
+    "demande a astra de",
+    "laisse astra",
     "prends le controle de mon pc",
     "prend le controle de mon pc",
     "prends le controle du pc",
@@ -38,6 +41,16 @@ _MARQUEURS_EXPLICITES = (
     "prend le controle de l ordinateur",
     "prends le controle de mon ordinateur",
     "prend le controle de mon ordinateur",
+    "prends la main sur mon pc",
+    "prend la main sur mon pc",
+    "prends la main sur l ordinateur",
+    "prend la main sur l ordinateur",
+)
+
+_SUFFIXES_EXPLICITES = (
+    " avec astra",
+    " via astra",
+    " en utilisant astra",
 )
 
 _PREFIXES_TACHE = ("pour ", "afin de ", "et ", ":", ",")
@@ -109,6 +122,10 @@ def extraire_commande_explicite(phrase: str):
     """Renvoie la tache explicite, '' si elle manque, ou None si pas d'invocation."""
     original = str(phrase or "").strip()
     normalise = sans_accents(original.lower().replace("’", "'").replace("-", " "))
+    for suffixe in _SUFFIXES_EXPLICITES:
+        pos = normalise.rfind(suffixe)
+        if pos >= 0 and not normalise[pos + len(suffixe):].strip(" .,!?:;"):
+            return original[:pos].strip(" .,!?:;")
     for marqueur in _MARQUEURS_EXPLICITES:
         pos = normalise.find(marqueur)
         if pos < 0:

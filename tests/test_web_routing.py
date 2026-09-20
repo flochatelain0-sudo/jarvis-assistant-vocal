@@ -59,6 +59,20 @@ class WebRoutingTests(unittest.TestCase):
             ("lancer_spotify", {"piece": "cuisine"}),
         )
 
+    def test_variantes_naturelles_d_ouverture_simple(self):
+        cas = {
+            "Tu pourrais ouvrir Netflix": ("browser_open", {"url": "netflix"}),
+            "Je veux que tu affiches YouTube": (
+                "browser_open", {"url": "youtube"}),
+            "Accède à Netflix": ("browser_open", {"url": "netflix"}),
+            "Va sur YouTube": ("browser_open", {"url": "youtube"}),
+            "Fais-moi démarrer la calculatrice": (
+                "ouvrir_application", {"nom": "calculatrice"}),
+        }
+        for phrase, attendu in cas.items():
+            with self.subTest(phrase=phrase):
+                self.assertEqual(apps.router_ouverture_simple(phrase), attendu)
+
     def test_ouverture_inconnue_utilise_le_lanceur_pas_astra(self):
         with patch("tools.apps._apps", return_value={}):
             self.assertEqual(
@@ -71,7 +85,8 @@ class WebRoutingTests(unittest.TestCase):
                 "Ouvre Spotify et cherche ma playlist",
                 "Ouvre Netflix puis lance ma série",
                 "Est-ce que Spotify est ouvert ?",
-                "Ouvre ce fichier"):
+                "Ouvre ce fichier",
+                "Va dormir"):
             with self.subTest(phrase=phrase):
                 self.assertIsNone(apps.router_ouverture_simple(phrase))
 

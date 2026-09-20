@@ -52,6 +52,10 @@ class AlexaRoutingTests(unittest.TestCase):
             _analyser_commande("Peux-tu lancer la routine bonne nuit"),
             ("alexa_routine", {"nom": "bonne nuit"}),
         )
+        self.assertEqual(
+            _analyser_commande("Je voudrais que tu lances ma routine bonne nuit"),
+            ("alexa_routine", {"nom": "bonne nuit"}),
+        )
 
     def test_discussion_sur_les_routines_n_est_pas_executee(self):
         self.assertIsNone(_analyser_commande(
@@ -68,6 +72,23 @@ class AlexaRoutingTests(unittest.TestCase):
             _analyser_commande("Peux-tu allumer les lumières du salon"),
             ("alexa_appareil", {"appareil": "lumieres salon", "action": "allumer"}),
         )
+
+    def test_variantes_naturelles_domotiques(self):
+        cas = {
+            "Tu pourrais rallumer la clim": (
+                "alexa_appareil", {"appareil": "clim", "action": "allumer"}),
+            "Demande à Alexa d'éteindre la clim": (
+                "alexa_appareil", {"appareil": "clim", "action": "eteindre"}),
+            "Mets la clim en marche": (
+                "alexa_appareil", {"appareil": "clim", "action": "allumer"}),
+            "Mets en route la clim": (
+                "alexa_appareil", {"appareil": "clim", "action": "allumer"}),
+            "Passe les lumières sur off": (
+                "alexa_appareil", {"appareil": "lumieres", "action": "eteindre"}),
+        }
+        for phrase, attendu in cas.items():
+            with self.subTest(phrase=phrase):
+                self.assertEqual(_analyser_commande(phrase), attendu)
 
     def test_nom_de_routine_precharge(self):
         automations = [{"name": "Que la lumière soit", "triggers": []}]

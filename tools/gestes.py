@@ -18,6 +18,12 @@ def _mots_commande(phrase: str):
     prefixes = (
         ("hey", "jarvis"), ("jarvis",),
         ("est", "ce", "que", "tu", "peux"), ("peux", "tu"), ("tu", "peux"),
+        ("est", "ce", "que", "tu", "pourrais"),
+        ("pourrais", "tu"), ("tu", "pourrais"),
+        ("je", "veux", "que", "tu"),
+        ("je", "voudrais", "que", "tu"),
+        ("j", "aimerais", "que", "tu"),
+        ("vas", "y"),
         ("s", "il", "te", "plait"), ("stp",),
     )
     change = True
@@ -34,18 +40,37 @@ def _mots_commande(phrase: str):
 def demande_mode_visio(phrase: str):
     """True=active les mains visibles, False=les coupe, None=pas un ordre visio."""
     mots = _mots_commande(phrase)
-    if "visio" not in mots:
-        return None
     texte = " ".join(mots)
+    gestes_explicites = (
+        any(mot in mots for mot in ("geste", "gestes", "mains"))
+        and not any(mot.startswith("calibr") or mot in {"demo", "video", "reconnaissance"}
+                    for mot in mots)
+    )
+    cible_visio = ("visio" in mots or "mode vision" in texte
+                   or "controle gestuel" in texte
+                   or "controle par gestes" in texte
+                   or gestes_explicites)
+    if not cible_visio:
+        return None
     if any(expression in texte for expression in (
             "quitte le mode visio", "quitter le mode visio",
+            "quitte le mode vision", "quitter le mode vision",
             "sors du mode visio", "sort du mode visio",
             "coupe le mode visio", "desactive le mode visio",
-            "arrete le mode visio", "ferme le mode visio")):
+            "arrete le mode visio", "ferme le mode visio",
+            "sors du mode vision", "coupe le mode vision",
+            "desactive le mode vision", "arrete le mode vision",
+            "ferme le mode vision", "coupe le controle gestuel",
+            "arrete le controle par gestes", "coupe les gestes",
+            "desactive les gestes", "arrete les gestes")):
         return False
+    if texte in {"regarde mes mains", "suis mes mains"}:
+        return True
     if mots and mots[0] in {
-            "passe", "passer", "mets", "met", "active", "activer",
-            "lance", "lancer", "ouvre", "ouvrir", "demarre", "demarrer"}:
+            "passe", "passes", "passer", "mets", "met", "active", "actives",
+            "activer", "lance", "lances", "lancer", "ouvre", "ouvres", "ouvrir",
+            "demarre", "demarres", "demarrer", "utilise", "utilises", "utiliser",
+            "controle", "controles", "controler"}:
         return True
     return None
 
@@ -58,15 +83,20 @@ def demande_mode_regard(phrase: str):
     texte = " ".join(mots)
     if any(expression in texte for expression in (
             "quitte le mode regard", "quitter le mode regard",
+            "quitte le controle oculaire", "quitter le controle oculaire",
             "sors du mode regard", "sort du mode regard",
             "coupe le mode regard", "desactive le mode regard",
             "arrete le mode regard", "ferme le mode regard",
             "coupe le controle du regard", "arrete le controle du regard",
-            "ferme le controle du regard")):
+            "ferme le controle du regard", "arrete le suivi oculaire",
+            "coupe le suivi oculaire", "arrete le suivi des yeux",
+            "coupe le suivi des yeux")):
         return False
     if mots and mots[0] in {
-            "passe", "passer", "mets", "met", "active", "activer",
-            "lance", "lancer", "ouvre", "ouvrir", "demarre", "demarrer"}:
+            "passe", "passes", "passer", "mets", "met", "active", "actives",
+            "activer", "lance", "lances", "lancer", "ouvre", "ouvres", "ouvrir",
+            "demarre", "demarres", "demarrer", "utilise", "utilises", "utiliser",
+            "controle", "controles", "controler", "pilote", "pilotes", "piloter"}:
         return True
     return None
 
@@ -76,7 +106,10 @@ def demande_calibration_gestes(phrase: str) -> bool:
     mots = _mots_commande(phrase)
     if not mots or mots[0] not in {
             "lance", "lancer", "ouvre", "ouvrir", "demarre", "demarrer",
-            "calibre", "calibrer", "teste", "tester"}:
+            "calibre", "calibrer", "recalibre", "recalibrer", "regle", "regler",
+            "ajuste", "ajuster", "refais", "refaire", "teste", "tester",
+            "lances", "ouvres", "demarres", "calibres", "recalibres",
+            "regles", "ajustes", "testes"}:
         return False
     texte = " ".join(mots)
     calibration = "calibr" in texte or "reconnaissance" in texte

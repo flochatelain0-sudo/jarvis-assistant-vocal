@@ -15,12 +15,21 @@ from core.util import sans_accents
 
 
 _VERBES_OUVERTURE = {
-    "ouvre", "ouvrir", "lance", "lancer", "demarre", "demarrer",
+    "ouvre", "ouvres", "ouvrir", "lance", "lances", "lancer",
+    "demarre", "demarres", "demarrer", "affiche", "affiches", "afficher",
+    "accede", "accedes", "acceder", "execute", "executes", "executer",
+    "va", "vas", "aller",
 }
 _PREFIXES_POLITES = (
     ("hey", "jarvis"), ("jarvis",),
     ("est", "ce", "que", "tu", "peux"),
+    ("est", "ce", "que", "tu", "pourrais"),
     ("peux", "tu"), ("tu", "peux"),
+    ("pourrais", "tu"), ("tu", "pourrais"),
+    ("je", "veux", "que", "tu"),
+    ("je", "voudrais", "que", "tu"),
+    ("j", "aimerais", "que", "tu"),
+    ("vas", "y"),
     ("s", "il", "te", "plait"), ("stp",),
 )
 _SUFFIXES_POLITES = (
@@ -29,6 +38,7 @@ _SUFFIXES_POLITES = (
 _PREFIXES_CIBLE = (
     ("l", "application"), ("l", "appli"), ("le", "logiciel"),
     ("le", "site"), ("l", "utilitaire"),
+    ("sur",), ("a",), ("au",), ("aux",),
     ("le",), ("la",), ("l",),
 )
 _SUFFIXES_PC = (
@@ -94,8 +104,17 @@ def router_ouverture_simple(phrase, piece=""):
     _retirer_prefixe(mots, _PREFIXES_POLITES)
     if len(mots) >= 2 and mots[0] in {"m", "me"} and mots[1] in _VERBES_OUVERTURE:
         del mots[0]
+    if (len(mots) >= 2 and mots[0] == "fais"
+            and mots[1] in _VERBES_OUVERTURE):
+        del mots[0]
+    elif (len(mots) >= 3 and mots[0] == "fais" and mots[1] in {"m", "me", "moi"}
+          and mots[2] in _VERBES_OUVERTURE):
+        del mots[:2]
     if not mots or mots[0] not in _VERBES_OUVERTURE:
         return None
+    navigation_web = mots[0] in {
+        "va", "vas", "aller", "accede", "accedes", "acceder",
+    }
     del mots[0]
     if mots and mots[0] in {"m", "me", "moi"}:
         del mots[0]
@@ -118,6 +137,10 @@ def router_ouverture_simple(phrase, piece=""):
     from tools.navigateur import est_demande_web
     if est_demande_web(cible):
         return "browser_open", {"url": cible}
+    if navigation_web:
+        # « va sur YouTube » est une navigation claire ; « va dormir » n'est
+        # certainement pas une demande de lancement d'application.
+        return None
 
     clef = _trouver(cible, _apps())
     if clef is not None:

@@ -76,15 +76,22 @@ def _commande_transport(mots):
     # « Ne mets pas en pause » ne doit surtout pas produire l'action inverse.
     if re.search(r"\b(?:ne|n)\b.*\bpas\b", texte):
         return None
-    if any(formulation in texte for formulation in (
+    if texte in {"suivant", "suivante", "next", "skip"} or any(
+            formulation in texte for formulation in (
             "change de musique", "musique suivante", "piste suivante",
             "chanson suivante", "passe a la suivante",
-            "passe au morceau suivant", "morceau suivant")):
+            "passe au morceau suivant", "morceau suivant",
+            "mets la suivante", "mets le suivant", "passe a la suite",
+            "saute ce morceau", "skip ce morceau", "change de chanson",
+            "avance d un morceau", "prochaine chanson", "prochain morceau")):
         return "suivant"
-    if any(formulation in texte for formulation in (
+    if texte in {"precedent", "precedente"} or any(
+            formulation in texte for formulation in (
             "musique precedente", "piste precedente", "chanson precedente",
             "reviens a la precedente", "passe a la precedente",
-            "morceau precedent")):
+            "morceau precedent", "mets la precedente", "mets le precedent",
+            "remets celle d avant", "remets celui d avant",
+            "chanson d avant", "morceau d avant", "reviens d un morceau")):
         return "precedent"
 
     pause_exacte = {
@@ -99,6 +106,7 @@ def _commande_transport(mots):
         "pause", "arrete", "stop", "stoppe", "coupe", "suspends", "suspend",
         "interromps", "interrompt", "eteins", "eteint", "arreter",
         "stopper", "couper", "suspendre", "interrompre", "eteindre",
+        "arretes", "stoppes", "coupes", "interrompes", "eteignes",
     }
     cibles_media = {
         "musique", "spotify", "lecture", "son", "audio", "morceau",
@@ -130,10 +138,12 @@ def _commande_transport(mots):
         "redemarre", "repars", "recommence", "reprendre", "remettre",
         "relancer", "continuer", "redemarrer", "repartir", "recommencer",
         "rallume", "rallumer", "reactive", "reactiver",
+        "reprennes", "relances", "continues", "redemarres", "rallumes",
+        "reactives",
     }
     verbes_lecture_simple = {
         "mets", "met", "joue", "lance", "demarre", "mettre", "jouer",
-        "lancer", "demarrer",
+        "lancer", "demarrer", "joues", "lances", "demarres",
     }
     mots_liaison = {
         "la", "le", "l", "du", "de", "en", "sur", "moi", "ma", "mon",

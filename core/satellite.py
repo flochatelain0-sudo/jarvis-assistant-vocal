@@ -287,13 +287,21 @@ def _demande_veille(phrase):
     expressions = (
         "mets toi en veille",
         "met toi en veille",
+        "active le mode veille",
+        "passe en mode veille",
+        "retourne en veille",
         "passe en veille",
         "va en veille",
         "dors",
         "endors toi",
         "rendors toi",
+        "retourne dormir",
         "arrete d ecouter",
         "arrete de m ecouter",
+        "ne m ecoute plus",
+        "arrete de repondre",
+        "ne reponds plus",
+        "tais toi jusqu a ce que je te rappelle",
     )
     return any(expression in p for expression in expressions)
 

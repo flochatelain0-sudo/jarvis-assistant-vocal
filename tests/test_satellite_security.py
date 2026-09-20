@@ -65,6 +65,10 @@ class SatelliteSecurityTests(unittest.TestCase):
         self.assertTrue(_demande_veille("Hey Jarvis, mets-toi en veille"))
         self.assertTrue(_demande_veille("Arrête de m'écouter"))
         self.assertTrue(_demande_veille("Dors"))
+        self.assertTrue(_demande_veille("Retourne en veille"))
+        self.assertTrue(_demande_veille("Ne m'écoute plus"))
+        self.assertTrue(_demande_veille("Arrête de répondre"))
+        self.assertTrue(_demande_veille("Retourne dormir"))
 
     def test_commandes_voisines_ne_declenchent_pas_la_veille(self):
         self.assertFalse(_demande_veille("Mets la lumière en veilleuse"))

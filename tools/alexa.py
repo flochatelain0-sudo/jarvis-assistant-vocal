@@ -230,7 +230,8 @@ async def _routine(nom):
 _MOTS_ON = {"on", "allume", "allumes", "allumez", "allumer", "active", "actives",
             "activez", "activer", "marche", "ouvre", "ouvres", "ouvrez", "ouvrir",
             "demarre", "demarres", "demarrez", "demarrer", "lance", "lances",
-            "lancez", "monte"}
+            "lancez", "monte", "rallume", "rallumes", "rallumer", "reactive",
+            "reactives", "reactiver"}
 _MOTS_OFF = {"off", "eteins", "eteignez", "eteindre", "eteint", "coupe", "coupes",
              "coupez", "couper", "arrete", "arretes", "arretez", "arreter",
              "desactive", "desactives", "desactivez", "desactiver", "ferme", "fermes",
@@ -319,13 +320,19 @@ _PREFIXES_ROUTINE = {
 
 _PREFIXES_DEMANDE = (
     ("est", "ce", "que", "tu", "peux"),
+    ("est", "ce", "que", "tu", "pourrais"),
     ("s", "il", "te", "plait"),
     ("s", "il", "vous", "plait"),
     ("je", "voudrais", "que", "tu"),
     ("je", "veux", "que", "tu"),
     ("j", "aimerais", "que", "tu"),
     ("peux", "tu"), ("peut", "tu"), ("tu", "peux"),
+    ("pourrais", "tu"), ("tu", "pourrais"),
     ("pouvez", "vous"), ("vas", "y"),
+    ("demande", "a", "alexa", "de"),
+    ("demande", "a", "alexa", "d"),
+    ("dis", "a", "alexa", "de"),
+    ("dis", "a", "alexa", "d"),
     ("stp",), ("svp",),
 )
 
@@ -358,7 +365,8 @@ def _routine_explicite(mots):
     if commande[0] not in _PREFIXES_ROUTINE:
         return None
     i = 1
-    while i < len(commande) and commande[i] in {"la", "le", "une", "un", "moi"}:
+    while i < len(commande) and commande[i] in {
+            "la", "le", "une", "un", "ma", "mon", "cette", "moi"}:
         i += 1
     if i >= len(commande) or commande[i] != "routine":
         return None
@@ -420,6 +428,42 @@ def _analyser_commande(phrase, piece="", automations=(),
     # Commande domestique : action claire + appareil connecté connu, ou mention
     # explicite d'Alexa. Les commandes PC/musique ne sont donc pas détournées.
     commande = _mots_demande(mots)
+
+    # « mets la clim en marche », « passe les lumières sur off » et leurs
+    # formulations inversées (« mets en route la clim ») expriment l'état à la
+    # fin ou juste après le verbe plutôt qu'avec « allume/éteins ».
+    verbes_etat = {"mets", "met", "mettre", "passe", "passer"}
+    suffixes_etat = (
+        (("en", "marche"), "allumer"), (("en", "route"), "allumer"),
+        (("sur", "on"), "allumer"), (("en", "arret"), "eteindre"),
+        (("a", "l", "arret"), "eteindre"), (("sur", "off"), "eteindre"),
+    )
+    if commande and commande[0] in verbes_etat:
+        appareil_brut, action_formule = None, None
+        for suffixe, action_candidate in suffixes_etat:
+            if tuple(commande[-len(suffixe):]) == suffixe:
+                appareil_brut = commande[1:-len(suffixe)]
+                action_formule = action_candidate
+                break
+            if tuple(commande[1:1 + len(suffixe)]) == suffixe:
+                appareil_brut = commande[1 + len(suffixe):]
+                action_formule = action_candidate
+                break
+        appareil_mots = [m for m in (appareil_brut or [])
+                          if m not in _IGNORES_APPAREIL]
+        if (action_formule and appareil_mots
+                and bool(set(appareil_mots) & _MOTS_APPAREILS)):
+            appareil = " ".join(appareil_mots)
+            mots_lumiere = {"lumiere", "lumieres", "lampe", "lampes", "eclairage"}
+            if piece and all(m in mots_lumiere for m in appareil_mots):
+                piece_norm = _normaliser_commande(piece)
+                if piece_norm and piece_norm not in appareil:
+                    appareil += " " + piece_norm
+            return "alexa_appareil", {
+                "appareil": appareil,
+                "action": action_formule,
+            }
+
     action_i = next((i for i, mot in enumerate(commande)
                      if mot in _MOTS_ON or mot in _MOTS_OFF), None)
     if action_i is not None:

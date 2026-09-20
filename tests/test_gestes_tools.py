@@ -43,6 +43,19 @@ class GestesToolsTests(unittest.TestCase):
             "Coupe le contrôle du regard"), None)
         self.assertIs(demande_mode_visio("Je parle du mode visio"), None)
 
+    def test_variantes_du_mode_vision(self):
+        self.assertIs(demande_mode_visio("Passe en mode vision"), True)
+        self.assertIs(demande_mode_visio(
+            "Tu pourrais activer le contrôle gestuel"), True)
+        self.assertIs(demande_mode_visio("Active les gestes"), True)
+        self.assertIs(demande_mode_visio(
+            "Je veux que tu actives les gestes"), True)
+        self.assertIs(demande_mode_visio("Regarde mes mains"), True)
+        self.assertIs(demande_mode_visio(
+            "Arrête le contrôle par gestes"), False)
+        self.assertIs(demande_mode_visio("Coupe le mode vision"), False)
+        self.assertIs(demande_mode_visio("Coupe les gestes"), False)
+
     def test_mode_regard_est_separe_du_mode_visio(self):
         self.assertIs(demande_mode_regard(
             "Hey Jarvis, passe en mode regard"), True)
@@ -52,6 +65,20 @@ class GestesToolsTests(unittest.TestCase):
             "Coupe le contrôle du regard"), False)
         self.assertIs(demande_mode_regard(
             "Je parle du suivi des yeux"), None)
+
+    def test_variantes_du_mode_regard(self):
+        self.assertIs(demande_mode_regard(
+            "Contrôle la souris avec mes yeux"), True)
+        self.assertIs(demande_mode_regard(
+            "Quitte le contrôle oculaire"), False)
+        self.assertIs(demande_mode_regard(
+            "Arrête le suivi des yeux"), False)
+
+    def test_variantes_de_recalibrage(self):
+        self.assertTrue(demande_calibration_gestes(
+            "Refais la calibration de mes mains"))
+        self.assertTrue(demande_calibration_gestes(
+            "Recalibre les gestes de la webcam"))
 
     def test_commande_vocale_ouvre_la_calibration_locale(self):
         with patch("core.gestes.lancer_calibration",
