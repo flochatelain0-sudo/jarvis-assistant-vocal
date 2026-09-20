@@ -116,6 +116,12 @@ flowchart LR
 
 La transcription faster-whisper reste locale dans les trois modes.
 
+> **Petit budget cloud ?** Le mode local est disponible aujourd'hui sans coût
+> d'API. Des connecteurs optionnels **Gemini (niveau gratuit)** et **DeepSeek
+> (paiement à l'usage économique)** sont proposés dans la roadmap, mais ne sont
+> pas encore intégrés. Le projet, les limites et les précautions de confidentialité
+> sont détaillés dans [le guide des coûts](docs/costs.md#proposition-pour-les-petits-budgets-cloud-roadmap).
+
 Bascule en une ligne : `mode: local`, `hybride` (défaut) ou `qualite` — ou à la voix « passe en local ». Voir [docs/local.md](docs/local.md) et [docs/costs.md](docs/costs.md)
 pour le bilan honnête de fiabilité (un modèle 7B gère bien les outils domotique/PC ;
 les **features à vision comme le navigateur & les réservations restent cloud recommandé**).
@@ -227,6 +233,7 @@ La confiance est intégrée, pas rajoutée :
 - [x] **Cockpit local — phase 1** : abonnements, détection par mail et transactions CSV
 - [x] **Client satellite Raspberry Pi/Linux** : audio, wake word, protocole LAN sécurisé et multi-pièces — matériel audio choisi librement par chaque installation
 - [ ] **Clients satellites économiques** : ancien téléphone Android et ESP32 audio, sur le même protocole sans déplacer le cerveau hors du PC
+- [ ] **Connecteurs cloud économiques optionnels** : Gemini (niveau gratuit) et DeepSeek, avec appels d'outils testés, suivi des coûts et repli local sur quota épuisé
 - [ ] Contrôle des lampes vidéo Godox (aujourd'hui Hue seulement)
 - [x] Notes / idées (+ pont iPhone via Raccourcis) — rappels programmés à venir
 - [ ] Adaptateur générique de réveil/alimentation avec vérification d'état robuste

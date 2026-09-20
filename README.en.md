@@ -111,6 +111,12 @@ flowchart LR
 
 faster-whisper transcription stays local in all three modes.
 
+> **Tight cloud budget?** Local mode is available today with no API usage fees.
+> Optional **Gemini free-tier** and **low-cost DeepSeek** connectors are proposed
+> on the roadmap but are not integrated yet. The intended routing, limitations,
+> and privacy safeguards are documented in the
+> [cost guide](docs/costs.md#proposition-pour-les-petits-budgets-cloud-roadmap).
+
 Switch with a single line: `mode: local`, `hybride` (default), or `qualite`. See [docs/local.md](docs/local.md) and [docs/costs.md](docs/costs.md)
 for the honest reliability breakdown (a 7B model handles the core home/PC tools well;
 **vision-based features like the browser & web reservations stay cloud-recommended**).
@@ -213,6 +219,7 @@ Trust is built in, not bolted on:
 - [x] Private local cockpit phase 1 (subscriptions, receipt detection, CSV transactions)
 - [x] Raspberry Pi/Linux satellite client (audio, wake word, authenticated LAN protocol, multi-room); each installation can choose its own audio hardware
 - [ ] Low-cost satellite clients for reused Android phones and audio-capable ESP32 boards, using the same protocol while the PC remains the central brain
+- [ ] Optional low-cost cloud connectors for the Gemini free tier and DeepSeek, with tested tool calls, cost tracking, and local fallback when quotas are exhausted
 - [ ] Godox video-light control (currently Hue only)
 - [x] Notes / ideas (+ iPhone bridge via Shortcuts) — scheduled reminders next
 - [ ] Sentence-by-sentence streaming TTS (see [docs/latency.md](docs/latency.md))

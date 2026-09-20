@@ -55,6 +55,42 @@ budget:
   — automatiquement.
 - Un **changement manuel** de mode désarme la bascule auto (tu décides).
 
+## Proposition pour les petits budgets cloud *(roadmap)*
+
+Aujourd'hui, les fournisseurs cloud intégrés sont **OpenAI** et
+**Claude/Anthropic**. **Gemini et DeepSeek ne sont pas encore sélectionnables** :
+les options ci-dessous décrivent une évolution possible, pas une configuration à
+ajouter dès maintenant dans `config.yaml`.
+
+L'objectif serait de conserver les commandes déterministes (domotique, applications,
+Spotify, minuteurs…) en local, puis de n'appeler un LLM cloud que lorsqu'une demande
+nécessite réellement de comprendre ou de produire du texte :
+
+| Option proposée | Intérêt | Limites à afficher clairement |
+|---|---|---|
+| **Gemini Flash-Lite — niveau gratuit** | conversations quotidiennes sans coût dans les quotas | quotas variables ; au niveau gratuit, Google indique que le contenu peut servir à améliorer ses produits |
+| **DeepSeek Flash — paiement à l'usage** | API très économique et [compatible avec le format Responses d'OpenAI](https://api-docs.deepseek.com/api/create-response/) | ce n'est pas gratuit ; fournisseur cloud externe et tarifs susceptibles de changer |
+| **Petit modèle du fournisseur déjà intégré** | aucune nouvelle clé ni nouveau connecteur | moins puissant qu'un profil qualité, mais souvent suffisant pour une commande vocale |
+| **Ollama + voix locale** | aucun coût d'API et aucune donnée envoyée | nécessite une machine locale suffisante et peut être moins fiable sur les tâches complexes |
+
+Une intégration correcte devrait prévoir :
+
+- un connecteur explicite par fournisseur, testé avec les appels d'outils ;
+- une bascule automatique vers le mode local lors d'un quota gratuit épuisé ou
+  d'une erreur de débit, sans boucle de requêtes payantes ;
+- l'interdiction d'envoyer secrets, mots de passe et données sensibles à un niveau
+  cloud gratuit ;
+- une voix locale (Piper, Kokoro ou Windows) pour ne pas remplacer l'économie du
+  LLM par un abonnement TTS ;
+- le maintien d'**Astra/OpenAI comme option séparée** pour le contrôle visuel avancé
+  du PC, sans l'imposer aux commandes simples.
+
+Références tarifaires à vérifier au moment de l'installation :
+[Gemini API](https://ai.google.dev/gemini-api/docs/pricing),
+[DeepSeek API](https://api-docs.deepseek.com/quick_start/pricing/) et
+[OpenAI API](https://developers.openai.com/api/docs/models). Les quotas et tarifs
+ne doivent jamais être figés dans le code sans date ni possibilité de les modifier.
+
 ## Coûts typiques (ordres de grandeur, à titre indicatif)
 
 *Estimations — dépendent de tes modèles/offres. Ajuste `budget.prix*`.*
