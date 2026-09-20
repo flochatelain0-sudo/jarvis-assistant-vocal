@@ -19,11 +19,18 @@ _VERBES_LECTURE = {
 _PREFIXES = (
     ("hey", "jarvis"), ("jarvis",),
     ("est", "ce", "que", "tu", "peux"),
+    ("est", "ce", "que", "tu", "pourrais"),
     ("peux", "tu"), ("tu", "peux"),
+    ("pourrais", "tu"), ("tu", "pourrais"),
+    ("je", "veux", "que", "tu"),
+    ("je", "voudrais", "que", "tu"),
+    ("j", "aimerais", "que", "tu"),
+    ("vas", "y"), ("allez",),
     ("s", "il", "te", "plait"), ("stp",),
 )
 _SUFFIXES_POLITES = (
-    ("s", "il", "te", "plait"), ("stp",), ("merci",),
+    ("s", "il", "te", "plait"), ("stp",), ("merci",), ("jarvis",),
+    ("maintenant",),
 )
 
 
@@ -61,8 +68,14 @@ def _retirer_service(mots, service):
 
 def _commande_transport(mots):
     """Action média explicite, avec variantes naturelles et nom du service."""
+    mots = list(mots)
+    while mots and mots[0] in {"m", "me", "moi"}:
+        del mots[0]
     texte = " ".join(mots)
     ensemble = set(mots)
+    # « Ne mets pas en pause » ne doit surtout pas produire l'action inverse.
+    if re.search(r"\b(?:ne|n)\b.*\bpas\b", texte):
+        return None
     if any(formulation in texte for formulation in (
             "change de musique", "musique suivante", "piste suivante",
             "chanson suivante", "passe a la suivante",
@@ -73,19 +86,76 @@ def _commande_transport(mots):
             "reviens a la precedente", "passe a la precedente",
             "morceau precedent")):
         return "precedent"
-    if "pause" in ensemble or any(formulation in texte for formulation in (
-            "arrete la musique", "arrete spotify", "coupe la musique",
-            "coupe spotify", "suspends la lecture")):
+
+    pause_exacte = {
+        "pause", "stop", "arrete", "mets pause", "met pause",
+        "mets en pause", "met en pause", "mets sur pause", "met sur pause",
+        "fais pause", "fais une pause", "appuie sur pause",
+        "appuies sur pause", "passe en pause", "pause la musique",
+        "pause spotify", "stop la musique", "stop spotify",
+        "fais stop", "mets stop", "met stop",
+    }
+    verbes_pause = {
+        "pause", "arrete", "stop", "stoppe", "coupe", "suspends", "suspend",
+        "interromps", "interrompt", "eteins", "eteint", "arreter",
+        "stopper", "couper", "suspendre", "interrompre", "eteindre",
+    }
+    cibles_media = {
+        "musique", "spotify", "lecture", "son", "audio", "morceau",
+        "chanson", "titre", "playlist", "ca", "joue", "ecoute", "ecoutais",
+    }
+    if (texte in pause_exacte
+            or (mots and mots[0] in verbes_pause
+                and (len(mots) == 1 or bool(ensemble & cibles_media)))
+            or ("pause" in ensemble and mots and mots[0] in {
+                "mets", "met", "mettre", "fais", "fait", "appuie",
+                "appuies", "passe", "active", "bloque",
+            })
+            or any(formulation in texte for formulation in (
+                "arrete de jouer", "arrete ce qui joue", "ne joue plus",
+                "fais taire la musique", "fais arreter la musique",
+                "je ne veux plus de musique"))):
         return "pause"
-    if texte in {
-            "play", "mets play", "met play", "appuie sur play",
-            "reprends", "reprend", "continue",
-            "mets en lecture", "met en lecture",
-    } or any(formulation in texte for formulation in (
-            "reprends la musique", "reprend la musique", "reprends spotify",
-            "reprend spotify", "remets la musique", "remet la musique",
-            "reprends la lecture", "reprend la lecture", "relance la musique",
-            "continue la musique", "continue spotify")):
+
+    reprise_exacte = {
+        "play", "lecture", "reprends", "reprend", "continue", "relance",
+        "remets", "remet", "repars", "mets play", "met play",
+        "fais play", "appuie sur play", "appuies sur play",
+        "mets en lecture", "met en lecture", "passe en lecture",
+        "enleve la pause", "retire la pause", "desactive la pause",
+        "sors de pause", "remets le son", "remet le son",
+    }
+    verbes_reprise = {
+        "reprends", "reprend", "remets", "remet", "relance", "continue",
+        "redemarre", "repars", "recommence", "reprendre", "remettre",
+        "relancer", "continuer", "redemarrer", "repartir", "recommencer",
+        "rallume", "rallumer", "reactive", "reactiver",
+    }
+    verbes_lecture_simple = {
+        "mets", "met", "joue", "lance", "demarre", "mettre", "jouer",
+        "lancer", "demarrer",
+    }
+    mots_liaison = {
+        "la", "le", "l", "du", "de", "en", "sur", "moi", "ma", "mon",
+    }
+    reste_simple = ensemble - mots_liaison - verbes_lecture_simple
+    if (texte in reprise_exacte
+            or (mots and mots[0] in verbes_reprise
+                and (len(mots) == 1 or bool(ensemble & cibles_media)
+                     or any(expression in texte for expression in (
+                         "la ou tu t es arrete", "la ou ca s est arrete",
+                         "ou tu en etais", "ce qui jouait"))))
+            or (mots and mots[0] in verbes_lecture_simple
+                and reste_simple
+                and reste_simple <= {"musique", "spotify", "lecture", "son", "audio"})
+            or any(formulation in texte for formulation in (
+                "fais repartir la musique", "fais repartir spotify",
+                "fais reprendre la musique", "fais relancer la musique",
+                "reprends la ou tu t es arrete", "continue la ou tu en etais",
+                "reprends la ou on en etait", "continue la ou on en etait",
+                "remets ce qui jouait", "relance ce qui jouait",
+                "reprends ce que j ecoutais", "remets ce que j ecoutais",
+                "continue ce que j ecoutais"))):
         return "reprendre"
     return None
 

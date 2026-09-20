@@ -54,7 +54,13 @@ class MediaRoutingTests(unittest.TestCase):
     def test_variantes_pause_restent_deterministes_sur_satellite(self):
         for phrase in (
                 "mets pause", "mets Spotify en pause",
-                "mets la musique en pause", "arrête Spotify"):
+                "mets la musique en pause", "arrête Spotify", "stop",
+                "stoppe la musique", "coupe le son", "suspends la lecture",
+                "interromps ce morceau", "éteins la musique",
+                "fais une pause", "appuie sur pause", "ne joue plus",
+                "je ne veux plus de musique", "mets ça sur pause",
+                "pause-moi la musique", "fais arrêter la musique",
+                "arrête ce que j'écoute", "coupe ce qui joue"):
             with self.subTest(phrase=phrase):
                 self.assertEqual(
                     media.router_commande_media(phrase, piece="cuisine"),
@@ -65,13 +71,31 @@ class MediaRoutingTests(unittest.TestCase):
     def test_variantes_play_restent_deterministes_sur_satellite(self):
         for phrase in (
                 "play", "mets play", "appuie sur play",
-                "reprends", "continue la musique", "mets en lecture"):
+                "reprends", "continue la musique", "mets en lecture",
+                "remets la musique", "relance Spotify", "redémarre la lecture",
+                "fais repartir la musique", "enlève la pause",
+                "reprends là où tu t'es arrêté", "continue là où tu en étais",
+                "remets ce qui jouait", "peux-tu me remettre la musique",
+                "est-ce que tu pourrais relancer Spotify",
+                "vas-y remets la musique", "rallume la musique",
+                "réactive Spotify", "fais reprendre la musique",
+                "reprends ce que j'écoutais", "lance la musique maintenant",
+                "mets-moi la musique Jarvis"):
             with self.subTest(phrase=phrase):
                 self.assertEqual(
                     media.router_commande_media(phrase, piece="cuisine"),
                     ("controler_spotify", {
                         "action": "reprendre", "piece": "cuisine"}),
                 )
+
+    def test_negation_ne_declenche_pas_une_commande_media(self):
+        for phrase in (
+                "ne mets pas la musique en pause",
+                "n'arrête pas Spotify",
+                "ne relance pas la musique"):
+            with self.subTest(phrase=phrase):
+                self.assertIsNone(
+                    media.router_commande_media(phrase, piece="cuisine"))
 
     def test_serie_netflix_est_routee_sans_astra(self):
         self.assertEqual(
