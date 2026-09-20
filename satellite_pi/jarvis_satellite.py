@@ -16,7 +16,9 @@ hey_jarvis fourni par openwakeword). Cf. requirements.txt.
 """
 import asyncio
 import json
+import os
 import queue
+import subprocess
 import sys
 import threading
 import time
@@ -259,6 +261,42 @@ class Micro:
             flux.stop(); flux.close()
 
 
+def _jouer_alsa_partage(pcm, freq):
+    """Joue via un PCM ALSA partagé lorsque le satellite en fournit un.
+
+    Le nom du PCM et le fichier ALSA restent des réglages locaux. Le recours à
+    ``aplay`` évite que PortAudio ouvre directement le périphérique USB déjà
+    utilisé par un récepteur Spotify Connect.
+    """
+    appareil = str(
+        CONF.get("pcm_sortie_alsa")
+        or os.environ.get("JARVIS_ALSA_OUTPUT_PCM", "")
+    ).strip()
+    if not appareil:
+        return False
+
+    config_alsa = str(
+        CONF.get("alsa_config_path")
+        or os.environ.get("JARVIS_ALSA_CONFIG_PATH", "")
+    ).strip()
+    environnement = os.environ.copy()
+    if config_alsa:
+        environnement["ALSA_CONFIG_PATH"] = config_alsa
+
+    taux = max(1, int(freq))
+    duree = len(pcm) / (2 * taux)
+    try:
+        subprocess.run([
+            "aplay", "--quiet", f"--device={appareil}", "--file-type=raw",
+            "--format=S16_LE", f"--rate={taux}", "--channels=1",
+        ], input=pcm, check=True, env=environnement,
+           timeout=max(5.0, duree + 5.0))
+        return True
+    except (OSError, subprocess.SubprocessError) as e:
+        print("  [audio] lecture ALSA partagée impossible:", e)
+        return False
+
+
 def _jouer(pcm, freq):
     """Joue du PCM mono en l'adaptant au taux natif du haut-parleur.
 
@@ -267,6 +305,8 @@ def _jouer(pcm, freq):
     refuse alors d'ouvrir la sortie avec ``paInvalidSampleRate``. Le satellite
     rééchantillonne donc la réponse avant de la lire.
     """
+    if _jouer_alsa_partage(pcm, freq):
+        return
     try:
         audio = np.frombuffer(pcm, dtype=np.int16).astype(np.float32) / 32768.0
         sortie = CONF.get("haut_parleur", None)

@@ -107,6 +107,12 @@ python -c "import sounddevice as sd; print(sd.query_devices())"
 ```
 
 Les clés `micro` et `haut_parleur` acceptent un index de périphérique.
+
+Si un autre service, par exemple Raspotify, joue sur la même enceinte USB,
+configure un PCM ALSA partagé (`plug` au-dessus de `dmix`) avec
+`pcm_sortie_alsa`. `alsa_config_path` peut désigner le fichier qui déclare ce
+PCM. Jarvis utilise alors `aplay` pour ses accusés de réveil et ses réponses,
+sans interrompre Spotify et sans changer le périphérique du micro.
 La valeur `null` utilise le périphérique par défaut d'ALSA.
 
 ## 5. Tester

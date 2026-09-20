@@ -5,6 +5,9 @@ token: ""                      # le meme token que cote PC pour ce satellite
 # Peripheriques audio (indices : `python -c "import sounddevice as sd; print(sd.query_devices())"`)
 micro: null                    # null = micro par defaut ; sinon l'index
 haut_parleur: null             # null = sortie par defaut ; sinon l'index
+# Sortie ALSA partagee (facultatif, utile avec Spotify Connect/Raspotify)
+pcm_sortie_alsa: ""            # ex. jarvis_audio ; vide = sortie PortAudio ci-dessus
+alsa_config_path: ""           # ex. /etc/asound.conf si le PCM y est declare
 # Reglages capture (facultatif)
 seuil_reveil: 0.5              # sensibilite "Hey Jarvis" (0.3 facile .. 0.7 strict)
 gain_reveil: 1.0               # amplification pour le wake uniquement (utile si micro faible)
