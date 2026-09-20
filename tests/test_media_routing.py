@@ -177,6 +177,42 @@ class MediaRoutingTests(unittest.TestCase):
 
         self.assertEqual(resultat, "Musique en pause.")
 
+    def test_pause_est_envoyee_meme_si_raspotify_se_dit_inactif(self):
+        appareil = {
+            "id": "device-cuisine", "name": "Jarvis Cuisine",
+            "is_active": False,
+        }
+        with patch("tools.spotify._configure", return_value=True), \
+                patch("tools.spotify._appareil_piece",
+                      return_value=(appareil, "Jarvis Cuisine")), \
+                patch("tools.spotify._commande_lecture",
+                      return_value=SimpleNamespace(status_code=204)) as commander, \
+                patch("tools.spotify._transferer_lecture") as transferer:
+            resultat = spotify.controler_spotify("pause", "cuisine")
+
+        self.assertEqual(resultat, "Musique en pause.")
+        commander.assert_called_once_with("device-cuisine", "pause")
+        transferer.assert_not_called()
+
+    def test_pause_appliquee_ne_rapporte_pas_un_faux_echec(self):
+        appareil = {
+            "id": "device-cuisine", "name": "Jarvis Cuisine",
+            "is_active": True,
+        }
+        with patch("tools.spotify._configure", return_value=True), \
+                patch("tools.spotify._appareil_piece",
+                      return_value=(appareil, "Jarvis Cuisine")), \
+                patch("tools.spotify._commande_lecture",
+                      return_value=SimpleNamespace(status_code=404)), \
+                patch("tools.spotify._etat_lecture", return_value={
+                    "is_playing": False,
+                    "device": {"name": "Jarvis Cuisine"},
+                }), \
+                patch("tools.spotify.time.sleep"):
+            resultat = spotify.controler_spotify("pause", "cuisine")
+
+        self.assertEqual(resultat, "Musique en pause.")
+
     def test_titre_spotify_depuis_cuisine_cible_l_appareil(self):
         appareil = {"id": "device-cuisine", "name": "Jarvis Cuisine"}
         with patch("tools.spotify._configure", return_value=True), \

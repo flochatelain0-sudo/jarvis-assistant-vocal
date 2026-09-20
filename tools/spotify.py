@@ -404,8 +404,28 @@ def controler_spotify(action: str, piece: str) -> str:
             return (f"Je ne vois pas encore {attendu}. Sélectionne-le une première "
                     "fois dans les appareils Spotify.")
         actif = bool(appareil.get("is_active"))
-        if not actif and action == "pause":
-            return f"La musique est déjà en pause sur {attendu}."
+        if action == "pause":
+            # Raspotify peut publier is_active=False avec un léger retard alors
+            # que le son joue encore. Ne jamais déduire « déjà en pause » de ce
+            # seul drapeau : envoyer réellement la pause à l'appareil demandé.
+            r = _commande_lecture(appareil["id"], "pause")
+            if _requete_reussie(r):
+                return "Musique en pause."
+            # Certaines implémentations Connect appliquent la commande avant de
+            # renvoyer un statut non-2xx. Vérifie l'état obtenu avant d'annoncer
+            # un faux échec.
+            time.sleep(0.25)
+            try:
+                etat = _etat_lecture()
+                nom_etat = sans_accents(str(
+                    (etat.get("device") or {}).get("name", ""))).lower()
+                if (not etat or
+                        (nom_etat == sans_accents(attendu).lower()
+                         and not etat.get("is_playing", False))):
+                    return "Musique en pause."
+            except Exception:
+                pass
+            return f"Spotify n'a pas pu mettre en pause sur {attendu}."
         if not actif:
             # Un appareil Connect connu peut rester visible tout en étant inactif.
             # Les commandes /play, next et previous échouent alors souvent avec
