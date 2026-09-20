@@ -76,12 +76,19 @@ sudo systemctl edit raspotify
 # Ajouter dans le drop-in :
 # [Service]
 # Environment="LIBRESPOT_BACKEND=alsa"
-# Environment="LIBRESPOT_DEVICE=dmix:CARD=<NOM_CARTE_ALSA>,DEV=0"
+# Environment="LIBRESPOT_DEVICE=<PCM_ALSA_PARTAGE>"
+# Environment="ALSA_CONFIG_PATH=/etc/asound.conf"
 sudo systemctl daemon-reload
 sudo systemctl restart raspotify
 ```
 
-`aplay -l` donne le nom de carte à placer après `CARD=`. Évite de désactiver
+`aplay -l` donne le nom de la carte. Pour une enceinte USB limitée à 48 kHz,
+déclare dans `asound.conf` un PCM `plug` au-dessus d'un PCM `dmix` fixé au taux
+du périphérique, puis place le nom de ce PCM dans `LIBRESPOT_DEVICE`. `plug`
+convertit les 44,1 kHz de Spotify et `dmix` permet aux clients ALSA qui utilisent
+ce même PCM de partager la sortie. Une sortie dédiée peut utiliser directement
+`plughw:CARD=<NOM_CARTE_ALSA>,DEV=0`, mais elle sera généralement exclusive.
+Évite de désactiver
 `PrivateUsers` uniquement pour joindre PulseAudio : le backend ALSA est plus
 adapté au service système durci fourni par Raspotify.
 
