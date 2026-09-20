@@ -62,6 +62,17 @@ class MediaRoutingTests(unittest.TestCase):
                         "action": "pause", "piece": "cuisine"}),
                 )
 
+    def test_variantes_play_restent_deterministes_sur_satellite(self):
+        for phrase in (
+                "play", "mets play", "appuie sur play",
+                "reprends", "continue la musique", "mets en lecture"):
+            with self.subTest(phrase=phrase):
+                self.assertEqual(
+                    media.router_commande_media(phrase, piece="cuisine"),
+                    ("controler_spotify", {
+                        "action": "reprendre", "piece": "cuisine"}),
+                )
+
     def test_serie_netflix_est_routee_sans_astra(self):
         self.assertEqual(
             media.router_commande_media("Lance la série Arcane sur Netflix"),

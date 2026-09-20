@@ -77,10 +77,15 @@ def _commande_transport(mots):
             "arrete la musique", "arrete spotify", "coupe la musique",
             "coupe spotify", "suspends la lecture")):
         return "pause"
-    if any(formulation in texte for formulation in (
+    if texte in {
+            "play", "mets play", "met play", "appuie sur play",
+            "reprends", "reprend", "continue",
+            "mets en lecture", "met en lecture",
+    } or any(formulation in texte for formulation in (
             "reprends la musique", "reprend la musique", "reprends spotify",
             "reprend spotify", "remets la musique", "remet la musique",
-            "reprends la lecture", "reprend la lecture", "relance la musique")):
+            "reprends la lecture", "reprend la lecture", "relance la musique",
+            "continue la musique", "continue spotify")):
         return "reprendre"
     return None
 
