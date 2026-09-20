@@ -59,31 +59,45 @@ def _retirer_service(mots, service):
     return sortie
 
 
+def _commande_transport(mots):
+    """Action média explicite, avec variantes naturelles et nom du service."""
+    texte = " ".join(mots)
+    ensemble = set(mots)
+    if any(formulation in texte for formulation in (
+            "change de musique", "musique suivante", "piste suivante",
+            "chanson suivante", "passe a la suivante",
+            "passe au morceau suivant", "morceau suivant")):
+        return "suivant"
+    if any(formulation in texte for formulation in (
+            "musique precedente", "piste precedente", "chanson precedente",
+            "reviens a la precedente", "passe a la precedente",
+            "morceau precedent")):
+        return "precedent"
+    if "pause" in ensemble or any(formulation in texte for formulation in (
+            "arrete la musique", "arrete spotify", "coupe la musique",
+            "coupe spotify", "suspends la lecture")):
+        return "pause"
+    if any(formulation in texte for formulation in (
+            "reprends la musique", "reprend la musique", "reprends spotify",
+            "reprend spotify", "remets la musique", "remet la musique",
+            "reprends la lecture", "reprend la lecture", "relance la musique")):
+        return "reprendre"
+    return None
+
+
 def router_commande_media(phrase, piece=""):
     """Renvoie ``(outil, arguments)`` pour une commande média non ambiguë."""
     mots = _mots(phrase)
     if not mots or "alexa" in mots or "echo" in mots:
         return None
-    texte = " ".join(mots)
 
-    commandes = (
-        (("change de musique", "musique suivante", "piste suivante",
-          "chanson suivante", "passe a la suivante", "passe au morceau suivant"),
-         "suivant"),
-        (("musique precedente", "piste precedente", "chanson precedente",
-          "reviens a la precedente", "morceau precedent"), "precedent"),
-        (("mets en pause", "met en pause", "pause la musique", "pause"), "pause"),
-        (("reprends la musique", "reprend la musique", "remets la musique",
-          "remet la musique", "reprends la lecture", "reprend la lecture"),
-         "reprendre"),
-    )
-    for formulations, action in commandes:
-        if texte in formulations:
-            if piece:
-                return "controler_spotify", {"action": action, "piece": piece}
-            return "controler_media", {
-                "action": "pause" if action == "reprendre" else action,
-            }
+    action = _commande_transport(mots)
+    if action:
+        if piece:
+            return "controler_spotify", {"action": action, "piece": piece}
+        return "controler_media", {
+            "action": "pause" if action == "reprendre" else action,
+        }
 
     if mots[0] not in _VERBES_LECTURE:
         return None

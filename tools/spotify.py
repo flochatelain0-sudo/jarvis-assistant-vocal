@@ -221,6 +221,14 @@ def _commande_lecture(device_id, action):
                  params={"device_id": device_id}, timeout=15)
 
 
+def _requete_reussie(reponse):
+    """Spotify répond généralement 204, mais tout statut 2xx est un succès."""
+    try:
+        return 200 <= int(reponse.status_code) < 300
+    except (AttributeError, TypeError, ValueError):
+        return False
+
+
 def _ouvrir_application_spotify():
     """Ouvre Spotify avec le chemin configuré, sinon via son protocole Windows."""
     cible = "spotify:"
@@ -311,7 +319,7 @@ def lancer_spotify(piece: str = "") -> str:
                 return (f"Je ne vois pas encore {attendu}. Dans Spotify, sélectionne-le "
                         "une première fois dans Appareils disponibles.")
             r = _transferer_lecture(appareil["id"], lecture=True)
-            if r.status_code == 204:
+            if _requete_reussie(r):
                 return f"Je lance Spotify sur {attendu}."
             return f"Spotify n'a pas pu lancer la lecture sur {attendu}."
         except Exception as e:
@@ -337,7 +345,7 @@ def lancer_spotify(piece: str = "") -> str:
     if configure and (etat_avant.get("device") or {}).get("id"):
         try:
             r = _reprendre_lecture()
-            if r.status_code == 204:
+            if _requete_reussie(r):
                 return "Spotify est lancé et la lecture a repris."
         except Exception:
             pass
@@ -354,7 +362,7 @@ def lancer_spotify(piece: str = "") -> str:
                 return "Spotify est lancé et déjà en lecture."
             if (etat.get("device") or {}).get("id"):
                 r = _reprendre_lecture()
-                if r.status_code == 204:
+                if _requete_reussie(r):
                     return "Spotify est lancé et la lecture a repris."
         except Exception:
             pass
@@ -403,7 +411,7 @@ def controler_spotify(action: str, piece: str) -> str:
             # Les commandes /play, next et previous échouent alors souvent avec
             # 404 : on transfère d'abord la session vers la pièce demandée.
             r = _transferer_lecture(appareil["id"], lecture=True)
-            if r.status_code != 204:
+            if not _requete_reussie(r):
                 return f"Spotify n'a pas pu activer {attendu}."
             if action == "reprendre":
                 return "Je reprends la musique."
@@ -412,7 +420,7 @@ def controler_spotify(action: str, piece: str) -> str:
             r = _reprendre_lecture(appareil["id"])
         else:
             r = _commande_lecture(appareil["id"], action)
-        if r.status_code != 204:
+        if not _requete_reussie(r):
             return f"Spotify n'a pas pu exécuter la commande sur {attendu}."
         messages = {
             "pause": "Musique en pause.",
@@ -528,7 +536,7 @@ def lire_spotify(recherche: str, type_media: str = "titre", piece: str = "") -> 
 
         nom = item.get("name") or recherche
         reponse = _demarrer_lecture(item["uri"], type_media, device_id=device_id)
-        if reponse.status_code == 204:
+        if _requete_reussie(reponse):
             destination = f" sur {attendu}" if attendu else " sur Spotify"
             return f"Je lance « {nom} »{destination}."
 

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from core import registre
-from tools import media, spotify
+from tools import media, spotify, systeme  # charge aussi l'outil controler_media
 
 
 class MediaRoutingTests(unittest.TestCase):
@@ -50,6 +50,17 @@ class MediaRoutingTests(unittest.TestCase):
             media.router_commande_media("reprends la musique", piece="cuisine"),
             ("controler_spotify", {"action": "reprendre", "piece": "cuisine"}),
         )
+
+    def test_variantes_pause_restent_deterministes_sur_satellite(self):
+        for phrase in (
+                "mets pause", "mets Spotify en pause",
+                "mets la musique en pause", "arrête Spotify"):
+            with self.subTest(phrase=phrase):
+                self.assertEqual(
+                    media.router_commande_media(phrase, piece="cuisine"),
+                    ("controler_spotify", {
+                        "action": "pause", "piece": "cuisine"}),
+                )
 
     def test_serie_netflix_est_routee_sans_astra(self):
         self.assertEqual(
@@ -151,6 +162,20 @@ class MediaRoutingTests(unittest.TestCase):
         transferer.assert_called_once_with("device-cuisine", lecture=True)
         dormir.assert_called_once_with(0.2)
         commander.assert_called_once_with("device-cuisine", "suivant")
+
+    def test_spotify_accepte_tous_les_statuts_http_2xx(self):
+        appareil = {
+            "id": "device-cuisine", "name": "Jarvis Cuisine",
+            "is_active": True,
+        }
+        with patch("tools.spotify._configure", return_value=True), \
+                patch("tools.spotify._appareil_piece",
+                      return_value=(appareil, "Jarvis Cuisine")), \
+                patch("tools.spotify._commande_lecture",
+                      return_value=SimpleNamespace(status_code=202)):
+            resultat = spotify.controler_spotify("pause", "cuisine")
+
+        self.assertEqual(resultat, "Musique en pause.")
 
     def test_titre_spotify_depuis_cuisine_cible_l_appareil(self):
         appareil = {"id": "device-cuisine", "name": "Jarvis Cuisine"}
