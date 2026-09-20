@@ -298,6 +298,24 @@ def _demande_veille(phrase):
     return any(expression in p for expression in expressions)
 
 
+def _adresse_a_alexa(phrase):
+    """Vrai lorsque la phrase est clairement destinée à l'assistant Alexa.
+
+    Pendant la courte fenêtre de conversation suivie, le satellite écoute sans
+    nouveau mot d'activation. Une commande commençant par « Alexa » appartient
+    alors à l'autre assistant de la pièce : Jarvis doit se taire et refermer sa
+    fenêtre d'écoute au lieu de répondre à sa place.
+
+    On ne filtre volontairement que le début de phrase. Une question adressée à
+    Jarvis telle que « Est-ce qu'Alexa est connectée ? » reste donc valide.
+    """
+    import re
+    p = " ".join(re.sub(
+        r"[^a-z0-9]+", " ", sans_accents((phrase or "").lower())
+    ).split())
+    return p == "alexa" or p.startswith("alexa ") or p.startswith("hey alexa ")
+
+
 def _executer_outil(nom, args):
     """Exécute un outil après application de la politique de confirmation."""
     from core import registre
@@ -618,6 +636,15 @@ def monter_routes(app):
                         await etat("veille")
                         continue
                     await envoyer({"type": "transcription", "texte": phrase})
+                    if _adresse_a_alexa(phrase):
+                        # Ne jamais lutter avec un Echo présent dans la pièce.
+                        # Le silence est intentionnel : la demande ne visait pas
+                        # Jarvis et ne doit pas rouvrir la conversation suivie.
+                        sess.en_attente = None
+                        sess.mettre_en_veille()
+                        await envoyer({"type": "veille_forcee"})
+                        await etat("veille")
+                        continue
                     if _demande_veille(phrase):
                         # Une mise en veille annule aussi une éventuelle action N3
                         # encore en attente : elle ne doit jamais être confirmée plus tard.

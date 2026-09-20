@@ -2,8 +2,9 @@
 import unittest
 from types import SimpleNamespace
 
-from core.satellite import (_Session, _demande_veille, _origine_locale_ou_lan,
-                            _phrase_progression, _progression_initiale)
+from core.satellite import (_Session, _adresse_a_alexa, _demande_veille,
+                            _origine_locale_ou_lan, _phrase_progression,
+                            _progression_initiale)
 from core.util import nettoyer_reponse_vocale
 
 
@@ -68,6 +69,15 @@ class SatelliteSecurityTests(unittest.TestCase):
     def test_commandes_voisines_ne_declenchent_pas_la_veille(self):
         self.assertFalse(_demande_veille("Mets la lumière en veilleuse"))
         self.assertFalse(_demande_veille("Arrête la musique"))
+
+    def test_alexa_en_debut_de_phrase_est_destinee_a_l_autre_assistant(self):
+        self.assertTrue(_adresse_a_alexa("Alexa, éteins la lumière"))
+        self.assertTrue(_adresse_a_alexa("Hey Alexa mets Spotify en pause"))
+        self.assertTrue(_adresse_a_alexa("Alexa"))
+
+    def test_mention_d_alexa_dans_une_question_reste_pour_jarvis(self):
+        self.assertFalse(_adresse_a_alexa("Est-ce qu'Alexa est connectée ?"))
+        self.assertFalse(_adresse_a_alexa("Passe par Alexa pour la lumière"))
 
     def test_conversation_suivie_a_un_nombre_borne_de_relances(self):
         session = _Session()
