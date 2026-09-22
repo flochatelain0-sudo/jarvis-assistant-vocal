@@ -174,6 +174,18 @@ def _openai_etat():
     }
 
 
+def _catalogue_simple(cle_modele, cle_qualite, defauts):
+    """Petit catalogue (economique, qualite) pour les fournisseurs sans liste API."""
+    noms = []
+    for nom in (reglage(cle_modele, defauts[0]), reglage(cle_qualite, defauts[1])):
+        if nom and nom not in noms:
+            noms.append(nom)
+    return [{"nom": n, "role": "Configure dans Jarvis" if not n.startswith(
+        (defauts[0], defauts[1])) else ("Quotidien" if n == defauts[0] else "Qualite"),
+        "accessible": None, "prix_entree": None, "prix_sortie": None}
+            for n in noms]
+
+
 def _modeles():
     """Etat complet de la page Modeles."""
     mat = _materiel()
@@ -193,24 +205,51 @@ def _modeles():
     from core import cloud
     from core.routage import mode_actuel
     mode = mode_actuel()
+    f = cloud.fournisseur()
+    defauts = {
+        "mistral": ("mistral.modele", "mistral-small-latest",
+                    "mistral.modele_qualite", "mistral-large-latest"),
+        "openai": ("openai.modele", "gpt-5.6-terra",
+                   "openai.modele_qualite", "gpt-6-astra"),
+        "anthropic": ("anthropic.modele", "claude-haiku-4-5",
+                      "anthropic.modele_qualite", "claude-sonnet-4-5"),
+        "gemini": ("gemini.modele", "gemini-2.5-flash",
+                   "gemini.modele_qualite", "gemini-2.5-pro"),
+    }.get(f, ("anthropic.modele", "claude-haiku-4-5",
+             "anthropic.modele_qualite", "claude-sonnet-4-5"))
+    oa = _openai_etat()
     return {
         "materiel": mat,
         "backend_actif": mode,
         "actifs": {
             "local": reglage("ollama.modele", "qwen2.5:7b"),
             "cloud": cloud.modele(qualite=(mode == "qualite")),
-            "cloud_hybride": (reglage("openai.modele", "gpt-5.6-terra")
-                               if cloud.fournisseur() == "openai"
-                               else reglage("anthropic.modele", "claude-haiku-4-5")),
-            "cloud_qualite": (reglage("openai.modele_qualite", "gpt-6-astra")
-                               if cloud.fournisseur() == "openai"
-                               else reglage("anthropic.modele_qualite", "claude-sonnet-4-5")),
-            "cloud_fournisseur": cloud.fournisseur(),
+            "cloud_hybride": reglage(defauts[0], defauts[1]),
+            "cloud_qualite": reglage(defauts[2], defauts[3]),
+            "cloud_fournisseur": f,
             "whisper": whisper_actif,
             "hermes": _hermes_modele(),
         },
-        "openai": _openai_etat(),
+        "openai": oa,
         "anthropic_configure": bool(reglage("anthropic.cle", "")),
+        "fournisseurs_configure": {
+            "mistral": bool(reglage("mistral.cle", "")),
+            "openai": bool(reglage("openai.cle", "")),
+            "anthropic": bool(reglage("anthropic.cle", "")),
+            "gemini": bool(reglage("gemini.cle", "")),
+        },
+        "catalogue_cloud": {
+            "mistral": _catalogue_simple(
+                "mistral.modele", "mistral.modele_qualite",
+                ("mistral-small-latest", "mistral-large-latest")),
+            "openai": oa.get("catalogue", []),
+            "anthropic": _catalogue_simple(
+                "anthropic.modele", "anthropic.modele_qualite",
+                ("claude-haiku-4-5", "claude-sonnet-4-5")),
+            "gemini": _catalogue_simple(
+                "gemini.modele", "gemini.modele_qualite",
+                ("gemini-2.5-flash", "gemini-2.5-pro")),
+        },
         "ollama": {
             "joignable": _ollama_joignable(),
             "hote": _ollama_hote(),
@@ -409,13 +448,16 @@ def _definir_actif(backend, modele, profil="hybride", fournisseur=""):
         definir_mode("local", raison="panneau")
         return {"ok": True, "message": f"Backend LOCAL actif, modele {modele}."}
     if backend == "cloud":
-        fournisseur = (fournisseur or "openai").lower()
-        if fournisseur not in {"openai", "anthropic"}:
+        from core import cloud
+        fournisseur = (fournisseur or cloud.fournisseur() or "openai").strip().lower()
+        cles = {"openai": "openai.cle", "anthropic": "anthropic.cle",
+                "gemini": "gemini.cle", "mistral": "mistral.cle"}
+        if fournisseur not in cles:
             return {"ok": False, "message": "Fournisseur cloud inconnu."}
-        if fournisseur == "openai" and not reglage("openai.cle", ""):
-            return {"ok": False, "message": "Ajoute d'abord openai.cle dans config.yaml (la cle API est separee de l'abonnement ChatGPT)."}
-        if fournisseur == "anthropic" and not reglage("anthropic.cle", ""):
-            return {"ok": False, "message": "Cle Anthropic absente dans config.yaml."}
+        if not reglage(cles[fournisseur], ""):
+            if fournisseur == "openai":
+                return {"ok": False, "message": "Ajoute d'abord openai.cle dans config.yaml (la cle API est separee de l'abonnement ChatGPT)."}
+            return {"ok": False, "message": f"Cle {fournisseur} absente dans config.yaml."}
         profil = "qualite" if profil == "qualite" else "hybride"
         definir("cloud.fournisseur", fournisseur)
         definir(f"{fournisseur}.modele_qualite" if profil == "qualite"
@@ -438,6 +480,7 @@ _CLES_REGLABLES = {
     "mode": "str", "audio.micro": "int", "audio.haut_parleur": "nint",
     "assistant.personnalite": "str", "assistant.duree_suite": "int",
     "assistant.seuil_reveil": "float", "tts.moteur": "str",
+    "cloud.fournisseur": "str",
 }
 
 
@@ -492,6 +535,9 @@ def _definir_reglage(cle, valeur):
         if cle == "tts.moteur" and valeur not in {
                 "auto", "piper", "kokoro", "windows"}:
             return {"ok": False, "message": "Moteur vocal invalide."}
+        if cle == "cloud.fournisseur" and valeur not in {
+                "mistral", "openai", "anthropic", "gemini"}:
+            return {"ok": False, "message": "Fournisseur cloud inconnu."}
         definir(cle, valeur)
         if cle.startswith("tts."):
             from core import tts

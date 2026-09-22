@@ -182,7 +182,8 @@ def _libelle_modele_actif():
 
     from core import cloud
     fournisseur = cloud.fournisseur()
-    marque = "OpenAI" if fournisseur == "openai" else "Claude"
+    marque = {"openai": "OpenAI", "anthropic": "Claude", "gemini": "Gemini",
+              "mistral": "Mistral"}.get(fournisseur, fournisseur.title())
     return f"{marque} · {cloud.modele(qualite=(mode == 'qualite'))}"
 
 
@@ -220,6 +221,22 @@ def _etat_controles():
         if nom and nom not in modeles_anthropic:
             modeles_anthropic.append(nom)
 
+    def _catalogue_simple(nom_cle, nom_qualite, defauts):
+        noms = []
+        for nom in (reglage(nom_cle, defauts[0]),
+                    reglage(nom_qualite, defauts[1])):
+            if nom and nom not in noms:
+                noms.append(nom)
+        return [{"nom": n, "role": "Configure dans Jarvis", "accessible": None}
+                for n in noms]
+
+    modeles_mistral = _catalogue_simple(
+        "mistral.modele", "mistral.modele_qualite",
+        ("mistral-small-latest", "mistral-large-latest"))
+    modeles_gemini = _catalogue_simple(
+        "gemini.modele", "gemini.modele_qualite",
+        ("gemini-2.5-flash", "gemini-2.5-pro"))
+
     locaux = [m.get("nom", "") for m in installes if m.get("nom")]
     local_actif = str(reglage("ollama.modele", "qwen2.5:7b"))
     if local_actif and local_actif not in locaux:
@@ -234,6 +251,8 @@ def _etat_controles():
             "configure": {
                 "openai": bool(openai.get("configure")),
                 "anthropic": bool(reglage("anthropic.cle", "")),
+                "mistral": bool(reglage("mistral.cle", "")),
+                "gemini": bool(reglage("gemini.cle", "")),
             },
             "courants": {
                 "openai": {
@@ -244,11 +263,21 @@ def _etat_controles():
                     "hybride": reglage("anthropic.modele", "claude-haiku-4-5"),
                     "qualite": reglage("anthropic.modele_qualite", "claude-sonnet-4-5"),
                 },
+                "mistral": {
+                    "hybride": reglage("mistral.modele", "mistral-small-latest"),
+                    "qualite": reglage("mistral.modele_qualite", "mistral-large-latest"),
+                },
+                "gemini": {
+                    "hybride": reglage("gemini.modele", "gemini-2.5-flash"),
+                    "qualite": reglage("gemini.modele_qualite", "gemini-2.5-pro"),
+                },
             },
             "modeles": {
                 "openai": modeles_openai,
                 "anthropic": [{"nom": n, "role": "Configure dans Jarvis",
                                 "accessible": None} for n in modeles_anthropic],
+                "mistral": modeles_mistral,
+                "gemini": modeles_gemini,
             },
             "openai_joignable": bool(openai.get("joignable")),
         },
@@ -278,7 +307,7 @@ def _appliquer_controle(donnees):
         resultat = panneau._definir_actif(
             "cloud", str(donnees.get("modele", "")).strip(),
             profil=str(donnees.get("profil", "hybride")).strip().lower(),
-            fournisseur=str(donnees.get("fournisseur", "openai")).strip().lower())
+            fournisseur=str(donnees.get("fournisseur", "")).strip().lower())
     elif action == "moteur_voix":
         resultat = panneau._definir_reglage("tts.moteur", donnees.get("valeur", ""))
     elif action == "tester_voix":

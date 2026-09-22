@@ -344,11 +344,7 @@
       <h3>Voix</h3>
       <label class="controle-label" for="controleMoteurVoix">Moteur TTS</label>
       <select id="controleMoteurVoix"></select>
-      <label class="controle-label" for="controleVoixEleven">Voix ElevenLabs</label>
-      <select id="controleVoixEleven"></select>
-      <label class="controle-label" for="controleModeleEleven">Modèle ElevenLabs</label>
-      <div class="controle-ligne">
-        <select id="controleModeleEleven"></select>
+      <div class="controle-ligne" style="margin-top:8px">
         <button class="controle-action" type="button" id="testerVoix">Tester</button>
       </div>
     </section>
@@ -462,10 +458,11 @@ function afficherControles(d) {
   document.querySelectorAll("#controleModes [data-mode]").forEach((b) =>
     b.classList.toggle("actif", b.dataset.mode === d.mode));
 
-  const fournisseurs = ["openai", "anthropic"];
+  const fournisseurs = ["mistral", "openai", "anthropic", "gemini"];
+  const nomsFournisseur = {mistral:"Mistral", openai:"OpenAI",
+    anthropic:"Anthropic / Claude", gemini:"Gemini"};
   remplirSelect($("controleFournisseur"), fournisseurs, d.cloud.fournisseur, (f) => {
-    const nom = f === "openai" ? "OpenAI" : "Anthropic / Claude";
-    return nom + (d.cloud.configure[f] ? "" : " · clé absente");
+    return (nomsFournisseur[f] || f) + (d.cloud.configure[f] ? "" : " · clé absente");
   });
   actualiserModelesCloud();
 
@@ -475,22 +472,9 @@ function afficherControles(d) {
     ? locaux.length + " modèle(s) Ollama disponible(s)"
     : "Ollama est hors ligne";
 
-  const labelsMoteur = {auto:"Auto", elevenlabs:"ElevenLabs", piper:"Piper",
-    kokoro:"Kokoro", windows:"Windows"};
+  const labelsMoteur = {auto:"Auto", piper:"Piper", kokoro:"Kokoro", windows:"Windows"};
   remplirSelect($("controleMoteurVoix"), d.voix.moteurs, d.voix.moteur,
     (m) => labelsMoteur[m] || m);
-
-  const voix = d.voix.elevenlabs.voix || [];
-  $("controleVoixEleven").replaceChildren();
-  if (!voix.length) {
-    optionSelect($("controleVoixEleven"), d.voix.elevenlabs_voix || "",
-      d.voix.elevenlabs.configure ? "Aucune voix chargée" : "Clé ElevenLabs absente", true);
-  } else {
-    for (const v of voix) optionSelect($("controleVoixEleven"), v.id,
-      v.nom + (v.categorie ? " · " + v.categorie : ""), v.id === d.voix.elevenlabs_voix);
-  }
-  remplirSelect($("controleModeleEleven"), d.voix.modeles_elevenlabs,
-    d.voix.elevenlabs_modele);
   $("lienPanneau").href = d.panneau_url;
 }
 
@@ -1015,10 +999,6 @@ $("activerLocal").addEventListener("click", () => envoyerControle({
   action:"modele_local", modele:$("controleModeleLocal").value}));
 $("controleMoteurVoix").addEventListener("change", (e) => envoyerControle({
   action:"moteur_voix", valeur:e.target.value}));
-$("controleVoixEleven").addEventListener("change", (e) => envoyerControle({
-  action:"voix_elevenlabs", valeur:e.target.value}));
-$("controleModeleEleven").addEventListener("change", (e) => envoyerControle({
-  action:"modele_elevenlabs", valeur:e.target.value}));
 $("testerVoix").addEventListener("click", () => envoyerControle({action:"tester_voix"}));
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") ouvrirFermerControles(false); });
 
