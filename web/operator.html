@@ -226,6 +226,32 @@
   .auto .quand{color:var(--info);font-size:12px;white-space:nowrap}
   /* ---------- brain ---------- */
   .brain{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:11px}
+  .cal-zone{display:grid;grid-template-columns:260px 1fr;gap:14px;margin-top:11px}
+  @media (max-width:860px){ .cal-zone{grid-template-columns:1fr} }
+  .cal{background:var(--verre);border:1px solid var(--bord);border-radius:16px;padding:15px}
+  .cal-tete{display:flex;justify-content:space-between;align-items:center;font-size:13.5px;margin-bottom:9px}
+  .cal-tete b{letter-spacing:.06em;text-transform:capitalize}
+  .cal-nav{cursor:pointer;color:var(--dim);padding:0 7px;font-size:16px}
+  .cal-nav:hover{color:var(--acc)}
+  .cal-jours{display:grid;grid-template-columns:repeat(7,1fr);color:var(--tres-dim);font-size:10px;letter-spacing:.08em;text-align:center;margin-bottom:4px}
+  .cal-grille{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+  .cal-j{aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:12px;border-radius:9px;color:var(--dim);cursor:pointer;border:1px solid transparent}
+  .cal-j.occupe{color:var(--txt)}
+  .cal-j.occupe::after{content:"";display:block;width:3px;height:3px;border-radius:50%;background:var(--acc);position:absolute;margin-top:24px}
+  .cal-j:hover{border-color:var(--bord2)}
+  .cal-j.sel{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;font-weight:650}
+  .cal-j.hors{opacity:.25}
+  .cal-pied{display:flex;gap:14px;margin-top:11px;font-size:11.5px;color:var(--dim)}
+  .cal-cpt{display:flex;align-items:center;gap:5px}
+  .cal-cpt b{color:var(--txt)}
+  .cal-cpt .p{width:7px;height:7px;border-radius:50%;display:inline-block}
+  .cal-cpt .p.active{background:var(--acc)}
+  .cal-cpt .p.done{background:var(--ok)}
+  .cal-today{background:var(--verre);border:1px solid var(--bord);border-radius:16px;padding:15px}
+  .cal-today h3{margin:0 0 11px;font-size:11px;color:var(--tres-dim);letter-spacing:.13em}
+  .cal-today ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+  .cal-today li{display:flex;gap:10px;font-size:13px;align-items:baseline}
+  .cal-today li .h{color:var(--acc);font-size:12px;min-width:44px}
   .docs-zone{display:grid;gap:11px}
   .docs-actions{display:flex;gap:9px}
   .docs{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:11px}
@@ -366,6 +392,25 @@
 
   <h2 class="sec">📅 Planning du jour</h2>
   <div class="nuit" id="planning"><ul id="planning-liste"></ul></div>
+  <div class="cal-zone">
+    <div class="cal">
+      <div class="cal-tete">
+        <span class="cal-nav" onclick="moisRelatif(-1)">‹</span>
+        <b id="cal-titre"></b>
+        <span class="cal-nav" onclick="moisRelatif(1)">›</span>
+      </div>
+      <div class="cal-jours">L M M J V S D</div>
+      <div class="cal-grille" id="cal-grille"></div>
+      <div class="cal-pied">
+        <span class="cal-cpt"><i class="p active"></i> Active <b id="cpt-active">0</b></span>
+        <span class="cal-cpt"><i class="p done"></i> Done <b id="cpt-done">50</b></span>
+      </div>
+    </div>
+    <div class="cal-today">
+      <h3>TODAY</h3>
+      <ul id="cal-today-liste"></ul>
+    </div>
+  </div>
 
   <h2 class="sec">⏳ À relancer <span class="badge" id="nb-relances" style="display:none">0</span></h2>
   <div class="taches" id="relances"></div>
@@ -619,6 +664,64 @@ async function chargerBrain(){
 async function oublier(sujet){
   await api("/api/operator/brain/oublier", {method:"POST", body:JSON.stringify({sujet})});
   chargerBrain();
+}
+
+// -------------------------------------------------------------- calendrier
+let calAnnee = new Date().getFullYear();
+let calMois = new Date().getMonth() + 1;
+let calJourSel = new Date().getDate();
+const MOIS_NOMS = ["janvier", "février", "mars", "avril", "mai", "juin",
+  "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+
+function moisRelatif(delta){
+  calMois += delta;
+  if(calMois < 1){ calMois = 12; calAnnee--; }
+  if(calMois > 12){ calMois = 1; calAnnee++; }
+  calJourSel = null;
+  chargerCalendrier();
+}
+
+async function chargerCalendrier(){
+  const grille = $("#cal-grille");
+  if(!grille) return;
+  $("#cal-titre").textContent = MOIS_NOMS[calMois-1] + " " + calAnnee;
+  try{
+    const r = await api("/api/operator/planning/mois?annee=" + calAnnee + "&mois=" + calMois);
+    const occ = (r.jours || {});
+    const auj = new Date();
+    const nbJours = new Date(calAnnee, calMois, 0).getDate();
+    const decal = (new Date(calAnnee, calMois-1, 1).getDay() + 6) % 7;
+    let html = "";
+    for(let i = 0; i < decal; i++) html += `<div class="cal-j hors"></div>`;
+    for(let j = 1; j <= nbJours; j++){
+      const estSel = (j === calJourSel);
+      const n = occ[j] || 0;
+      html += `<div class="cal-j ${n?"occupe":""} ${estSel?"sel":""}" onclick="choisirJour(${j})" title="${n} événement(s)">${j}</div>`;
+    }
+    grille.innerHTML = html;
+    const total = Object.values(occ).reduce((a,b) => a+b, 0);
+    $("#cpt-active").textContent = total;
+    $("#cpt-done").textContent = Math.max(0, total - (occ[auj.getDate()] || 0));
+  }catch(e){ grille.innerHTML = `<div class="cal-j hors">—</div>`; }
+}
+
+function choisirJour(j){
+  calJourSel = j;
+  chargerCalendrier();
+  const zone = $("#demande");
+  if(zone){ zone.value = "Mon planning du " + j + " " + MOIS_NOMS[calMois-1] + " ?"; zone.focus(); }
+}
+
+async function chargerPlanningJourCal(){
+  const ul = $("#cal-today-liste");
+  if(!ul) return;
+  try{
+    const r = await api("/api/operator/planning");
+    if(!r.configure){ ul.innerHTML = `<li class="vide">${esc(r.message || "Agenda non configuré")}</li>`; return; }
+    const evs = r.evenements || [];
+    ul.innerHTML = evs.length ? evs.map(ev => `      <li><span class="h">${ev.heure ? esc(ev.heure) : "journée"}</span><span>${esc(ev.titre)}</span></li>`).join("")
+      : `<li class="vide">Journée libre.</li>`;
+  }catch(e){ ul.innerHTML = `<li class="vide">Agenda indisponible.</li>`; }
 }
 
 // -------------------------------------------------------------- CRM monday
@@ -1115,7 +1218,7 @@ chargerPlanning();
 chargerBrain();
 chargerCrm();
 chargerRelances();
-chargerAgents();
+chargerAgents();chargerCalendrier();chargerPlanningJourCal();chargerDocs();
 setInterval(rafraichir, 5000);
 async function synchroniserVocal(){
   try{

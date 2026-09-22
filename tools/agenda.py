@@ -454,6 +454,45 @@ def planning_du_jour():
     return {"configure": True, "evenements": evenements[:15]}
 
 
+def planning_mois(annee=None, mois=None):
+    """Le nombre d'evenements par jour du mois, pour le widget calendrier.
+
+    Jamais bloquant : agenda non configure -> mois vide + message.
+    annee/mois : 1-12 ; defaut = mois en cours.
+    """
+    maintenant = dt.datetime.now().astimezone()
+    annee = int(annee or maintenant.year)
+    mois = int(mois or maintenant.month)
+    if not (1 <= mois <= 12):
+        return {"configure": False, "message": "mois invalide", "jours": {}}
+    try:
+        service = _service()
+        calendriers = _calendriers(service)
+    except Exception as e:
+        return {"configure": False, "message": _msg_config(e)[:200], "jours": {}}
+    debut = maintenant.replace(year=annee, month=mois, day=1, hour=0,
+                               minute=0, second=0, microsecond=0)
+    mois_suivant = (debut.replace(day=28) + dt.timedelta(days=4)).replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0)
+    jours = {}
+    for cid, info in calendriers.items():
+        try:
+            res = service.events().list(
+                calendarId=cid, timeMin=debut.isoformat(),
+                timeMax=mois_suivant.isoformat(),
+                singleEvents=True, orderBy="startTime", maxResults=250).execute()
+        except Exception:
+            continue
+        for e in res.get("items", []):
+            d, _ = _debut_ev(e)
+            if d is None:
+                continue
+            if (d.year, d.month) != (annee, mois):
+                continue
+            jours[d.day] = jours.get(d.day, 0) + 1
+    return {"configure": True, "annee": annee, "mois": mois, "jours": jours}
+
+
 # -------------------------------------- premier lancement : lister les agendas
 
 if __name__ == "__main__":

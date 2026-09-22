@@ -495,6 +495,16 @@ def monter_routes(app):
         from tools.agenda import planning_du_jour
         return planning_du_jour()
 
+    @app.get("/api/operator/planning/mois")
+    def api_planning_mois(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from tools.agenda import planning_mois
+        annee = request.query_params.get("annee")
+        mois = request.query_params.get("mois")
+        return planning_mois(annee=annee, mois=mois)
+
     @app.get("/api/operator/mail/brouillon")
     def api_brouillon(request: Request):
         refus = garde(request)
