@@ -381,24 +381,34 @@ async function envoyerDemande(ev){
   champ.value = "";
   bulle("vous", texte);
   enAttente = true;
-  bulle("aide", "Jarvis traite ta demande…");
+  const attendre = bulle("aide", "Jarvis traite ta demande… (0 s)");
+  const debut = Date.now();
+  const majAttente = () => {
+    const s = Math.round((Date.now() - debut) / 1000);
+    if(attendre.parentNode)
+      attendre.innerHTML = "Jarvis traite ta demande… (" + s + " s)<br>" +
+        "<span style='font-size:11px'>Mistral réfléchit, les outils tournent, puis la réponse est prononcée. Le journal ci-dessus montre l'activité en direct.</span>";
+  };
+  const tic = setInterval(majAttente, 1000);
   try{
     const r = await api("/api/operator/message", {method:"POST", body:JSON.stringify({texte})});
-    if(!r.ok){ bulle("aide", r.message || "Envoi impossible."); enAttente = false; return false; }
-    // poll la reponse (l'assistant la traite entre deux ecoutes micro : rapide)
-    for(let i=0;i<200;i++){
+    if(!r.ok){ clearInterval(tic); attendre.remove(); bulle("aide", r.message || "Envoi impossible."); enAttente = false; return false; }
+    // poll la reponse : l'assistant la traite entre deux ecoutes micro
+    for(let i=0;i<360;i++){
       await new Promise(r2 => setTimeout(r2, 500));
       const rep = await api("/api/operator/reponse/" + r.id);
       if(rep.pret){
-        $("#messages").lastElementChild.remove();   // enleve "traite..."
+        clearInterval(tic);
+        attendre.remove();
         bulle("jarvis", rep.texte);
         enAttente = false;
         rafraichir();
         return false;
       }
     }
-    $("#messages").lastElementChild.remove();
-    bulle("aide", "Pas de réponse en 100 s — Jarvis est peut-être occupé à parler.");
+    clearInterval(tic);
+    attendre.remove();
+    bulle("aide", "Pas de réponse en 3 min — Jarvis est peut-être occupé à parler ou le modèle est indisponible.");
   }catch(e){ console.error(e); }
   enAttente = false;
   return false;
