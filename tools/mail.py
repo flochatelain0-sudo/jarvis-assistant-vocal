@@ -32,6 +32,8 @@ _BROUILLON = {}
 
 # UID des mails du dernier lire_mails, pour lire_mail / corbeille par numero.
 _DERNIERS_MAILS = []
+# Etiquette de tri du dernier lire_mails (uid -> "poubelle"), pour vider_poubelle.
+_ETIQUETTES = {}
 
 
 def _oauth_actif():
@@ -140,6 +142,7 @@ def lire_mails(nombre: int = 5) -> str:
         derniers = ids[-nombre:][::-1]     # les plus recents d'abord
         _DERNIERS_MAILS.clear()
         _DERNIERS_MAILS.extend(derniers)
+        _ETIQUETTES.clear()
         lignes = []
         for i, num in enumerate(derniers, 1):
             # BODY.PEEK : lire sans marquer le mail comme lu.
@@ -154,6 +157,8 @@ def lire_mails(nombre: int = 5) -> str:
                     sujet = _decoder_entete(ligne[8:].strip())
             nom, adresse = parseaddr(exp)
             etiquette = _etiqueter_spam(adresse or exp, sujet)
+            if etiquette:
+                _ETIQUETTES[num] = etiquette
             lignes.append(f"{i}. De {nom or adresse or exp} : "
                           f"« {sujet or 'sans objet'} »"
                           + (f" [{etiquette}]" if etiquette else ""))
@@ -166,8 +171,8 @@ def lire_mails(nombre: int = 5) -> str:
             conclusion += (
                 " Les mails marques [poubelle] sont des spams, pubs ou "
                 "newsletters sans valeur : propose de les mettre a la "
-                "corbeille avec mettre_a_la_corbeille (un par un, le "
-                "systeme demandera confirmation).")
+                "corbeille avec vider_poubelle (une seule confirmation "
+                "pour tout le lot) ou mettre_a_la_corbeille (un par un).")
         return conclusion
     except Exception as e:
         return f"Impossible de lire les mails : {e}"
@@ -340,6 +345,51 @@ def _annonce_corbeille(args):
     confirmation=True,
     annonce=_annonce_corbeille,
 )
+def _annonce_lot(args):
+    return ("Je vais mettre a la corbeille TOUS les mails marques [poubelle] "
+            "de la derniere liste.")
+
+
+@outil(
+    nom="vider_poubelle",
+    description="Met a la corbeille d'un coup tous les mails marques "
+                "[poubelle] de la derniere liste, avec UNE seule confirmation "
+                "pour tout le lot. Recuperable 30 jours. A utiliser quand "
+                "l'utilisateur dit 'jette tous les spams' ou 'vide les pubs'.",
+    parametres={"type": "object", "properties": {}},
+    confirmation=True,
+    annonce=_annonce_lot,
+)
+def vider_poubelle() -> str:
+    """Corbeille par lot : tous les [poubelle] de la derniere liste."""
+    if not _mail_configure():
+        return "La messagerie n'est pas configuree."
+    if not _DERNIERS_MAILS:
+        return "Demande-moi d'abord de lister tes mails."
+    cibles = [(i, u) for i, u in enumerate(_DERNIERS_MAILS, 1)
+              if _ETIQUETTES.get(u) == "poubelle"]
+    if not cibles:
+        return ("Aucun mail marque [poubelle] dans la derniere liste : "
+                "rien a jeter.")
+    deplaces, echecs = 0, 0
+    try:
+        imap = _imap()
+        imap.select("INBOX")
+        for _, uid in cibles:
+            try:
+                imap.uid("store", uid, "+X-GM-LABELS", "\\Trash")
+                deplaces += 1
+            except Exception:
+                echecs += 1
+        imap.logout()
+    except Exception as e:
+        return f"Impossible de vider la poubelle : {e}"
+    if echecs:
+        return (f"{deplaces} mail(s) mis a la corbeille, {echecs} en echec.")
+    return (f"{deplaces} mail(s) pub et spam mis a la corbeille d'un coup, "
+            "recuperables pendant trente jours.")
+
+
 def mettre_a_la_corbeille(numero: int = 1) -> str:
     """Deplace un mail vers la corbeille Gmail (recuperable 30 jours)."""
     if not _mail_configure():
