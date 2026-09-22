@@ -290,6 +290,39 @@ def message_en_attente():
     return not _MESSAGES.empty()
 
 
+_TRAITEMENTS = {}
+
+
+def debut_traitement(ident):
+    """Une demande ecrite passe en traitement (heure de debut enregistree)."""
+    with _VERROU:
+        _TRAITEMENTS[ident] = time.time()
+
+
+def fin_traitement(ident, a_expire=False):
+    """Le traitement est termine (ou expire) : plus affiche comme en cours."""
+    with _VERROU:
+        _TRAITEMENTS.pop(ident, None)
+        if a_expire:
+            _CONVERSATION.append({
+                "role": "jarvis",
+                "texte": "Delai depasse sur cette demande — repose-la ou "
+                         "utilise la voix.",
+                "ts": time.time(),
+            })
+            del _CONVERSATION[:-_MAX_CONV]
+
+
+def etat_traitement():
+    """Etat du chat ecrit pour la page : demande en cours (et depuis combien
+    de temps) + demandes en attente. La page affiche ce qui se passe au lieu
+    d'un compte a rebours muet."""
+    with _VERROU:
+        en_cours = [{"id": k, "depuis": round(time.time() - v, 1)}
+                    for k, v in _TRAITEMENTS.items()]
+    return {"en_cours": en_cours, "en_attente": _MESSAGES.qsize()}
+
+
 def reponse_message(ident, texte):
     """Depose la reponse de l'assistant pour la page (et l'affiche)."""
     with _VERROU:
@@ -424,6 +457,13 @@ def monter_routes(app):
             return refus
         texte = lire_reponse(ident)
         return {"pret": texte is not None, "texte": texte or ""}
+
+    @app.get("/api/operator/traitement")
+    def api_traitement(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        return etat_traitement()
 
     @app.get("/api/operator/vocal")
     def api_vocal(request: Request):

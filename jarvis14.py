@@ -1393,9 +1393,35 @@ def traiter_ecrit(demande, historique):
         return ("Desole, une erreur est survenue en traitant ta demande.", "")
 
 
+def _traiter_ecrit_avec_timeout(demande, historique, delai_max):
+    """traiter_ecrit dans un thread, borne dans le temps. Renvoie
+    (reponse, a_prononcer, a_expire). Au-dela du delai, le worker est
+    abandonne (daemon) : le LLM finira seul dans son coin, mais la page
+    recoit une reponse au lieu d'attendre pour rien."""
+    boite = {}
+
+    def _travail():
+        try:
+            boite["res"] = traiter_ecrit(demande.get("texte", ""), historique)
+        except Exception:
+            LOG.exception("message ecrit (worker)")
+            boite["res"] = ("Desole, une erreur est survenue en traitant ta "
+                            "demande.", "")
+
+    worker = threading.Thread(target=_travail, daemon=True,
+                              name="traitement-ecrit")
+    worker.start()
+    worker.join(delai_max)
+    if "res" in boite:
+        reponse, a_prononcer = boite["res"]
+        return reponse, a_prononcer, False
+    return (f"Je n'ai pas reussi a traiter ta demande en {int(delai_max)} "
+            "secondes (le modele ou un outil ne repond pas). Repose ta "
+            "question, ou dis-le moi a voix haute.", "", True)
+
+
 def _drainer_messages_ecrits(historique):
     """Consomme les demandes tapees sur la page Operator (une par iteration).
-
     La reponse est deposee AVANT la prononciation : la page l'affiche des que
     le texte est pret, sans attendre que Jarvis finisse de parler.
     """
@@ -1405,7 +1431,15 @@ def _drainer_messages_ecrits(historique):
         return
     if demande is None:
         return
-    reponse, a_prononcer = traiter_ecrit(demande.get("texte", ""), historique)
+    from core.config import reglage
+    try:
+        delai_max = float(reglage("operator.timeout", 120) or 120)
+    except (TypeError, ValueError):
+        delai_max = 120.0
+    operator.debut_traitement(demande.get("id", 0))
+    reponse, a_prononcer, a_expire = _traiter_ecrit_avec_timeout(
+        demande, historique, delai_max)
+    operator.fin_traitement(demande.get("id", 0), a_expire)
     try:
         operator.reponse_message(demande.get("id", 0), reponse)
     except Exception:

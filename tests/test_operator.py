@@ -324,3 +324,44 @@ def test_carte_briefing_injectee_dans_la_conversation():
     b = briefings[-1]
     assert b["client"] == "Acme" and b["rdv"] == "14:00"
     assert len(b["questions"]) == 3
+
+# ------------------------------------------------------------------ traitement
+def _vider_files_ecrites():
+    while operator.message_en_attente():
+        operator.message_suivant()
+    for item in list(operator.etat_traitement()["en_cours"]):
+        operator.fin_traitement(item["id"])
+
+
+def test_etat_traitement_vide_puis_en_cours():
+    _vider_files_ecrites()
+    assert operator.etat_traitement() == {"en_cours": [], "en_attente": 0}
+    operator.debut_traitement(17)
+    etat = operator.etat_traitement()
+    assert etat["en_cours"] and etat["en_cours"][0]["id"] == 17
+    assert etat["en_cours"][0]["depuis"] >= 0
+    operator.fin_traitement(17)
+    assert operator.etat_traitement() == {"en_cours": [], "en_attente": 0}
+
+
+def test_fin_traitement_expire_ajoute_un_message():
+    operator.debut_traitement(21)
+    operator.fin_traitement(21, a_expire=True)
+    msgs = operator.conversation()
+    assert any("Delai depasse" in (m.get("texte") or "") for m in msgs)
+    assert operator.etat_traitement()["en_cours"] == []
+
+
+def test_fin_traitement_inconnu_ne_plante_pas():
+    operator.fin_traitement(999)
+
+
+def test_etat_traitement_compte_les_messages_en_attente():
+    _vider_files_ecrites()
+    operator.envoyer_message("premiere")
+    operator.envoyer_message("deuxieme")
+    etat = operator.etat_traitement()
+    assert etat["en_attente"] == 2
+    assert operator.message_suivant()["texte"] == "premiere"
+    assert operator.message_suivant()["texte"] == "deuxieme"
+    assert operator.etat_traitement()["en_attente"] == 0

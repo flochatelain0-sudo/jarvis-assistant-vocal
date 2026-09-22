@@ -763,9 +763,14 @@ async function envoyerDemande(ev){
   const attendre = bulle("aide", "Jarvis traite ta demande… (0 s)");
   const debut = Date.now();
   let dernierOutil = "";
-  const majAttente = () => {
+  let traitementEnCours = 0;
+  const majAttente = async () => {
     const s = Math.round((Date.now() - debut) / 1000);
     if(!attendre.parentNode) return;
+    try{
+      const t = await api("/api/operator/traitement");
+      traitementEnCours = (t.en_cours||[]).length + (t.en_attente||0);
+    }catch(e){}
     let outil = "";
     try{
       const fil = dernierEtat && dernierEtat.fil_vocal || [];
@@ -775,9 +780,14 @@ async function envoyerDemande(ev){
     }catch(e){}
     if(outil !== dernierOutil || true){
       dernierOutil = outil;
-      const detail = outil
-        ? "Outil en cours : <b>" + outil + "</b>"
-        : "Mistral réfléchit…";
+      let detail;
+      if(outil){
+        detail = "Outil en cours : <b>" + outil + "</b>";
+      } else if(traitementEnCours > 0){
+        detail = "Jarvis traite ta demande (déjà " + s + " s)…";
+      } else {
+        detail = "En attente du cerveau de Jarvis…";
+      }
       attendre.innerHTML = "Jarvis traite ta demande… (" + s + " s)<br>" +
         "<span style='font-size:11px'>" + detail + " — la réponse est prononcée à voix haute dès qu'elle est prête.</span>";
     }
