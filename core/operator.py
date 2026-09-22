@@ -257,17 +257,22 @@ def message_suivant():
 def reponse_message(ident, texte):
     """Depose la reponse de l'assistant pour la page (et l'affiche)."""
     with _VERROU:
-        _REPONSES[ident] = str(texte or "")[:2000]
+        _REPONSES[ident] = (str(texte or "")[:2000], time.time())
         _CONVERSATION.append({"role": "jarvis", "texte": str(texte or "")[:2000],
                              "ts": time.time()})
         del _CONVERSATION[:-_MAX_CONV]
         # purger les reponses de plus de 10 minutes : pas de fuite memoire
-        _REPONSES.pop(ident, None) if False else None
+        limite = time.time() - 600
+        for cle in [k for k, v in list(_REPONSES.items()) if v[1] < limite]:
+            del _REPONSES[cle]
+
 
 
 def lire_reponse(ident):
     """La page demande la reponse ; disparait une fois lue (consommee)."""
-    return _REPONSES.pop(int(ident), None)
+    with _VERROU:
+        valeur = _REPONSES.pop(int(ident), None)
+    return valeur[0] if valeur else None
 
 
 def conversation():

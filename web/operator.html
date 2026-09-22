@@ -580,13 +580,27 @@ async function envoyerDemande(ev){
   enAttente = true;
   const attendre = bulle("aide", "Jarvis traite ta demande… (0 s)");
   const debut = Date.now();
+  let dernierOutil = "";
   const majAttente = () => {
     const s = Math.round((Date.now() - debut) / 1000);
-    if(attendre.parentNode)
+    if(!attendre.parentNode) return;
+    let outil = "";
+    try{
+      const fil = dernierEtat && dernierEtat.fil_vocal || [];
+      for(let i = fil.length - 1; i >= 0; i--){
+        if(fil[i].t === "outil"){ outil = fil[i].nom + (fil[i].texte ? " · " + fil[i].texte : ""); break; }
+      }
+    }catch(e){}
+    if(outil !== dernierOutil || true){
+      dernierOutil = outil;
+      const detail = outil
+        ? "Outil en cours : <b>" + outil + "</b>"
+        : "Mistral réfléchit…";
       attendre.innerHTML = "Jarvis traite ta demande… (" + s + " s)<br>" +
-        "<span style='font-size:11px'>Mistral réfléchit, les outils tournent, puis la réponse est prononcée. Le journal ci-dessus montre l'activité en direct.</span>";
+        "<span style='font-size:11px'>" + detail + " — la réponse est prononcée à voix haute dès qu'elle est prête.</span>";
+    }
   };
-  const tic = setInterval(majAttente, 1000);
+  const tic = setInterval(() => { majAttente(); rafraichir(); }, 1000);
   try{
     const r = await api("/api/operator/message", {method:"POST", body:JSON.stringify({texte})});
     if(!r.ok){ clearInterval(tic); attendre.remove(); bulle("aide", r.message || "Envoi impossible."); enAttente = false; return false; }
