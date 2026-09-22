@@ -240,6 +240,7 @@ class VoxtralProvider(ProviderTTS):
             import base64
             import io
             import json
+            import urllib.error
             import urllib.request
             import wave
 
@@ -257,8 +258,12 @@ class VoxtralProvider(ProviderTTS):
                 headers={"Authorization": f"Bearer {cle}",
                          "Content-Type": "application/json"})
             delai = float(reglage("mistral.timeout", 90) or 90)
-            with urllib.request.urlopen(requete, timeout=delai) as reponse:
-                donnees = json.loads(reponse.read().decode("utf-8"))
+            try:
+                with urllib.request.urlopen(requete, timeout=delai) as reponse:
+                    donnees = json.loads(reponse.read().decode("utf-8"))
+            except urllib.error.HTTPError as e:
+                detail = e.read().decode("utf-8", "replace")[:300]
+                raise RuntimeError(f"HTTP {e.code} sur {e.url} : {detail}")
             with wave.open(io.BytesIO(base64.b64decode(donnees["audio_data"]))) as w:
                 frequence = w.getframerate()
                 canaux = w.getnchannels()
@@ -280,6 +285,32 @@ class VoxtralProvider(ProviderTTS):
             print(f"  [Voxtral] echec ({e}), repli "
                   f"{plateforme.nom_voix_systeme()}.")
             return None
+
+
+# --------------------------------------------------------------- diagnostic Voxtral
+
+def lister_voix_voxtral():
+    """Liste les voix disponibles (presets + voix clonees) pour verifier une
+    configuration. Renvoie None si la cle est absente, sinon la reponse de
+    l'API telle quelle. Usage : scripts/voix_voxtral.py ou en console."""
+    cle = str(reglage("mistral.cle", "") or "").strip()
+    if not cle:
+        return None
+    import json
+    import urllib.error
+    import urllib.request
+    url = (str(reglage("mistral.url", "https://api.mistral.ai/v1"))
+           or "https://api.mistral.ai/v1").rstrip("/")
+    requete = urllib.request.Request(
+        f"{url}/audio/voices?type=preset", method="GET",
+        headers={"Authorization": f"Bearer {cle}",
+                 "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(requete, timeout=30) as reponse:
+            return json.loads(reponse.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", "replace")[:300]
+        raise RuntimeError(f"HTTP {e.code} sur {e.url} : {detail}")
 
 
 # --------------------------------------------------------------- fabrique
