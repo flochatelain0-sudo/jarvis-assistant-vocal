@@ -33,4 +33,40 @@ def faire_brief() -> str:
         pass
     if _mail_configure():
         morceaux.append(lire_mails(5))
+    planning = _planning_bref()
+    if planning:
+        morceaux.append(planning)
+    relances = _relances_bref()
+    if relances:
+        morceaux.append(relances)
     return " ".join(morceaux)
+
+
+def _planning_bref():
+    """Le planning du jour en une phrase, pour le brief. "" si agenda
+    indisponible ou vide : le brief ne doit jamais planter."""
+    try:
+        from tools.agenda import planning_du_jour
+        p = planning_du_jour()
+        evs = [e for e in p.get("evenements", [])
+               if not e.get("tout_jour") and e.get("titre")]
+        if not evs:
+            return ""
+        morceaux = [f"{e['heure']} {e['titre']}".strip() for e in evs[:5]]
+        return "Dans ton agenda aujourd'hui : " + " ; ".join(morceaux) + "."
+    except Exception:
+        return ""
+
+
+def _relances_bref():
+    """Les dossiers a relancer (statuts d'attente monday) en une phrase."""
+    try:
+        from tools.monday import a_relancer
+        r = a_relancer().get("relances") or []
+        if not r:
+            return ""
+        noms = [x.get("nom", "") for x in r[:4] if x.get("nom")]
+        return (f"{len(r)} dossier(s) CRM attendent une relance : "
+                + ", ".join(noms) + ".")
+    except Exception:
+        return ""
