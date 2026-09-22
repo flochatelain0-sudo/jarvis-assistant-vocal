@@ -174,3 +174,41 @@ def test_reglage_partiel_ne_force_pas_le_reste(monkeypatch):
     cfg = tts.PiperProvider()._synthese()
     assert cfg.length_scale == 1.2
     assert cfg.noise_scale is None and cfg.noise_w_scale is None
+
+# ---------------------------------------------------------------- Kokoro
+
+def test_kokoro_auto_detecte_les_fichiers_dans_voix(tmp_path, monkeypatch):
+    monkeypatch.setattr(tts, "_RACINE", tmp_path)
+    (tmp_path / "voix").mkdir()
+    (tmp_path / "voix" / "kokoro-v1.0.onnx").write_bytes(b"modele")
+    (tmp_path / "voix" / "voices-v1.0.bin").write_bytes(b"voix")
+    provider = tts.KokoroProvider()
+    assert provider.disponible() is True
+    assert provider._chemins[0].endswith("kokoro-v1.0.onnx")
+    assert provider._chemins[1].endswith("voices-v1.0.bin")
+
+
+def test_kokoro_chemin_de_config_resolu_depuis_la_racine(tmp_path, monkeypatch):
+    monkeypatch.setattr(tts, "_RACINE", tmp_path)
+    (tmp_path / "voix").mkdir()
+    (tmp_path / "voix" / "kokoro-v1.0.onnx").write_bytes(b"modele")
+    (tmp_path / "voix" / "voices-v1.0.bin").write_bytes(b"voix")
+    monkeypatch.setattr("core.config.reglage",
+                        lambda cle, defaut=None: {
+                            "kokoro.modele": "voix/kokoro-v1.0.onnx",
+                            "kokoro.voix": "voix/voices-v1.0.bin",
+                            "kokoro.voix_nom": "ff_siwis",
+                        }.get(cle, defaut))
+    provider = tts.KokoroProvider()
+    assert provider.disponible() is True
+    assert provider._chemins[0] == str(tmp_path / "voix" / "kokoro-v1.0.onnx")
+
+
+def test_kokoro_introuvable_est_indisponible(tmp_path, monkeypatch):
+    monkeypatch.setattr(tts, "_RACINE", tmp_path)
+    monkeypatch.setattr("core.config.reglage",
+                        lambda cle, defaut=None: {
+                            "kokoro.modele": "", "kokoro.voix": "",
+                        }.get(cle, defaut))
+    provider = tts.KokoroProvider()
+    assert provider.disponible() is False
