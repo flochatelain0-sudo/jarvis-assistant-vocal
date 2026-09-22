@@ -213,9 +213,10 @@ class VoxtralProvider(ProviderTTS):
 
     Appel REST direct sur /v1/audio/speech (meme API que le SDK mistralai,
     sans la dependance) : la cle et l'URL sont celles du LLM (mistral.cle /
-    mistral.url). voxtral.voix est un preset du modele (fr_female, fr_male,
-    casual_female, casual_male, cheerful_female, neutral_male, ...) ou
-    l'identifiant d'une voix clonee dans le Mistral Studio. Sortie 24 kHz.
+    mistral.url). voxtral.voix est l'IDENTIFIANT d'une voix du compte Mistral
+    (liste par scripts/voix_voxtral.py, ou ID d'une voix clonee dans le
+    Mistral Studio). Les noms des presets (fr_female...) ne sont PAS des
+    identifiants API : la reponse est un 404 invalid_voice. Sortie 24 kHz.
     Tout echec (reseau, credit epuise, moderation 403) rend None et jarvis14
     bascule sur la voix de l'OS, comme pour Piper et Kokoro.
     """

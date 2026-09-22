@@ -31,12 +31,16 @@ def principal():
     print("\n1. Voix disponibles sur ton compte (presets) :")
     try:
         reponse = tts.lister_voix_voxtral()
-        for v in (reponse or [])[:30]:
+        items = reponse.get("items", []) if isinstance(reponse, dict) else (reponse or [])
+        if not items:
+            print("  (aucune voix preset listee : essaie le Studio Mistral)")
+        for v in items[:40]:
             if isinstance(v, dict):
-                nom = v.get("name") or v.get("id") or "?"
+                nom = v.get("name") or "?"
                 vid = v.get("id") or "?"
+                typ = v.get("type") or "?"
                 langues = ",".join(v.get("languages") or [])
-                print(f"  - {nom} (id: {vid}) langues: {langues}")
+                print(f"  - {nom} (id: {vid}, type: {typ}, langues: {langues})")
             else:
                 print("  -", v)
     except Exception as e:
