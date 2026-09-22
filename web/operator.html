@@ -623,10 +623,11 @@ async function chargerCrm(){
       </div>`;
     }
     c.innerHTML = entete + r.items.map(it => `
-      <div class="tache">
+      <div class="tache" style="cursor:pointer" onclick="ouvrirFiche(${JSON.stringify(it.nom).replace(/"/g, '&quot;')})">
         <div class="txt"><b>${esc(it.nom)}</b>
           <div class="meta">${(it.colonnes||[]).map(c =>
             `<span class="fiche-champ"><b>${esc(c.titre)}</b> ${esc(c.valeur)}</span>`).join(" · ")}</div></div>
+        <div class="meta" style="margin-top:6px;font-size:11px;color:var(--info)">voir la fiche complète →</div>
       </div>`).join("");
   }catch(e){
     c.innerHTML = `<div class="carte vide">CRM indisponible.</div>`;
@@ -752,6 +753,22 @@ async function refuserAction(id){
   }
   rafraichir();
 }
+async function ouvrirFiche(nom){
+  const r = await api("/api/operator/fiche/" + encodeURIComponent(nom));
+  if(!r.ok){ bulle("aide", r.message || "Fiche introuvable."); return; }
+  const f = r.fiche;
+  const champs = (f.colonnes||[]).map(c =>
+    `<div class="fiche-champ"><b>${esc(c.titre)}</b> ${esc(c.valeur)}</div>`).join("");
+  const d = document.createElement("div");
+  d.className = "msg jarvis briefing";
+  d.innerHTML = `<div class="brief-titre">\u{1F4C6} Fiche \u00b7 <b>${esc(f.nom)}</b></div>`
+    + `<div class="brief-champs" style="flex-direction:column">${champs}</div>`
+    + `<div class="brief-note">Toutes les colonnes monday \u00b7 lecture seule</div>`;
+  const zone = $("#messages");
+  zone.appendChild(d);
+  zone.scrollTop = zone.scrollHeight;
+}
+
 function bulle(role, texte, ts){
   const zone = $("#messages");
   const d = document.createElement("div");

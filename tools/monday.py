@@ -422,6 +422,21 @@ def _chercher_items(nom, limite=30):
     return items
 
 
+def fiche_client(nom):
+    """Fiche complete d'un item monday pour la page Operator : toutes les
+    colonnes (pas seulement les 6 premieres), par nom d'item. Renvoie
+    None si introuvable. Lecture seule, jamais d'exception."""
+    try:
+        items = _chercher_items(nom, limite=1)
+    except Exception:
+        return None
+    if not items:
+        return None
+    ident, nom_item, colonnes = items[0]
+    return {"id": ident, "nom": nom_item,
+            "colonnes": [{"titre": t, "valeur": v} for t, v in colonnes]}
+
+
 @outil(
     nom="brief_client",
     description="Prepare le briefing d'un appel client : fiche CRM monday "

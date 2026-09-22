@@ -279,3 +279,39 @@ def test_etat_crm_expose_les_kpis_business(monkeypatch):
     assert etat["business"]["signes"] == 285000.0
     assert etat["business"]["nb_pipeline"] == 1
     assert etat["business"]["pipeline"] == 150000.0
+
+
+def test_fiche_client_renvoie_toutes_les_colonnes(monkeypatch):
+    _reglages(monkeypatch, token="tok", tableau="42")
+    reponse = {"boards": [{"name": "CRM", "items_page": {"items": [
+        {"name": "Acme", "id": "7", "column_values": [
+            {"title": "Statut", "text": "Negociation"},
+            {"title": "Montant", "text": "285 000 EUR"},
+            {"title": "Historique", "text": "R1 le 3 septembre"},
+            {"title": "Contact", "text": "pierre@acme.fr"},
+        ]}]}}]}
+    _mock_requete(monkeypatch, (reponse, []))
+    from tools import monday
+    fiche = monday.fiche_client("acme")
+    assert fiche["nom"] == "Acme" and fiche["id"] == "7"
+    titres = [c["titre"] for c in fiche["colonnes"]]
+    assert titres == ["Statut", "Montant", "Historique", "Contact"]
+
+
+def test_fiche_client_introuvable_renvoie_none(monkeypatch):
+    _reglages(monkeypatch, token="tok", tableau="42")
+    _mock_requete(monkeypatch, ({"boards": [{"name": "CRM", "items_page": {
+        "items": []}}]}, []))
+    from tools import monday
+    assert monday.fiche_client("personne") is None
+
+
+def test_fiche_client_erreur_api_ne_plante_pas(monkeypatch):
+    _reglages(monkeypatch, token="tok", tableau="42")
+
+    def faux(query, variables=None):
+        raise RuntimeError("reseau coupe")
+
+    from tools import monday
+    monkeypatch.setattr(monday, "_requete", faux)
+    assert monday.fiche_client("acme") is None

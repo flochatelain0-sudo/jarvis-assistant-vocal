@@ -622,6 +622,17 @@ def monter_routes(app):
         from tools.monday import etat_crm
         return etat_crm()
 
+    @app.get("/api/operator/fiche/{nom}")
+    def api_fiche(nom: str, request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from tools.monday import fiche_client
+        fiche = fiche_client(nom)
+        if not fiche:
+            return {"ok": False, "message": "Client introuvable dans monday."}
+        return {"ok": True, "fiche": fiche}
+
     @app.post("/api/operator/brain/oublier")
     async def api_brain_oublier(request: Request):
         refus = garde(request)
