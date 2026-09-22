@@ -247,8 +247,9 @@ classeurs:                     # Google Sheets (CRM, facturation, plannings) ; v
     # partenaires: "1AbC..."    # ex. classeur US Partner List
     # factures: "1XyZ..."       # ex. classeur Invoice 2026
 
-serveur:                       # UN serveur web pour TOUT (pont iPhone + webhook Twilio V2 + futures PWA)
-  actif: false                 # true = lance le serveur au demarrage (requis pour le pont iPhone)
+serveur:                       # UN serveur web pour TOUT (pont iPhone + webhook Twilio V2 + panneau + Operator)
+  actif: true                  # true (DEFAUT) = panneau (/panneau) et Operator (/operator) accessibles en local
+                               # Le pont iPhone exige aussi le serveur ; sans lui, aucune interface web.
   port: 8790                   # port local unique ; UN seul tunnel ngrok le sert en entier
   # -- Deux facons d'exposer le port (choisis-en UNE) --
   # A) Jarvis ouvre le tunnel tout seul (pas besoin d'installer la commande ngrok) :

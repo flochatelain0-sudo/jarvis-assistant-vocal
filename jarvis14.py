@@ -1552,7 +1552,7 @@ def main():
     demarrer_refresh_instagram()
 
     # Serveur web unifie (pont iPhone + webhook Twilio + panneau + gestes en loopback).
-    if (config.reglage("serveur.actif", False) or config.reglage("pont_iphone.actif", False)
+    if (config.reglage("serveur.actif", True) or config.reglage("pont_iphone.actif", False)
             or config.reglage("gestes.actif", False) or config.reglage("cockpit.actif", False)
             or (config.reglage("satellites", []) or [])):     # satellites -> serveur requis
         from core.serveur import demarrer as demarrer_serveur_web
