@@ -58,6 +58,9 @@ mcp_externes: []               # serveurs MCP distants dont Jarvis peut appeler
                                #   entetes:
                                #     Authorization: "Bearer TON_JETON"
                                #   sans_confirmation: ["statut_serveur"]
+                               # Brancher OpenJarvis (voir docs/openjarvis.md) :
+                               # - nom: openjarvis
+                               #   url: "http://127.0.0.1:8000/mcp"
                                # Par defaut TOUT outil distant demande confirmation.
 
 gemini:                        # alternative a Claude/OpenAI ; palier gratuit sur AI Studio
