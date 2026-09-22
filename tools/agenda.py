@@ -424,9 +424,16 @@ def planning_du_jour():
         service = _service()
     except Exception as e:
         return {"configure": False, "message": _msg_config(e)[:200], "evenements": []}
+    try:
+        calendriers = _calendriers(service)
+    except Exception as e:
+        LOG.exception("planning_du_jour : calendriers")
+        return {"configure": False,
+                "message": f"Agenda indisponible : {e}"[:200],
+                "evenements": []}
     debut, fin, _ = _periode("aujourd'hui")
     evenements = []
-    for cid, info in _calendriers(service).items():
+    for cid, info in calendriers.items():
         try:
             res = service.events().list(
                 calendarId=cid, timeMin=debut.isoformat(), timeMax=fin.isoformat(),
