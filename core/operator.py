@@ -351,7 +351,8 @@ def question_validation(ident, outil, niv, annonce):
     with _VERROU:
         _CONVERSATION.append({"role": "jarvis", "type": "validation",
                               "texte": texte, "id": ident,
-                              "niveau": niv, "ts": time.time()})
+                              "outil": outil, "niveau": niv,
+                              "ts": time.time()})
         del _CONVERSATION[:-_MAX_CONV]
 
 

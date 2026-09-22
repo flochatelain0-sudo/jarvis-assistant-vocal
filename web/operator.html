@@ -716,7 +716,7 @@ async function rafraichir(){
     (e.a_valider||[]).forEach(a => {
       if(!validationsAffichees.has(a.id)){
         validationsAffichees.add(a.id);
-        bulleValidation(a.annonce + " Tu confirmes ?", a.id, a.niveau);
+        bulleValidation(a.annonce + " Tu confirmes ?", a.id, a.niveau, a.outil);
       }
     });
     dernierEtat = e;
@@ -731,17 +731,50 @@ async function rafraichir(){
   }catch(err){ console.error(err); }
 }
 // ---------------------------------------------------------------- chat
-function bulleValidation(texte, id, niveau){
+function bulleValidation(texte, id, niveau, outil){
   const zone = $("#messages");
   const d = document.createElement("div");
   d.className = "msg jarvis validation";
   d.dataset.validation = id;
+  const btnModifier = (outil === "envoyer_mail")
+    ? `<button class="btn ghost mini" onclick="modifierBrouillonConv()">Modifier le texte</button>` : "";
   d.innerHTML = esc(texte).replace(/\n/g,"<br>")
     + `<div class="actions-val"><button class="btn prime mini" data-id="${id}" onclick="validerAction(this.dataset.id)">Valider</button>`
     + `<button class="btn ko mini" data-id="${id}" onclick="refuserAction(this.dataset.id)">Refuser</button>`
+    + btnModifier
     + `<span class="badge ${niveau==="N3"?"n3":"n2"}">${esc(niveau)} · ${niveau==="N3"?"critique":"sensible"}</span></div>`;
   zone.appendChild(d);
   zone.scrollTop = zone.scrollHeight;
+}
+
+async function modifierBrouillonConv(){
+  let b = {destinataire:"", sujet:"", corps:""};
+  try{ b = await api("/api/operator/mail/brouillon"); }catch(e){}
+  const zone = $("#messages");
+  const d = document.createElement("div");
+  d.className = "msg vous edition";
+  d.innerHTML = `<div class="editeur-mail">
+      <label>À <input id="ed-dest" value="${esc(b.destinataire||"")}" placeholder="destinataire@..."></label>
+      <label>Objet <input id="ed-sujet" value="${esc(b.sujet||"")}" placeholder="Objet"></label>
+      <label>Message <textarea id="ed-corps" rows="6">${esc(b.corps||"")}</textarea></label>
+      <div class="actions">
+        <button class="btn prime" onclick="enregistrerBrouillonConv(this)">Enregistrer</button>
+        <button class="btn ghost" onclick="this.closest('.edition').remove()">Annuler</button>
+      </div>
+    </div>`;
+  zone.appendChild(d);
+  zone.scrollTop = zone.scrollHeight;
+}
+
+async function enregistrerBrouillonConv(btn){
+  const donnees = {
+    destinataire: $("#ed-dest").value,
+    sujet: $("#ed-sujet").value,
+    corps: $("#ed-corps").value};
+  const r = await api("/api/operator/mail/brouillon", {method:"POST", body:JSON.stringify(donnees)});
+  btn.closest(".edition").remove();
+  bulle("aide", r.ok ? "Brouillon mis à jour — relis-le et valide l'envoi." : "Aucun brouillon en attente.");
+  rafraichir();
 }
 function bulleBriefing(m){
   const zone = $("#messages");
@@ -877,7 +910,7 @@ async function chargerConversation(){
     const fil = (c.messages||[]).map(m => ({role: m.role === "vous" ? "vous" : "jarvis", texte: m.texte, ts: m.ts,
                                             type: m.type, id: m.id, niveau: m.niveau}));
     fil.forEach(m => {
-      if(m.type === "validation" && m.id != null) bulleValidation(m.texte, m.id, m.niveau);
+      if(m.type === "validation" && m.id != null) bulleValidation(m.texte, m.id, m.niveau, m.outil);
       else if(m.type === "briefing") bulleBriefing(m);
       else bulle(m.role, m.texte, m.ts);
     });
@@ -896,7 +929,7 @@ async function chargerConversation(){
       zone.innerHTML = "";
       const tous = voix.filter(v => !deja.has(v.texte)).concat(fil);
       tous.forEach(m => {
-        if(m.type === "validation" && m.id != null){ bulleValidation(m.texte, m.id, m.niveau); validationsAffichees.add(m.id); }
+        if(m.type === "validation" && m.id != null){ bulleValidation(m.texte, m.id, m.niveau, m.outil); validationsAffichees.add(m.id); }
         else bulle(m.role, m.texte, m.ts);
       });
     }

@@ -365,3 +365,19 @@ def test_etat_traitement_compte_les_messages_en_attente():
     assert operator.message_suivant()["texte"] == "premiere"
     assert operator.message_suivant()["texte"] == "deuxieme"
     assert operator.etat_traitement()["en_attente"] == 0
+
+
+def test_question_validation_note_l_outil(monkeypatch):
+    registre.annuler_confirme()
+    _un_outil(monkeypatch)
+    from core import registre as r
+    # simuler ce que fait jarvis14 quand un outil attend son feu vert
+    file = r.file_en_attente()
+    assert file, "la file d'attente devrait contenir l'outil"
+    operator.question_validation(file[0]["id"], file[0]["outil"],
+                                 file[0]["niveau"], file[0]["annonce"])
+    msgs = operator.conversation()
+    v = msgs[-1]
+    assert v["type"] == "validation" and v["outil"] == "outil_test"
+    assert v["texte"].endswith("Tu confirmes ?")
+    registre.annuler_confirme()
