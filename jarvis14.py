@@ -304,6 +304,24 @@ def _hud(methode, *args):
         pass
 
 
+def _nourrir_brain(message):
+    """The Brain : retient tout seul ce qui vaut d'etre retenu du message.
+
+    Extraction heuristique, zero token : si quelque chose est nouveau, la
+    consigne systeme est rafraichie pour que Jarvis en tienne compte au tour
+    suivant. Un echec ne doit JAMAIS interrompre la conversation.
+    """
+    try:
+        from core import brain
+        ajoutes = brain.nourrir(message)
+        if ajoutes:
+            from core import memoire as _memoire
+            _refaire_systeme(_memoire.charger())
+            print(f"  [brain] {ajoutes} information(s) retenue(s).")
+    except Exception:
+        pass
+
+
 def _demarrer_hud():
     """Lance le HUD et DIT pourquoi si ca rate.
 
@@ -1336,6 +1354,7 @@ def traiter_ecrit(demande, historique):
     print(f"  Vous (ecrit) : {question}")
     _hud("dire_vous", question)
     _hud("etat", "reflexion")
+    _nourrir_brain(question)
     try:
         historique.append({"role": "user", "content": question})
         texte = repondre(historique)
@@ -1402,6 +1421,7 @@ def traiter(audio, whisper, historique, flux, reveil):
     print(f"  Vous : {question}")
     _hud("dire_vous", question)
     _hud("etat", "reflexion")
+    _nourrir_brain(question)
     historique.append({"role": "user", "content": question})
 
     texte, interrompu, relancer = repondre_en_ecoutant(historique, flux, reveil, whisper)
@@ -1666,6 +1686,12 @@ def main():
         threading.Thread(target=_dh.rafraichir_hud, daemon=True).start()
     except Exception:
         pass
+    try:                                   # automations : le planificateur 24/7
+        from core import automations as _automations
+        if config.reglage("automations.actif", True):
+            _automations.demarrer()
+    except Exception:
+        LOG.exception("automations: demarrage")
 
     faits = memoire.charger()
     if faits:

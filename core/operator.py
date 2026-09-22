@@ -99,17 +99,9 @@ def journaliser(categorie, titre, detail="", resultat="ok"):
 # ------------------------------------------------------------ file de validation
 
 def _file_validation():
-    """Les actions en attente de confirmation (registre) mises en forme."""
+    """TOUTES les actions en attente de confirmation (registre), en ordre."""
     from core import registre
-    nom = registre.nom_en_attente()
-    if not nom:
-        return []
-    annonce = registre.annonce_en_attente() or f"Je vais executer {nom}."
-    return [{
-        "outil": nom,
-        "niveau": registre.niveau(nom),
-        "annonce": annonce,
-    }]
+    return registre.file_en_attente()
 
 
 def _nuit():
@@ -204,7 +196,7 @@ def valider():
     resultat = registre.executer_confirme(memoriser=False)
     journaliser("validation", f"Action validée depuis la page : {nom}",
                 str(resultat)[:400])
-    return {"ok": True, "resultat": str(resultat)[:400]}
+    return {"ok": True, "resultat": str(resultat)[:400], "reste": len(registre.file_en_attente())}
 
 
 def refuser():
@@ -215,7 +207,16 @@ def refuser():
     nom = registre.nom_en_attente()
     registre.annuler_confirme()
     journaliser("validation", f"Action refusée depuis la page : {nom}")
-    return {"ok": True, "message": f"{nom} annulé."}
+    return {"ok": True, "message": f"{nom} annulé.", "reste": len(registre.file_en_attente())}
+
+
+def refuser_tout():
+    """Vide toute la file de validation depuis la page."""
+    from core import registre
+    n = registre.refuser_toutes()
+    if n:
+        journaliser("validation", f"{n} action(s) refusée(s) depuis la page")
+    return {"ok": True, "message": f"{n} action(s) refusée(s)."}
 
 
 # ------------------------------------------------------- messagerie ecrite
@@ -359,3 +360,97 @@ def monter_routes(app):
         if refus:
             return refus
         return refuser()
+
+    @app.post("/api/operator/refuser_tout")
+    def api_refuser_tout(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        return refuser_tout()
+
+    # ---------------------------------------------------------- automations
+
+    @app.get("/api/operator/automations")
+    def api_automations(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import automations as autos
+        return {"automations": autos.lister()}
+
+    @app.post("/api/operator/automations")
+    def api_automation_creer(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import automations as autos
+        corps = {}
+        try:
+            corps = request.json() or {}
+        except Exception:
+            corps = {}
+        auto = autos.ajouter(
+            corps.get("nom", "Automation"),
+            corps.get("moment", "08:00"),
+            corps.get("action", "brief"),
+            jours=corps.get("jours"),
+            parametres=corps.get("parametres") if isinstance(corps.get("parametres"), dict) else None,
+        )
+        return {"ok": True, "automation": auto}
+
+    @app.post("/api/operator/automations/{identifiant}/basculer")
+    def api_automation_basculer(identifiant: str, request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import automations as autos
+        corps = {}
+        try:
+            corps = request.json() or {}
+        except Exception:
+            corps = {}
+        ok = autos.activer(identifiant, bool(corps.get("active", True)))
+        return {"ok": ok}
+
+    @app.post("/api/operator/automations/{identifiant}/tester")
+    def api_automation_tester(identifiant: str, request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import automations as autos
+        return {"ok": autos.executer_maintenant(identifiant)}
+
+    @app.delete("/api/operator/automations/{identifiant}")
+    def api_automation_supprimer(identifiant: str, request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import automations as autos
+        return {"ok": autos.supprimer(identifiant)}
+
+    # --------------------------------------------------------------- brain
+
+    @app.get("/api/operator/brain")
+    def api_brain(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import brain
+        return brain.vue_brain()
+
+    @app.post("/api/operator/brain/oublier")
+    def api_brain_oublier(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from tools.memoire import forget
+        corps = {}
+        try:
+            corps = request.json() or {}
+        except Exception:
+            corps = {}
+        sujet = (corps.get("sujet") or "").strip()
+        if not sujet:
+            return {"ok": False, "message": "Sujet manquant."}
+        journaliser("systeme", f"Mémoire effacée depuis la page : {sujet[:60]}")
+        return {"ok": True, "message": forget(sujet)}

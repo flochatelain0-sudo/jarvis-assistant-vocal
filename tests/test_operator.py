@@ -149,6 +149,7 @@ def _app_routes():
     app.routes = []
     app.get = lambda chemin: (lambda f: app.routes.append((chemin, f)) or f)
     app.post = lambda chemin: (lambda f: app.routes.append((chemin, f)) or f)
+    app.delete = lambda chemin: (lambda f: app.routes.append((chemin, f)) or f)
     operator.monter_routes(app)
     return app
 

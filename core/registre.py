@@ -11,7 +11,10 @@ import pkgutil
 LOG = logging.getLogger("jarvis.registre")
 
 _REGISTRE = {}      # nom -> Outil
-_EN_ATTENTE = None  # (Outil, args) en attente d'une confirmation vocale
+# File des actions en attente de confirmation vocale ou web. La premiere
+# attendue est celle que la voix traite (compatibilite _EN_ATTENTE).
+_EN_ATTENTE = None  # (Outil, args) le plus ancien, ou None
+_FILE = []          # [(Outil, args), ...] toutes les actions en attente
 
 
 class Outil:
@@ -207,17 +210,18 @@ def phrase_attente(noms):
 # ---------------------------------------------------------------- confirmation
 
 def mettre_en_attente(outil_obj, args):
-    """Range une action a confirmer. Renvoie un resultat neutre pour Claude."""
+    """Range une action a confirmer. Renvoie un resultat neutre pour Claude.
+
+    Plusieurs actions peuvent attendre simultanement (une par tour LLM) : la
+    plus ancienne reste celle que la voix confirme, les autres suivent.
+    """
     global _EN_ATTENTE
-    _EN_ATTENTE = (outil_obj, args)
+    _FILE.append((outil_obj, args))
+    _EN_ATTENTE = _FILE[0][0], _FILE[0][1]
     return "En attente de la confirmation vocale de l'utilisateur."
 
 
-def annonce_en_attente():
-    """Phrase a prononcer pour demander l'accord, ou None si rien en attente."""
-    if _EN_ATTENTE is None:
-        return None
-    outil_obj, args = _EN_ATTENTE
+def _annonce_de(outil_obj, args):
     if outil_obj.annonce:
         try:
             return outil_obj.annonce(args)
@@ -226,9 +230,26 @@ def annonce_en_attente():
     return f"Je vais executer {outil_obj.nom}."
 
 
+def annonce_en_attente():
+    """Phrase a prononcer pour demander l'accord, ou None si rien en attente."""
+    if _EN_ATTENTE is None:
+        return None
+    return _annonce_de(*_EN_ATTENTE)
+
+
 def nom_en_attente():
     """Nom de l'outil en attente de confirmation (ou None)."""
     return _EN_ATTENTE[0].nom if _EN_ATTENTE else None
+
+
+def file_en_attente():
+    """Toutes les actions en attente : [(nom, niveau, annonce), ...].
+
+    Pour la page Operator : montrer TOUT ce qui attend le feu vert, pas
+    seulement la derniere. Ordre d'arrivee conserve.
+    """
+    return [{"outil": o.nom, "niveau": niveau(o.nom), "annonce": _annonce_de(o, a)}
+            for o, a in _FILE]
 
 
 def executer_confirme(memoriser=False):
@@ -242,7 +263,9 @@ def executer_confirme(memoriser=False):
     if _EN_ATTENTE is None:
         return ""
     outil_obj, args = _EN_ATTENTE
-    _EN_ATTENTE = None
+    if _FILE:
+        _FILE.pop(0)
+    _EN_ATTENTE = (_FILE[0][0], _FILE[0][1]) if _FILE else None
     suffixe = ""
     if memoriser:
         if autoriser_toujours(outil_obj.nom):
@@ -258,5 +281,17 @@ def executer_confirme(memoriser=False):
 
 
 def annuler_confirme():
+    """Annule la plus ancienne action en attente (equivalent d'un « non »)."""
     global _EN_ATTENTE
+    if _FILE:
+        _FILE.pop(0)
+    _EN_ATTENTE = (_FILE[0][0], _FILE[0][1]) if _FILE else None
+
+
+def refuser_toutes():
+    """Vide la file sans rien executer (page Operator « tout refuser »)."""
+    global _EN_ATTENTE
+    n = len(_FILE)
+    _FILE.clear()
     _EN_ATTENTE = None
+    return n
