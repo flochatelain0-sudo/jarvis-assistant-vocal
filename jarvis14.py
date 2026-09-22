@@ -652,7 +652,9 @@ FIN_PHRASE = re.compile(r"(.+?[.!?…]+[\s ]*|.+?\n)", re.S)
 
 
 def _parleur(fil):
-    """Thread qui lit les phrases au fur et a mesure qu'elles arrivent."""
+    """Thread qui lit les phrases au fur et a mesure qu'elles arrivent.
+    Chaque phrase est aussi poussee dans le fil vocal du HUD : les sous-titres
+    de la page Operator apparaissent pendant la parole, pas apres."""
     while True:
         phrase = fil.get()
         if phrase is None:
@@ -661,6 +663,7 @@ def _parleur(fil):
             continue
         texte = phrase.strip()
         if texte:
+            _hud("dire_jarvis", texte)
             dire(texte)
 
 

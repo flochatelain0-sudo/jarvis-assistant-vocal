@@ -425,6 +425,13 @@ def monter_routes(app):
         texte = lire_reponse(ident)
         return {"pret": texte is not None, "texte": texte or ""}
 
+    @app.get("/api/operator/vocal")
+    def api_vocal(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        return {"fil": _fil_vocal()}
+
     @app.get("/api/operator/conversation")
     def api_conversation(request: Request):
         refus = garde(request)

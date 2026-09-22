@@ -847,6 +847,19 @@ chargerPlanning();
 chargerBrain();
 chargerCrm();
 setInterval(rafraichir, 5000);
+async function synchroniserVocal(){
+  try{
+    const r = await api("/api/operator/vocal");
+    (r.fil||[]).forEach(v => {
+      if(v.t !== "vous" && v.t !== "jarvis") return;
+      const t = (v.texte||"").trim();
+      if(!t) return;
+      if(textesAffiches.has(t.slice(0,200))) return;
+      bulle(v.t === "vous" ? "vous" : "jarvis", v.texte);
+    });
+  }catch(e){}
+}
+setInterval(synchroniserVocal, 1500);
 </script>
 </body>
 </html>
