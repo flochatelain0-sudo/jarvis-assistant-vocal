@@ -396,14 +396,30 @@ class _Poignee(BaseHTTPRequestHandler):
         self.wfile.write(corps)
 
     def _page(self):
-        """Redirige vers l'Operator : une seule page, pas deux tableaux."""
+        """Une seule page : l'Operator s'il vit, sinon le HUD de secours."""
         cible = _page_operator()
+        if not cible:
+            self._page_hud_secours()
+            return
         corps = ("<meta http-equiv=\"refresh\" content=\"0;url=" + cible + "\">"
                  "<a href=\"" + cible + "\">Jarvis — ouvrir l'Operator</a>"
                  ).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Refresh", "0;url=" + cible)
+        self.send_header("Content-Length", str(len(corps)))
+        self.end_headers()
+        self.wfile.write(corps)
+
+    def _page_hud_secours(self):
+        """Serveur web eteint : l'ancienne page HUD reste utilisable."""
+        try:
+            corps = _FICHIER_HTML.read_bytes()
+        except OSError:
+            self.send_error(500, "hud.html introuvable")
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(corps)))
         self.end_headers()
         self.wfile.write(corps)
@@ -477,18 +493,28 @@ class _Serveur(ThreadingHTTPServer):
 
 
 def _page_operator():
-    """La page servie sur / : l'Operator complet si le serveur web vit.
+    """URL de l'Operator s'il est JOIGNABLE, sinon None (HUD de secours).
 
-    Un seul visage : l'Operator (8790) est la page unique de Jarvis. Le HUD
-    (8770) reste le muscle — etat temps reel, SSE, auto-controle — mais sert
-    l'Operator au lieu de son ancienne mini-page.
+    Le HUD ne doit jamais rediriger vers une page morte : si le serveur web
+    est desactive (serveur.actif: false), on retombe sur la page HUD.
     """
     try:
         from core.config import reglage
         port = int(reglage("serveur.port", 8790) or 8790)
-        return f"http://127.0.0.1:{port}/operator"
     except Exception:
-        return "http://127.0.0.1:8790/operator"
+        port = 8790
+    if not _port_web_ouvert(port):
+        return None
+    return f"http://127.0.0.1:{port}/operator"
+
+
+def _port_web_ouvert(port, timeout=0.3):
+    import socket
+    try:
+        socket.create_connection(("127.0.0.1", port), timeout).close()
+        return True
+    except OSError:
+        return False
 
 
 def demarrer(ouvrir=True):
@@ -508,8 +534,9 @@ def demarrer(ouvrir=True):
 
     # Une seule interface : l'Operator (conversation, vie, automations,
     # cerveau, validation). Le HUD reste derriere pour le flux temps reel.
-    url = _page_operator()
-    print(f"HUD sur http://127.0.0.1:{PORT}/ (redirige vers {url})")
+    url = _page_operator() or f"http://127.0.0.1:{PORT}/"
+    cible = "Operator" if url.endswith("/operator") else "HUD (serveur web desactive)"
+    print(f"HUD sur http://127.0.0.1:{PORT}/ — page : {cible}")
     if ouvrir:
         _ouvrir_page(url)
     return _SERVEUR

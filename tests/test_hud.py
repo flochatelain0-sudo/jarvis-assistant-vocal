@@ -107,6 +107,14 @@ def test_enveloppe_ne_leve_jamais():
 
 
 def test_page_hud_redirige_vers_operator():
-    """Une seule page : le HUD (8770) redirige vers l'Operator (8790)."""
+    """Une seule page : l'Operator s'il vit, sinon None (HUD de secours)."""
     module_hud = pytest.importorskip("hud")
-    assert module_hud._page_operator().endswith("/operator")
+    cible = module_hud._page_operator()
+    assert cible is None or cible.endswith("/operator")
+
+
+def test_hud_jamais_de_redirection_vers_page_morte(monkeypatch):
+    """Serveur web eteint : _page_operator rend None, pas une URL morte."""
+    module_hud = pytest.importorskip("hud")
+    monkeypatch.setattr(module_hud, "_port_web_ouvert", lambda port, timeout=0.3: False)
+    assert module_hud._page_operator() is None
