@@ -29,6 +29,12 @@ _PRIX_DEFAUT = {
     "haiku": (1.0, 5.0),
     "sonnet": (3.0, 15.0),
     "opus": (5.0, 25.0),
+    "mistral-large": (0.50, 1.50),
+    "mistral-medium": (0.40, 2.00),
+    "mistral-small": (0.10, 0.30),
+    "ministral": (0.10, 0.10),
+    "gemini-2.5-pro": (1.25, 10.00),
+    "gemini-2.5-flash": (0.30, 2.50),
 }
 
 
