@@ -151,7 +151,6 @@ _DOMAINES = (
     (("discord", "mention", "salon discord"), {"discord_bot"}),
     (("instagram", "abonne", "followers", "vues"), {"instagram"}),
     (("appel", "appelle", "telephone", "raccroche"), {"appels", "appel_direct"}),
-    (("whatsapp", "whats app"), {"whatsapp", "appels"}),
     (("obs", "stream", "direct", "replay", "scene"), {"obs", "scenes"}),
     (("monday", "mon crm", "mon tableau", "mes tableaux", "mes items",
       "mes clients dans le crm", "ou j en suis sur mon crm"),

@@ -98,7 +98,6 @@ def tous():
 _NON_LOCAUX = {
     "capture_screen", "faire_brief",
     "lire_mails", "lire_mail", "preparer_mail", "envoyer_mail", "mettre_a_la_corbeille",
-    "envoyer_whatsapp",
     "get_events", "create_event", "delete_event", "get_deadlines",
     "chercher_web",
     "book_appointment", "confirmer_reservation",
@@ -144,7 +143,7 @@ def exposes_mcp():
 #                 Verrouille ici. (Le pont iPhone refuse deja tout outil a confirmation,
 #                 quel que soit le store : le "toujours autoriser" n'ouvre RIEN a distance.)
 _N3 = frozenset({
-    "envoyer_mail", "mettre_a_la_corbeille", "envoyer_whatsapp",
+    "envoyer_mail", "mettre_a_la_corbeille",
     "call_with_message", "call_and_book",
     "book_appointment", "confirmer_reservation",
     "delete_event",
