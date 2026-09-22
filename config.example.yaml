@@ -50,6 +50,13 @@ kokoro:                        # TTS local alternatif (voix FR unique ; uv add k
   modele: ""                   # chemin de kokoro-v1.0.onnx
   voix: ""                     # chemin de voices-v1.0.bin
   voix_nom: "ff_siwis"         # voix francaise de Kokoro
+voxtral:                      # TTS cloud Mistral, la voix de Le Chat (docs/mistral.md)
+                               # a activer avec :  tts:
+                               #                     moteur: voxtral
+  modele: "voxtral-mini-tts-2603"
+  voix: "fr_female"            # preset du modele, ou ID d'une voix clonee dans le Studio
+                               # presets : fr_female, fr_male, casual_female, casual_male,
+                               # cheerful_female, neutral_female, neutral_male, ...
 
 mcp_externes: []               # serveurs MCP distants dont Jarvis peut appeler
                                # les outils (voir docs/mcp_externe.md). Exemple :

@@ -114,3 +114,10 @@ kokoro:
 ```
 
 Sans modèle configuré, Jarvis retombe sur la voix Windows (SAPI).
+
+## La voix de Mistral (Voxtral), l'alternative cloud
+
+Pour la **même voix que Le Chat** — très naturelle en français — vois
+[mistral.md](mistral.md) : `tts.moteur: voxtral` dans `config.yaml`
+(clé Mistral existante, ~0,016 $ / 1000 caractères sur le crédit du plan,
+repli automatique sur la voix locale/OS en cas d'échec).

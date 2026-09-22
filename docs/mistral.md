@@ -4,9 +4,10 @@ Jarvis peut parler à **Mistral AI** (La Plateforme, `console.mistral.ai`) au
 lieu d'OpenAI ou de Claude. L'API Mistral est compatible OpenAI : le même
 client, une `base_url` différente — aucun abonnement ChatGPT/Claude requis.
 
-La voix, elle, reste **locale** (Piper) : Mistral n'offre pas de synthèse
-vocale, et une voix locale est gratuite et privée. Voir
-[local.md](local.md).
+La voix, elle, est **locale par défaut** (Piper) — mais Jarvis peut
+maintenant utiliser **Voxtral**, la synthèse vocale de Mistral : c'est la
+même voix que Le Chat. Voir [local.md](local.md) et la section
+« La voix de Le Chat (Voxtral) » plus bas.
 
 ## Configuration
 
@@ -25,6 +26,37 @@ mistral:
 
 Puis relance Jarvis. Le message de démarrage doit afficher
 `provider LLM : Mistral (mode hybride, modele mistral-small-latest)`.
+
+## La voix de Le Chat (Voxtral)
+
+Voxtral TTS (`voxtral-mini-tts-2603`) est le modèle de synthèse vocale de
+Mistral : c'est lui qui parle dans Le Chat. Français natif, très expressif,
+~90 ms de latence, 0,016 $ / 1000 caractères facturés sur le crédit du plan
+Mistral (pas de pay-as-you-go : l'Auto Recharge désactivée bloque tout
+dépassement).
+
+Dans `config.yaml` :
+
+```yaml
+tts:
+  moteur: voxtral
+
+voxtral:
+  modele: "voxtral-mini-tts-2603"
+  voix: "fr_female"        # ou "fr_male", "casual_female", "casual_male"...
+```
+
+- `voix` accepte un **preset du modèle** (`fr_female`, `fr_male`,
+  `casual_female`, `casual_male`, `cheerful_female`, `neutral_male`, ...) ou
+  l'**identifiant d'une voix clonée** créée dans le Mistral Studio
+  (console.mistral.ai → Build → Audio : 3–10 s d'audio suffisent pour
+  cloner une voix, l'ID se colle dans `voxtral.voix`).
+- La clé API est celle du LLM (`mistral.cle`) — aucune nouvelle dépendance,
+  l'appel passe directement par l'API REST de Mistral.
+- Si l'appel échoue (réseau, crédit épuisé, modération 403), Jarvis
+  retombe automatiquement sur la voix de l'OS, comme pour Piper/Kokoro.
+- Le mode `local` garde Piper/Kokoro : Voxtral ne s'active que si tu
+  l'écris explicitement (`tts.moteur: voxtral`).
 
 ## Quels modèles ?
 

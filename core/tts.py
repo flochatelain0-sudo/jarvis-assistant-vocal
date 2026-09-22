@@ -7,6 +7,8 @@ Windows, `say` sur macOS, espeak sur Linux — cf. core/plateforme).
 
   - PiperProvider      : local, 100% offline, voix francaise Piper (.onnx).
   - KokoroProvider     : local, kokoro-onnx (voix FR de qualite moyenne).
+  - VoxtralProvider    : cloud, la voix de Mistral (voxtral-mini-tts-2603),
+                         celle de Le Chat. Requiert mistral.cle + voxtral.voix.
   - OSProvider         : demande le repli gere par jarvis14.dire().
 
 Choix par config.yaml (`tts.moteur`) et par le mode local/hybride/qualite.
@@ -204,6 +206,82 @@ class KokoroProvider(ProviderTTS):
             return None
 
 
+# --------------------------------------------------------------- Voxtral (cloud)
+
+class VoxtralProvider(ProviderTTS):
+    """La voix de Mistral (voxtral-mini-tts-2603), celle de Le Chat.
+
+    Appel REST direct sur /v1/audio/speech (meme API que le SDK mistralai,
+    sans la dependance) : la cle et l'URL sont celles du LLM (mistral.cle /
+    mistral.url). voxtral.voix est un preset du modele (fr_female, fr_male,
+    casual_female, casual_male, cheerful_female, neutral_male, ...) ou
+    l'identifiant d'une voix clonee dans le Mistral Studio. Sortie 24 kHz.
+    Tout echec (reseau, credit epuise, moderation 403) rend None et jarvis14
+    bascule sur la voix de l'OS, comme pour Piper et Kokoro.
+    """
+
+    nom = "Voxtral"
+
+    def __init__(self):
+        self.voix = str(reglage("voxtral.voix", "fr_female") or "").strip()
+        self.modele = str(reglage("voxtral.modele", "voxtral-mini-tts-2603")
+                          or "voxtral-mini-tts-2603").strip()
+
+    def disponible(self):
+        return bool(str(reglage("mistral.cle", "") or "").strip() and self.voix)
+
+    def synthetiser(self, texte):
+        cle = str(reglage("mistral.cle", "") or "").strip()
+        if not cle or not self.voix:
+            print("  [Voxtral] mistral.cle ou voxtral.voix manquant. "
+                  "Voir docs/mistral.md.")
+            return None
+        try:
+            import base64
+            import io
+            import json
+            import urllib.request
+            import wave
+
+            import numpy as np
+            url = (str(reglage("mistral.url", "https://api.mistral.ai/v1"))
+                   or "https://api.mistral.ai/v1").rstrip("/")
+            corps = json.dumps({
+                "model": self.modele,
+                "input": texte,
+                "voice_id": self.voix,
+                "response_format": "wav",
+            }).encode("utf-8")
+            requete = urllib.request.Request(
+                f"{url}/audio/speech", data=corps, method="POST",
+                headers={"Authorization": f"Bearer {cle}",
+                         "Content-Type": "application/json"})
+            delai = float(reglage("mistral.timeout", 90) or 90)
+            with urllib.request.urlopen(requete, timeout=delai) as reponse:
+                donnees = json.loads(reponse.read().decode("utf-8"))
+            with wave.open(io.BytesIO(base64.b64decode(donnees["audio_data"]))) as w:
+                frequence = w.getframerate()
+                canaux = w.getnchannels()
+                largeur = w.getsampwidth()
+                trames = w.readframes(w.getnframes())
+            if largeur == 2:
+                audio = np.frombuffer(trames, dtype=np.int16)
+            elif largeur == 4:
+                audio = (np.frombuffer(trames, dtype="<i4") >> 16).astype(np.int16)
+            else:
+                audio = (np.frombuffer(trames, dtype="<f4")
+                         * 32767).astype(np.int16)
+            if canaux > 1:
+                audio = audio[::canaux]
+            if not len(audio):
+                return None
+            return audio, frequence
+        except Exception as e:
+            print(f"  [Voxtral] echec ({e}), repli "
+                  f"{plateforme.nom_voix_systeme()}.")
+            return None
+
+
 # --------------------------------------------------------------- fabrique
 
 _TTS = None
@@ -218,9 +296,10 @@ def _provider_local():
 def tts():
     """Provider TTS courant.
 
-    ``tts.moteur`` peut valoir auto/piper/kokoro/os. Le mode local garde sa
-    promesse de confidentialite : un moteur local est toujours choisi. En
-    auto, on prend la voix locale installee, sinon le repli de l'OS.
+    ``tts.moteur`` peut valoir auto/piper/kokoro/voxtral/os. Voxtral est la
+    voix cloud de Mistral (comme Le Chat) : uniquement en mode hybride ou
+    qualite, jamais impose en mode local. En auto, on prend la voix locale
+    installee, sinon le repli de l'OS.
     """
     global _TTS
     if _TTS is None:
@@ -239,6 +318,12 @@ def tts():
             _TTS = KokoroProvider()
         elif moteur == "piper":
             _TTS = PiperProvider()
+        elif moteur == "voxtral":
+            if m == "local":
+                local = _provider_local()
+                _TTS = local if local.disponible() else OSProvider()
+            else:
+                _TTS = VoxtralProvider()
         else:
             _TTS = OSProvider()
         LOG.info("provider TTS : %s (mode %s)", _TTS.nom, m)

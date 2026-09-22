@@ -212,3 +212,103 @@ def test_kokoro_introuvable_est_indisponible(tmp_path, monkeypatch):
                         }.get(cle, defaut))
     provider = tts.KokoroProvider()
     assert provider.disponible() is False
+
+# ---------------------------------------------------------------- Voxtral (cloud)
+
+import base64
+import io
+import json as _json
+import wave as _wave
+
+
+def _wav_int16(echantillons, frequence=24000, canaux=1):
+    """Un vrai WAV mono int16 en memoire, comme la reponse de l'API Mistral."""
+    tampon = io.BytesIO()
+    with _wave.open(tampon, "wb") as w:
+        w.setnchannels(canaux)
+        w.setsampwidth(2)
+        w.setframerate(frequence)
+        w.writeframes(echantillons)
+    return tampon.getvalue()
+
+
+class _ReponseHTTP:
+    def __init__(self, contenu):
+        self._contenu = contenu
+
+    def read(self):
+        return self._contenu
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def test_voxtral_choisi_par_la_fabrique(monkeypatch):
+    reglages = {"tts.moteur": "voxtral", "mistral.cle": "cle-test",
+                "voxtral.voix": "fr_female"}
+    monkeypatch.setattr("core.routage.mode_actuel", lambda: "hybride")
+    monkeypatch.setattr(tts, "reglage",
+                        lambda chemin, defaut=None: reglages.get(chemin, defaut))
+    assert tts.tts().nom == "Voxtral"
+
+
+def test_mode_local_ignore_voxtral_et_garde_piper(monkeypatch):
+    """La promesse du mode local : rien ne part sur le cloud, meme mal configure."""
+    assert _fabrique(monkeypatch, "local", True, moteur="voxtral").nom == "Piper"
+
+
+def test_voxtral_indisponible_sans_cle_mistral(monkeypatch):
+    monkeypatch.setattr(tts, "reglage", lambda chemin, defaut=None: defaut)
+    assert tts.VoxtralProvider().disponible() is False
+
+
+def test_voxtral_disponible_avec_cle_et_voix(monkeypatch):
+    reglages = {"mistral.cle": "cle-test", "voxtral.voix": "fr_female"}
+    monkeypatch.setattr(tts, "reglage",
+                        lambda chemin, defaut=None: reglages.get(chemin, defaut))
+    assert tts.VoxtralProvider().disponible() is True
+
+
+def test_voxtral_decode_le_wav_en_int16_24khz(monkeypatch):
+    np = _numpy()
+    trames = bytes(range(0, 256)) * 20
+    audio_b64 = base64.b64encode(_wav_int16(trames, 24000)).decode()
+    reglages = {"mistral.cle": "cle-test", "voxtral.voix": "fr_female"}
+
+    appels = []
+
+    def _fausse_urlopen(requete, timeout=None):
+        appels.append(requete)
+        return _ReponseHTTP(_json.dumps({"audio_data": audio_b64}).encode())
+
+    monkeypatch.setattr(tts, "reglage",
+                        lambda chemin, defaut=None: reglages.get(chemin, defaut))
+    monkeypatch.setattr("urllib.request.urlopen", _fausse_urlopen)
+    provider = tts.VoxtralProvider()
+    resultat = provider.synthetiser("Bonjour, je suis Jarvis.")
+    assert resultat is not None
+    audio, freq = resultat
+    assert audio.dtype == np.int16 and freq == 24000
+    assert len(audio) == len(trames) // 2
+    requete = appels[0]
+    assert requete.full_url == "https://api.mistral.ai/v1/audio/speech"
+    corps = _json.loads(requete.data.decode())
+    assert corps == {"model": "voxtral-mini-tts-2603",
+                     "input": "Bonjour, je suis Jarvis.",
+                     "voice_id": "fr_female", "response_format": "wav"}
+    assert requete.headers["Authorization"] == "Bearer cle-test"
+
+
+def test_voxtral_erreur_reseau_rend_none(monkeypatch):
+    reglages = {"mistral.cle": "cle-test", "voxtral.voix": "fr_female"}
+
+    def _echec(requete, timeout=None):
+        raise OSError("plus de reseau")
+
+    monkeypatch.setattr(tts, "reglage",
+                        lambda chemin, defaut=None: reglages.get(chemin, defaut))
+    monkeypatch.setattr("urllib.request.urlopen", _echec)
+    assert tts.VoxtralProvider().synthetiser("Bonjour") is None
