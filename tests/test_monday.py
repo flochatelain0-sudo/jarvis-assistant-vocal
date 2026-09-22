@@ -25,6 +25,8 @@ def _reglages(monkeypatch, token="", tableau=""):
     monkeypatch.setattr(monday, "reglage", lambda cle, defaut=None: {
         "monday.token": token, "monday.tableau": tableau,
     }.get(cle, defaut))
+    monday._CACHE_CRM["etat"] = None
+    monday._CACHE_CRM["quand"] = 0.0
 
 
 def test_outils_enregistres_avec_bons_niveaux():
@@ -55,6 +57,8 @@ def _mock_requete(monkeypatch, reponse):
         return reponse
 
     monkeypatch.setattr(monday, "_requete", fausse)
+    monday._CACHE_CRM["etat"] = None
+    monday._CACHE_CRM["quand"] = 0.0
     return appels
 
 
@@ -129,10 +133,51 @@ def test_etat_crm_pour_operator(monkeypatch):
     _mock_requete(monkeypatch, ({"boards": [{"name": "CRM", "items_page": {
         "items": [{"name": "Acme", "column_values": [{"text": "Signé"}]}]}}]}, []))
     from tools import monday
+    monday._CACHE_CRM["etat"] = None
+    monday._CACHE_CRM["quand"] = 0.0
     etat = monday.etat_crm()
     assert etat["configure"] is True
     assert etat["tableau"] == "CRM"
     assert etat["items"][0]["nom"] == "Acme"
+
+
+def test_etat_crm_sert_le_cache(monkeypatch):
+    """La page Operator appelle /crm et /relances en rafale : le second
+    appel doit reutiliser le cache, pas reinterroger monday."""
+    _reglages(monkeypatch, token="tok", tableau="42")
+    appels = []
+
+    def requete_fautee(q, variables=None):
+        appels.append(1)
+        return {"boards": [{"name": "CRM", "items_page": {
+            "items": []}}]}, []
+    from tools import monday
+    monkeypatch.setattr(monday, "_requete", requete_fautee)
+    monday._CACHE_CRM["etat"] = None
+    monday._CACHE_CRM["quand"] = 0.0
+    monday.etat_crm()
+    monday.etat_crm()
+    monday.a_relancer()
+    assert len(appels) == 1        # un seul appel reseau pour les trois
+
+
+def test_journal_echec_anti_spam(monkeypatch):
+    """Un monday en panne ne doit pas noyer le journal Operator : le meme
+    echec n'est journalise qu'une fois par quart d'heure."""
+    _reglages(monkeypatch, token="tok", tableau="42")
+    _mock_requete(monkeypatch, ({}, [{"message": "Board not found"}]))
+    from tools import monday
+    from core import operator as operator_reel
+    journaux = []
+    monkeypatch.setattr(monday, "_DERNIER_ECHEC", {"quand": 0.0, "quoi": ""})
+    monkeypatch.setattr(operator_reel, "journaliser",
+                        lambda categorie, titre, detail="": journaux.append(titre))
+    monday._CACHE_CRM["etat"] = None
+    monday._CACHE_CRM["quand"] = 0.0
+    monday.etat_crm()
+    monday.etat_crm()
+    monday.etat_crm()
+    assert len(journaux) == 1        # pas 3 lignes identiques
 
 # ------------------------------------------------------- route prioritaire
 

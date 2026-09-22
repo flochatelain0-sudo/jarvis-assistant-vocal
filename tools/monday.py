@@ -20,15 +20,32 @@ SECURITE :
 
 import json
 import re
+import time
 
 import requests
 
 from core.config import reglage
 from core.registre import outil
 
+_DERNIER_ECHEC = {"quand": 0.0, "quoi": ""}
+_DELAI_ECHEC = 900        # un meme echec journalise au plus toutes les 15 min
+
 
 def _journal_echec(contexte, detail):
-    """Trace l'echec monday dans le journal Operator (visible sur la page)."""
+    """Trace l'echec monday dans le journal Operator (visible sur la page).
+
+    Anti-spam : la page Operator appelle le CRM a chaque chargement et a
+    chaque clic ; si monday est en panne, on ne doit pas noyer le journal
+    avec cinquante fois la meme ligne. Un meme echec n'est journalise
+    qu'une fois par quart d'heure.
+    """
+    quoi = f"{contexte}: {detail}"[:120]
+    maintenant = time.time()
+    if (quoi == _DERNIER_ECHEC["quoi"]
+            and maintenant - _DERNIER_ECHEC["quand"] < _DELAI_ECHEC):
+        return
+    _DERNIER_ECHEC["quoi"] = quoi
+    _DERNIER_ECHEC["quand"] = maintenant
     try:
         from core import operator
         operator.journaliser("crm", f"monday : {contexte}", str(detail)[:200])
@@ -370,10 +387,22 @@ def _etapes_pipeline(items):
     return [etapes[c] for c in ordre]
 
 
+_CACHE_CRM = {"quand": 0.0, "etat": None}
+_DELAI_CACHE = 60         # la page Operator appelle /crm et /relances en rafale
+
+
 def etat_crm():
-    """Vue CRM pour la page Operator : les items du tableau principal."""
+    """Vue CRM pour la page Operator : les items du tableau principal.
+
+    Cache court (60 s) : la page appelle le CRM plusieurs fois par minute
+    (chargement + relances + rafraichissements). En cas d'echec, pas de
+    cache : le prochain essai retente monday immediatement.
+    """
     if not _configue():
         return {"configure": False, "items": []}
+    if (_CACHE_CRM["etat"] is not None
+            and time.time() - _CACHE_CRM["quand"] < _DELAI_CACHE):
+        return _CACHE_CRM["etat"]
     try:
         items, nom_tableau = [], ""
         cursor = None
@@ -409,9 +438,12 @@ def etat_crm():
             cursor = page.get("cursor")
             if not cursor or len(items) >= 100:
                 break
-        return {"configure": True, "tableau": nom_tableau, "items": items,
+        etat = {"configure": True, "tableau": nom_tableau, "items": items,
                 "business": _kpis_business(items),
                 "pipeline": _etapes_pipeline(items)}
+        _CACHE_CRM["etat"] = etat
+        _CACHE_CRM["quand"] = time.time()
+        return etat
     except Exception as e:
         _journal_echec("injoignable", e)
         return {"configure": True, "erreur": str(e)[:120], "items": []}
