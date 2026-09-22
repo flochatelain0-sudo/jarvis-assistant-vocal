@@ -1,20 +1,23 @@
-# 🔌 Brancher OpenJarvis à Jarvis
+# 🔌 Brancher d'autres assistants à Jarvis
 
-[OpenJarvis](https://github.com/open-jarvis/OpenJarvis) (Stanford) est un framework
-d'IA personnelle **local-first** : moteurs d'inférence locaux (Ollama, vLLM,
-Apple Foundation Models…), agents planifiés/continus, mémoire, recherche
-approfondie. Jarvis est l'assistant vocal fini. Les deux parlent MCP dans les
-**deux sens** — la combinaison naturelle : Jarvis comme voix, OpenJarvis
-comme raisonnement.
+Deux assistants externes, très différents, peuvent se brancher sur Jarvis par
+MCP — et ils ne le font pas de la même manière :
 
-| Sens | Chez OpenJarvis | Chez Jarvis |
+| | [OpenJarvis](https://github.com/open-jarvis/OpenJarvis) (Stanford) | [Jarvis](https://github.com/isair/jarvis) (isair) |
 |---|---|---|
-| OpenJarvis pilote la domotique (Hue, OBS, minuteurs…) | `[tools.mcp]` dans `config.toml` | [`jarvis/mcp_server.py`](../jarvis/mcp_server.py) — voir [mcp.md](mcp.md) |
-| Jarvis délègue le raisonnement (recherche, mémoire, tâches planifiées) | `jarvis serve` ou son serveur MCP | `mcp_externes:` dans `config.yaml` — voir [mcp_externe.md](mcp_externe.md) |
+| Nature | Framework de recherche local-first (moteurs d'inférence, agents, mémoire, évals) | Assistant vocal local-first concurrent, avec mémoire de conversation et visage animé |
+| Pilote la domotique de Jarvis | ✅ `[tools.mcp]` dans son `config.toml` | ✅ `"mcps"` dans sa config JSON |
+| Se pilote depuis Jarvis | ✅ son serveur MCP (`jarvis serve`) | ❌ pas de serveur MCP — client uniquement |
+| Transports | stdio + streamable HTTP | **stdio uniquement** |
+
+Le scénario pour les deux : Jarvis garde la voix et la maison (Hue, OBS,
+minuteurs) ; l'assistant externe amène sa propre intelligence. Vérifié en
+pratique dans les deux cas : découverte des 19 outils exposés, puis appel
+réel de `heure_et_date`.
 
 ---
 
-## 1. OpenJarvis pilote Jarvis (domotique)
+## 1. OpenJarvis pilote Jarvis
 
 Démarre le serveur MCP de Jarvis en mode HTTP (il tourne indépendamment de
 l'assistant vocal) :
@@ -46,11 +49,39 @@ registre d'OpenJarvis. Ses agents peuvent alors les appeler — le
 > `confirm: true` — un agent externe ne peut pas couper ton stream en
 > silence.
 
-Vérifié en pratique : `initialize` → `tools/list` (19 outils) →
-`call_tool("heure_et_date")` répond *"Il est 4 heures 23, le mardi 22
-septembre 2026."* par le pont MCP stdio puis HTTP.
+Vérifié : `initialize` → `tools/list` (19 outils) → `call_tool("heure_et_date")`
+répond *"Il est 4 heures 23, le mardi 22 septembre 2026."* — pont testé en
+stdio puis en HTTP avec le code client réel d'OpenJarvis.
 
-## 2. Jarvis délègue à OpenJarvis (raisonnement)
+## 2. Jarvis (isair) pilote Jarvis
+
+Sa config MCP est en JSON (`"mcps"`) et ne supporte que **stdio**. Déclare le
+serveur de Jarvis comme n'importe quel serveur MCP :
+
+```json
+{
+  "mcps": {
+    "jarvis_vocal": {
+      "command": "/bin/sh",
+      "args": ["-c", "cd /chemin/vers/jarvis-assistant-vocal && exec .venv/bin/python -m jarvis.mcp_server"]
+    }
+  }
+}
+```
+
+⚠️ **Pourquoi ce `sh -c "cd … && exec …"`** : son client MCP (comme celui
+d'OpenJarvis) lance le sous-processus **sans répertoire de travail**. Le
+serveur de Jarvis doit tourner depuis sa racine (config.yaml, logs/, registre).
+Sans ce contournement, la connexion échoue silencieusement — « Connection
+closed » sans autre indice.
+
+Sens inverse : **non disponible** — isair/jarvis n'expose pas de serveur MCP,
+seul le sens « il pilote la domotique » existe.
+
+Vérifié avec son `MCPClient` réel : `list_tools` → 19 outils,
+`invoke_tool("jarvis_vocal", "heure_et_date")` → réponse correcte.
+
+## 3. Jarvis délègue à OpenJarvis (raisonnement)
 
 Démarre le serveur MCP d'OpenJarvis (voir sa documentation — `jarvis serve`),
 puis déclare-le dans `config.yaml` :
@@ -73,7 +104,7 @@ Rappels de sécurité (voir [mcp_externe.md](mcp_externe.md)) : tout outil
 distant demande confirmation vocale sauf `sans_confirmation` — c'est voulu,
 car les effets d'un agent distant ne se devinent pas depuis son nom.
 
-## 3. Aller plus loin
+## 4. Aller plus loin
 
 - **Vocabulaire** : OpenJarvis répond en anglais par défaut ; Jarvis lui
   parlera dans la langue de ses prompts système comme avec tout serveur MCP.
@@ -84,3 +115,6 @@ car les effets d'un agent distant ne se devinent pas depuis son nom.
   macOS 26+ (`afm`). L'abstraction fournisseur de Jarvis
   (`core/llm.py` + `core/cloud.py`) peut l'adopter sans MCP — piste pour un
   mode 100 % local sur Mac.
+- **Nom des deux Jarvis** : attention à la collision de noms — le module
+  Python s'appelle `jarvis` chez isair aussi. Ils ne peuvent pas cohabiter
+  dans le même `PYTHONPATH` ; ça ne gêne pas le pont MCP (processus séparés).
