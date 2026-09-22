@@ -277,6 +277,10 @@ factures:                      # statut de facturation (facture.net) — LECTURE
   url: ""                      # URL de TON tableau de bord facture.net (copie-la depuis
                                # ChromeJarvis une fois connecte : "https://www.facture.net/...")
 
+monday:                        # CRM monday.com (API officielle v2) — voir docs/monday.md
+  token: ""                    # monday.com -> avatar -> Developers -> My access tokens
+  tableau: ""                  # ID du tableau principal (l'URL : monday.com/boards/<ID>)
+
 mcp:                           # serveur MCP (expose les outils domotique/PC ; voir docs/mcp.md)
   transport: "stdio"           # "stdio" (clients desktop) ou "http" (client distant)
   host: "127.0.0.1"            # (transport http)

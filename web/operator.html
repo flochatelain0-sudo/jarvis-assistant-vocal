@@ -256,6 +256,9 @@
   <h2 class="sec">🔥 À valider <span class="badge" id="nb-a-valider">0</span></h2>
   <div class="feed" id="feed"></div>
 
+  <h2 class="sec">📇 CRM monday.com <span class="badge" id="crm-etat">—</span></h2>
+  <div class="taches" id="crm"></div>
+
   <h2 class="sec">🤖 Automations — ce qui tourne tout seul</h2>
   <div class="autos" id="autos"></div>
 
@@ -464,6 +467,35 @@ async function oublier(sujet){
   chargerBrain();
 }
 
+// -------------------------------------------------------------- CRM monday
+async function chargerCrm(){
+  const c = $("#crm");
+  try{
+    const r = await api("/api/operator/crm");
+    if(!r.configure){
+      $("#crm-etat").textContent = "non configuré";
+      c.innerHTML = `<div class="carte vide">Configure <b>monday.token</b> et <b>monday.tableau</b> dans config.yaml — puis « Hey Jarvis, où j'en suis sur mon CRM ? ».</div>`;
+      return;
+    }
+    $("#crm-etat").textContent = r.tableau || "connecté";
+    if(r.erreur){
+      c.innerHTML = `<div class="carte vide">monday.com : ${r.erreur}</div>`;
+      return;
+    }
+    if(!r.items || !r.items.length){
+      c.innerHTML = `<div class="carte vide">Aucun item dans ton tableau monday.com.</div>`;
+      return;
+    }
+    c.innerHTML = r.items.map(it => `
+      <div class="tache">
+        <div class="txt"><b>${it.nom}</b>
+          <div class="meta">${(it.colonnes||[]).join(" · ")}</div></div>
+      </div>`).join("");
+  }catch(e){
+    c.innerHTML = `<div class="carte vide">CRM indisponible.</div>`;
+  }
+}
+
 function taches(items){
   const c = $("#taches");
   if(!items || !items.length){
@@ -608,6 +640,7 @@ chargerConversation();
 rafraichir();
 chargerAutos();
 chargerBrain();
+chargerCrm();
 setInterval(rafraichir, 5000);
 </script>
 </body>

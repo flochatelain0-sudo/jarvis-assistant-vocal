@@ -104,3 +104,9 @@ def test_enveloppe_ne_leve_jamais():
     """Elle tourne dans la boucle de lecture : une erreur couperait la parole."""
     assert jarvis14._enveloppe_voix(None, 22050, 1.0) == 0.0
     assert jarvis14._enveloppe_voix([], 0, 1.0) == 0.0
+
+
+def test_page_hud_redirige_vers_operator():
+    """Une seule page : le HUD (8770) redirige vers l'Operator (8790)."""
+    module_hud = pytest.importorskip("hud")
+    assert module_hud._page_operator().endswith("/operator")

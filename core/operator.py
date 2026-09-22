@@ -438,6 +438,16 @@ def monter_routes(app):
         from core import brain
         return brain.vue_brain()
 
+    # ------------------------------------------------------------- CRM monday
+
+    @app.get("/api/operator/crm")
+    def api_crm(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from tools.monday import etat_crm
+        return etat_crm()
+
     @app.post("/api/operator/brain/oublier")
     def api_brain_oublier(request: Request):
         refus = garde(request)

@@ -396,13 +396,14 @@ class _Poignee(BaseHTTPRequestHandler):
         self.wfile.write(corps)
 
     def _page(self):
-        try:
-            corps = _FICHIER_HTML.read_bytes()
-        except OSError:
-            self.send_error(500, "hud.html introuvable")
-            return
+        """Redirige vers l'Operator : une seule page, pas deux tableaux."""
+        cible = _page_operator()
+        corps = ("<meta http-equiv=\"refresh\" content=\"0;url=" + cible + "\">"
+                 "<a href=\"" + cible + "\">Jarvis — ouvrir l'Operator</a>"
+                 ).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Refresh", "0;url=" + cible)
         self.send_header("Content-Length", str(len(corps)))
         self.end_headers()
         self.wfile.write(corps)
@@ -475,6 +476,21 @@ class _Serveur(ThreadingHTTPServer):
         super().handle_error(request, client_address)
 
 
+def _page_operator():
+    """La page servie sur / : l'Operator complet si le serveur web vit.
+
+    Un seul visage : l'Operator (8790) est la page unique de Jarvis. Le HUD
+    (8770) reste le muscle — etat temps reel, SSE, auto-controle — mais sert
+    l'Operator au lieu de son ancienne mini-page.
+    """
+    try:
+        from core.config import reglage
+        port = int(reglage("serveur.port", 8790) or 8790)
+        return f"http://127.0.0.1:{port}/operator"
+    except Exception:
+        return "http://127.0.0.1:8790/operator"
+
+
 def demarrer(ouvrir=True):
     """Lance le serveur dans un thread daemon et ouvre le navigateur.
 
@@ -490,8 +506,10 @@ def demarrer(ouvrir=True):
     thread = threading.Thread(target=_SERVEUR.serve_forever, daemon=True)
     thread.start()
 
-    url = f"http://127.0.0.1:{PORT}/"
-    print(f"HUD sur {url}")
+    # Une seule interface : l'Operator (conversation, vie, automations,
+    # cerveau, validation). Le HUD reste derriere pour le flux temps reel.
+    url = _page_operator()
+    print(f"HUD sur http://127.0.0.1:{PORT}/ (redirige vers {url})")
     if ouvrir:
         _ouvrir_page(url)
     return _SERVEUR
