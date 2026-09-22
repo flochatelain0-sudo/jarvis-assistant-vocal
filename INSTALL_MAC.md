@@ -138,6 +138,44 @@ Le script cherche `uv` dans `~/.local/bin`, `/opt/homebrew/bin` et
 `/usr/local/bin`, justement parce que le PATH d'un élément d'ouverture n'est
 pas celui du Terminal.
 
+### Tourner 24h/24, 7j/7 (launchd)
+
+L'élément d'ouverture ne fait que **démarrer** Jarvis : s'il crashe ou
+s'arrête, il reste arrêté. Pour un assistant toujours disponible, installe
+le service launchd :
+
+```bash
+./scripts/autostart_mac.sh            # installe et démarre maintenant
+```
+
+Effet :
+
+- Jarvis démarre **au login**, sans fenêtre Terminal ;
+- il est **relancé automatiquement** s'il crashe (`KeepAlive`), avec 15 s
+  entre chaque tentative ;
+- il redémarre aussi après un reboot — sans rien faire d'autre ;
+- les journaux vont dans `~/Library/Logs/Jarvis/jarvis.log` (et `.err.log`).
+
+Commandes utiles :
+
+```bash
+tail -f ~/Library/Logs/Jarvis/jarvis.log   # suivre en direct
+launchctl list | grep jarvis                # état du service
+./scripts/autostart_mac.sh --remove         # retirer le 24/7
+```
+
+⚠️️ **Le Mac doit rester allumé et ne pas dormir.** Sans ça, l'écoute
+s'interrompt — launchd ne remplace pas l'alimentation :
+
+- **Prise** : Réglages Système → Économie d'énergie → « Empêcher l'arrêt
+  automatique en cas d'inactivité » et « Réveiller pour l'accès réseau » ;
+- **Sur batterie**, un Mac finit toujours par dormir : garde le chargeur
+  branché pour un vrai 24/7 ;
+- macOS ne propose pas d'option « ne jamais dormir » pour l'écran en mode
+  graphique — mais Jarvis n'a **pas besoin de l'écran** pour t'écouter : la
+  veille de l'affichage est sans effet sur le micro. Si tu veux forcer le
+  système entier à rester éveillé : `sudo pmset -a sleep 0`.
+
 ---
 
 ## 5. Vérifier que tout marche
