@@ -298,7 +298,7 @@ def etat_crm():
             donnees, erreurs = _requete(
                 """query ($b: [ID!], $n: Int!, $c: String) { boards(ids: $b) { name
                     items_page(limit: $n, cursor: $c) { cursor items { name
-                      column_values { text } } } } }""",
+                      column_values { id title text } } } } }""",
                 variables,
             )
             if erreurs:
@@ -310,10 +310,15 @@ def etat_crm():
             nom_tableau = nom_tableau or (boards[0].get("name") or "")
             page = boards[0].get("items_page") or {}
             for it in page.get("items") or []:
-                valeurs = [cv.get("text") or "" for cv in it.get("column_values") or []]
+                colonnes = []
+                for cv in it.get("column_values") or []:
+                    texte = cv.get("text") or ""
+                    if texte and len(colonnes) < 6:
+                        colonnes.append({"titre": cv.get("title") or cv.get("id") or "",
+                                         "valeur": texte[:60]})
                 items.append({
                     "nom": it.get("name", ""),
-                    "colonnes": [v for v in valeurs if v][:6],
+                    "colonnes": colonnes,
                 })
             cursor = page.get("cursor")
             if not cursor or len(items) >= 100:

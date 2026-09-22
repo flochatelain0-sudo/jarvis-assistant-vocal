@@ -23,6 +23,7 @@ confirmation.
 | CRM monday.com (natif) | `tools/monday.py` 🔍 + écriture ✍️ | [monday.md](monday.md) |
 | Facturation facture.net (lecture) | `tools/factures.py` 🔍 | doc intégrée |
 | ERP / SaaS / infra (via MCP) | `mcp_externes:` ✍️ | [mcp_externe.md](mcp_externe.md) |
+| WhatsApp (envoi Twilio) | `envoyer_whatsapp` ✍️ | [whatsapp.md](whatsapp.md) |
 
 ## Mise en route (une fois)
 

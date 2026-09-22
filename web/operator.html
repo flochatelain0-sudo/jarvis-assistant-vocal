@@ -128,6 +128,12 @@
   .nuit li .cat{color:var(--info);font-size:10.5px;border:1px solid var(--bord);border-radius:6px;
     padding:1px 7px;white-space:nowrap}
   .nuit li .t{color:var(--tres-dim);font-size:11px;margin-left:auto;white-space:nowrap}
+  #planning .pl-ev{display:flex;align-items:baseline;gap:11px;padding:10px 0;
+    border-bottom:1px solid var(--bord);font-size:13.5px}
+  #planning .pl-ev:last-child{border-bottom:none}
+  #planning .pl-heure{color:var(--info);font-size:12.5px;font-weight:600;min-width:48px}
+  #planning .pl-titre{color:var(--txt)}
+  #planning .pl-agenda{color:var(--tres-dim);font-size:11px;margin-left:auto;white-space:nowrap}
   .nuit .vide{color:var(--tres-dim);padding:14px 0}
   /* ---------- cartes à valider ---------- */
   .feed{display:flex;flex-direction:column;gap:13px}
@@ -168,6 +174,13 @@
   .msg.vous .quand{color:rgba(255,255,255,.55)}
   .msg.validation{max-width:88%;border-color:rgba(139,92,246,.35);background:rgba(109,40,217,.12)}
   .msg.validation .actions-val{display:flex;gap:8px;align-items:center;margin-top:9px;flex-wrap:wrap}
+  .editeur-mail{display:flex;flex-direction:column;gap:9px}
+  .editeur-mail label{display:flex;flex-direction:column;gap:4px;font-size:11px;
+    color:var(--tres-dim);text-transform:uppercase;letter-spacing:.08em}
+  .editeur-mail input,.editeur-mail textarea{background:rgba(0,0,0,.3);
+    border:1px solid var(--bord);border-radius:9px;color:var(--txt);
+    padding:8px 11px;font-size:13.5px;font-family:inherit;outline:none;resize:vertical}
+  .editeur-mail input:focus,.editeur-mail textarea:focus{border-color:rgba(139,92,246,.5)}
   .btn.mini{padding:5px 13px;font-size:12px}
   .verdict{font-size:12px;margin-top:8px;padding-top:7px;border-top:1px solid var(--bord)}
   .verdict.ok{color:var(--ok)} .verdict.ko{color:var(--ko)}
@@ -221,6 +234,7 @@
   .tache .txt b{color:var(--txt)}
   .tache .meta{color:var(--dim);font-size:12px}
   .tache .badge{margin-left:auto}
+  .fiche-champ b{color:var(--info);font-weight:500}
   /* ---------- pipeline + regle ---------- */
   .pipe,.regle{background:var(--verre);border:1px solid var(--bord);border-radius:18px;
     padding:17px 20px;backdrop-filter:blur(12px)}
@@ -304,6 +318,9 @@
 
   <h2 class="sec"><span class="live"></span><span id="titre-nuit">Pendant que tu dormais</span></h2>
   <div class="nuit"><ul id="journal"></ul></div>
+
+  <h2 class="sec">📅 Planning du jour</h2>
+  <div class="nuit" id="planning"><ul id="planning-liste"></ul></div>
 
   <h2 class="sec">🔥 À valider <span class="badge" id="nb-a-valider">0</span></h2>
   <div class="feed" id="feed"></div>
@@ -408,6 +425,7 @@ function feed(items){
       <div class="apercu">${esc(it.annonce)}</div>
       <div class="actions">
         <button class="btn prime" onclick="valider()">Valider</button>
+        ${it.outil === "envoyer_mail" ? `<button class="btn ghost" onclick="modifierMail()">Modifier</button>` : ""}
         <button class="btn ko" onclick="refuser()">Refuser</button>
       </div>
     </div>`).join("") +
@@ -446,6 +464,30 @@ async function profil(){
       $("#avatar").textContent = r.nom.trim()[0].toUpperCase();
     }
   }catch(e){}
+}
+async function modifierMail(){
+  const carte = document.querySelector("#feed .carte");
+  if(!carte) return;
+  let b = {destinataire:"", sujet:"", corps:""};
+  try{ b = await api("/api/operator/mail/brouillon"); }catch(e){}
+  const zone = carte.querySelector(".apercu");
+  if(!zone) return;
+  zone.innerHTML = `
+    <div class="editeur-mail">
+      <label>À <input id="ed-dest" value="${esc(b.destinataire||"")}" placeholder="destinataire@..."></label>
+      <label>Objet <input id="ed-sujet" value="${esc(b.sujet||"")}" placeholder="Objet"></label>
+      <label>Message <textarea id="ed-corps" rows="6">${esc(b.corps||"")}</textarea></label>
+      <div class="actions">
+        <button class="btn prime" onclick="enregistrerMail()">Enregistrer</button>
+        <button class="btn ghost" onclick="rafraichir()">Annuler</button>
+      </div>
+    </div>`;
+}
+async function enregistrerMail(){
+  const donnees = {
+    destinataire: $("#ed-dest").value, sujet: $("#ed-sujet").value, corps: $("#ed-corps").value};
+  await api("/api/operator/mail/brouillon", {method:"POST", body:JSON.stringify(donnees)});
+  rafraichir();
 }
 async function valider(){ alert((await api("/api/operator/valider",{method:"POST"})).resultat || "Ok."); rafraichir(); }
 async function refuser(){ await api("/api/operator/refuser",{method:"POST"}); rafraichir(); }
@@ -525,6 +567,25 @@ async function oublier(sujet){
 }
 
 // -------------------------------------------------------------- CRM monday
+async function chargerPlanning(){
+  const c = $("#planning-liste");
+  if(!c) return;
+  try{
+    const r = await api("/api/operator/planning");
+    if(!r.configure){
+      c.innerHTML = `<li class="vide">${esc(r.message || "Agenda non configuré — uv run python scripts/google_login.py agenda")}</li>`;
+      return;
+    }
+    if(!r.evenements || !r.evenements.length){
+      c.innerHTML = `<li class="vide">Aucun événement aujourd'hui — journée libre.</li>`;
+      return;
+    }
+    c.innerHTML = r.evenements.map(ev => `
+      <div class="pl-ev"><span class="pl-heure">${ev.heure ? esc(ev.heure) : "journée"}</span>
+        <span class="pl-titre">${esc(ev.titre)}</span>
+        <span class="pl-agenda">${esc(ev.agenda)}</span></div>`).join("");
+  }catch(e){ c.innerHTML = `<li class="vide">Agenda indisponible.</li>`; }
+}
 async function chargerCrm(){
   const c = $("#crm");
   try{
@@ -546,7 +607,8 @@ async function chargerCrm(){
     c.innerHTML = r.items.map(it => `
       <div class="tache">
         <div class="txt"><b>${esc(it.nom)}</b>
-          <div class="meta">${esc((it.colonnes||[]).join(" · "))}</div></div>
+          <div class="meta">${(it.colonnes||[]).map(c =>
+            `<span class="fiche-champ"><b>${esc(c.titre)}</b> ${esc(c.valeur)}</span>`).join(" · ")}</div></div>
       </div>`).join("");
   }catch(e){
     c.innerHTML = `<div class="carte vide">CRM indisponible.</div>`;
@@ -757,6 +819,7 @@ profil();
 chargerConversation();
 rafraichir();
 chargerAutos();
+chargerPlanning();
 chargerBrain();
 chargerCrm();
 setInterval(rafraichir, 5000);

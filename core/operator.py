@@ -418,6 +418,41 @@ def monter_routes(app):
             return refus
         return refuser()
 
+    @app.get("/api/operator/planning")
+    def api_planning(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from tools.agenda import planning_du_jour
+        return planning_du_jour()
+
+    @app.get("/api/operator/mail/brouillon")
+    def api_brouillon(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from tools.mail import brouillon
+        return brouillon()
+
+    @app.post("/api/operator/mail/brouillon")
+    async def api_brouillon_modifier(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        corps = {}
+        try:
+            corps = await request.json()
+        except Exception:
+            corps = {}
+        from tools.mail import modifier_brouillon
+        ok = modifier_brouillon((corps or {}).get("destinataire"),
+                                (corps or {}).get("sujet"),
+                                (corps or {}).get("corps"))
+        if ok:
+            journaliser("mail", "Brouillon modifie depuis la page",
+                        str(corps)[:200])
+        return {"ok": bool(ok), "brouillon": brouillon()} if ok else {"ok": False}
+
     @app.post("/api/operator/valider/{ident}")
     def api_valider_id(ident: int, request: Request):
         refus = garde(request)

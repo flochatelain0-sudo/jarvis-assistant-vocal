@@ -242,6 +242,25 @@ def _annonce_envoi(args):
     return f"Je vais envoyer le mail a {dest}."
 
 
+def brouillon():
+    """Le brouillon en cours, pour la page Operator (edition avant envoi)."""
+    return dict(_BROUILLON)
+
+
+def modifier_brouillon(destinataire=None, sujet=None, corps=None):
+    """Modifie le brouillon en cours depuis la page Operator. Renvoie False
+    s'il n'y a pas de brouillon."""
+    if not _BROUILLON:
+        return False
+    if destinataire is not None and destinataire.strip():
+        _BROUILLON["destinataire"] = destinataire.strip()
+    if sujet is not None and sujet.strip():
+        _BROUILLON["sujet"] = sujet.strip()
+    if corps is not None and corps.strip():
+        _BROUILLON["corps"] = corps.strip()
+    return True
+
+
 @outil(
     nom="envoyer_mail",
     description="Envoie le brouillon prepare. A appeler quand l'utilisateur veut "

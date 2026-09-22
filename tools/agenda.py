@@ -416,6 +416,37 @@ def delete_event(recherche: str, periode: str = "cette semaine") -> str:
     return f"C'est supprime : {e.get('summary','')}."
 
 
+# ------------------------------------------------- planning pour la page
+def planning_du_jour():
+    """Les evenements du jour, structure simple pour le widget de la page
+    Operator. Jamais bloquant : agenda non configure -> liste vide + message."""
+    try:
+        service = _service()
+    except Exception as e:
+        return {"configure": False, "message": _msg_config(e)[:200], "evenements": []}
+    debut, fin, _ = _periode("aujourd'hui")
+    evenements = []
+    for cid, info in _calendriers(service).items():
+        try:
+            res = service.events().list(
+                calendarId=cid, timeMin=debut.isoformat(), timeMax=fin.isoformat(),
+                singleEvents=True, orderBy="startTime", maxResults=20).execute()
+        except Exception:
+            continue
+        for e in res.get("items", []):
+            d, tout_jour = _debut_ev(e)
+            if d is None:
+                continue
+            evenements.append({
+                "titre": e.get("summary", "(sans titre)")[:80],
+                "heure": "" if tout_jour else _heure_fr(d),
+                "tout_jour": tout_jour,
+                "agenda": info["nom"][:40],
+            })
+    evenements.sort(key=lambda x: (x["tout_jour"], x["heure"]))
+    return {"configure": True, "evenements": evenements[:15]}
+
+
 # -------------------------------------- premier lancement : lister les agendas
 
 if __name__ == "__main__":
