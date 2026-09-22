@@ -224,7 +224,7 @@ class VoxtralProvider(ProviderTTS):
     nom = "Voxtral"
 
     def __init__(self):
-        self.voix = str(reglage("voxtral.voix", "fr_female") or "").strip()
+        self.voix = str(reglage("voxtral.voix", "") or "").strip()
         self.modele = str(reglage("voxtral.modele", "voxtral-mini-tts-2603")
                           or "voxtral-mini-tts-2603").strip()
 
@@ -232,6 +232,12 @@ class VoxtralProvider(ProviderTTS):
         return bool(str(reglage("mistral.cle", "") or "").strip() and self.voix)
 
     def synthetiser(self, texte):
+        if not self.voix:
+            raise RuntimeError(
+                "voxtral.voix est vide dans config.yaml : lance "
+                "'uv run python scripts/voix_voxtral.py' pour lister les "
+                "identifiants de voix de ton compte Mistral et choisis-en un.")
+
         cle = str(reglage("mistral.cle", "") or "").strip()
         if not cle or not self.voix:
             print("  [Voxtral] mistral.cle ou voxtral.voix manquant. "

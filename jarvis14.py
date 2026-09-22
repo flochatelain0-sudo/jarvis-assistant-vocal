@@ -1727,8 +1727,14 @@ def main():
 
     from core.llm import llm
     _fournisseur = llm()
+    _tts = __import__('core.tts', fromlist=['tts']).tts()
     print(f"Mode : {config.reglage('mode', 'cloud')} — LLM {_fournisseur.nom}, "
-          f"TTS {__import__('core.tts', fromlist=['tts']).tts().nom}.")
+          f"TTS {_tts.nom}.")
+    if _tts.nom == "Voxtral" and not _tts.voix:
+        print("ATTENTION : Voxtral est actif mais voxtral.voix est vide dans "
+              "config.yaml. Lance 'uv run python scripts/voix_voxtral.py' pour "
+              "choisir un identifiant de voix, puis renseigne voxtral.voix. "
+              "En attendant, Jarvis reste silencieux a l'oral.")
     if not _fournisseur.disponible():
         if config.reglage("mode", "cloud") == "local":
             print("ATTENTION : Ollama injoignable. Lance 'ollama serve' et verifie le "

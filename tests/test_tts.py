@@ -312,3 +312,14 @@ def test_voxtral_erreur_reseau_rend_none(monkeypatch):
                         lambda chemin, defaut=None: reglages.get(chemin, defaut))
     monkeypatch.setattr("urllib.request.urlopen", _echec)
     assert tts.VoxtralProvider().synthetiser("Bonjour") is None
+
+
+def test_voxtral_sans_voix_est_indisponible_et_le_dit(monkeypatch):
+    reglages = {"mistral.cle": "cle-test", "tts.moteur": "voxtral"}
+    tts.reinitialiser()
+    monkeypatch.setattr(tts, "reglage", lambda c, d=None: reglages.get(c, d))
+    provider = tts.VoxtralProvider()
+    assert provider.voix == ""
+    assert provider.disponible() is False
+    with pytest.raises(RuntimeError, match="voix_voxtral"):
+        provider.synthetiser("Bonjour")
