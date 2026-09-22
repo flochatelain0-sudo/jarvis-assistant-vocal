@@ -38,6 +38,17 @@ from faster_whisper import WhisperModel
 from openwakeword.model import Model as WakeModel
 
 from core import config, journal, memoire, personnalite, plateforme, registre, voix
+from core import operator
+
+
+def _categorie(nom_outil):
+    """Categorie d'un outil pour le journal Operator (Pendant que tu dormais)."""
+    if any(k in nom_outil for k in ("mail", "gmail")):        return "mail"
+    if any(k in nom_outil for k in ("facture", "budget", "finance")): return "facture"
+    if any(k in nom_outil for k in ("agenda", "event", "reservation")): return "agenda"
+    if any(k in nom_outil for k in ("classeur", "sheet", "crm", "monday")): return "crm"
+    if any(k in nom_outil for k in ("lire", "chercher", "statut", "brief")): return "lecture"
+    return "autre"
 from core.util import nettoyer_reponse_vocale, sans_accents
 from tools.lumieres import allumer_si_nuit, charger_pieces_hue
 
@@ -685,12 +696,18 @@ def _executer_outils(blocs):
             # N2 memorise "toujours autoriser" -> on n'attend pas (est_autorise True).
             # Un N3 n'est jamais autorise d'avance : il repasse toujours par ici.
             resultat = registre.mettre_en_attente(outil, arguments)
+            operator.journaliser("validation", f"Action préparée : {nom}",
+                                 resultat="en_attente")
         else:
             try:
                 resultat = outil.fonction(**arguments)
+                operator.journaliser(_categorie(nom), f"Action exécutée : {nom}",
+                                     str(resultat)[:200])
             except Exception:
                 LOG.exception("outil %s a plante", nom)
                 resultat = "Desole, je n'ai pas reussi a faire ca."
+                operator.journaliser("systeme", f"Action échouée : {nom}",
+                                     resultat="erreur")
 
         LOG.info("outil %s termine en %.3fs (type=%s)", nom,
                  time.monotonic() - debut_outil, type(resultat).__name__)

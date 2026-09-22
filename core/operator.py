@@ -126,13 +126,29 @@ def _kpis():
     }
 
 
+def _taches():
+    """Les taches deleguees a Hermes (en cours / terminees), pour la vue Taches."""
+    try:
+        from tools.deleguer_a_hermes import taches_liste
+        return taches_liste()[:30]
+    except Exception:
+        return []
+
+
 def etat():
     """L'etat complet servi a la page Operator (API GET)."""
     return {
         "kpis": _kpis(),
         "a_valider": _file_validation(),
         "journal": _charger()[:60],
+        "taches": _taches(),
     }
+
+
+def profil():
+    """Nom de l'utilisateur pour la top bar (config utilisateur.nom)."""
+    nom = (reglage("utilisateur.nom", "") or "Moi").strip()
+    return {"nom": nom[:40] or "Moi"}
 
 
 def valider():
@@ -197,6 +213,10 @@ def monter_routes(app):
     @app.get("/api/operator/etat")
     def api_etat(request: Request):
         return garde(request) or etat()
+
+    @app.get("/api/operator/profil")
+    def api_profil(request: Request):
+        return garde(request) or profil()
 
     @app.post("/api/operator/valider")
     def api_valider(request: Request):
