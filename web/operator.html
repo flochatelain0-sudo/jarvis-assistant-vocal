@@ -287,6 +287,11 @@ const $ = s => document.querySelector(s);
 const CATS = {lecture:"Lecture", mail:"Mails", facture:"Factures", agenda:"Agenda",
               crm:"CRM", validation:"Validation", systeme:"Système", autre:"Autre"};
 
+function esc(s){
+  return String(s == null ? "" : s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
 function heure(ts){
   const d = new Date(ts*1000), h = d.getHours(), m = d.getMinutes();
   return h + "h" + String(m).padStart(2,"0");
@@ -333,8 +338,8 @@ function journal(entrees, nuit, filtre){
   }
   ul.innerHTML = entrees.map(e => `
     <li><span class="st">● déjà fait</span>
-        <span class="cat">${CATS[e.categorie]||e.categorie}</span>
-        <span>${e.titre}</span>
+        <span class="cat">${esc(CATS[e.categorie]||e.categorie)}</span>
+        <span>${esc(e.titre)}</span>
         <span class="t">${heure(e.ts)}</span></li>`).join("");
 }
 
@@ -346,9 +351,9 @@ function feed(items){
   }
   $("#feed").innerHTML = items.map(it => `
     <div class="carte">
-      <div class="head"><b>À VALIDER · ${it.outil.toUpperCase()}</b>
-        <span class="badge ${it.niveau==="N3"?"n3":"n2"}">${it.niveau} · ${it.niveau==="N3"?"critique":"sensible"}</span></div>
-      <div class="apercu">${it.annonce}</div>
+      <div class="head"><b>À VALIDER · ${esc(it.outil.toUpperCase())}</b>
+        <span class="badge ${it.niveau==="N3"?"n3":"n2"}">${esc(it.niveau)} · ${it.niveau==="N3"?"critique":"sensible"}</span></div>
+      <div class="apercu">${esc(it.annonce)}</div>
       <div class="actions">
         <button class="btn prime" onclick="valider()">Valider</button>
         <button class="btn ko" onclick="refuser()">Refuser</button>
@@ -411,13 +416,13 @@ function autos(items){
   c.innerHTML = items.map(a => `
     <div class="auto ${a.active?"on":""}">
       <div class="ico">${ICONES_ACTIONS[a.action]||"⚙️"}</div>
-      <div class="txt"><b>${a.nom}</b>
-        <div class="meta">${a.action} · ${(a.jours&&a.jours.length)?a.jours.join(", "):"tous les jours"}</div></div>
-      <span class="quand">${a.moment} · ${a.active?"prochaine : "+quandTxt(a.prochaine):"en pause"}</span>
+      <div class="txt"><b>${esc(a.nom)}</b>
+        <div class="meta">${esc(a.action)} · ${(a.jours&&a.jours.length)?esc(a.jours.join(", ")):"tous les jours"}</div></div>
+      <span class="quand">${esc(a.moment)} · ${a.active?"prochaine : "+quandTxt(a.prochaine):"en pause"}</span>
       <div class="inter">
-        <button class="btn ghost mini" onclick="testerAuto('${a.id}')">Tester</button>
-        <button class="btn ghost mini" onclick="supprimerAuto('${a.id}')">Supprimer</button>
-        <div class="interrupteur" onclick="basculerAuto('${a.id}', ${a.active?false:true})"></div>
+        <button class="btn ghost mini" data-id="${esc(a.id)}" onclick="testerAuto(this.dataset.id)">Tester</button>
+        <button class="btn ghost mini" data-id="${esc(a.id)}" onclick="supprimerAuto(this.dataset.id)">Supprimer</button>
+        <div class="interrupteur" data-id="${esc(a.id)}" data-actif="${a.active?false:true}" onclick="basculerAuto(this.dataset.id, this.dataset.actif==='true')"></div>
       </div>
     </div>`).join("");
 }
@@ -445,9 +450,9 @@ function brain(v){
   const zone = (titre, items, cle) => `
     <div class="zone"><h3>${titre}</h3>
       ${items && items.length ? items.map(i => `
-        <div class="ligne">${i.cle?`<span class="k">${i.cle}</span>`:""}
-          <span class="v">${i.contenu}</span>
-          <span class="oublier" onclick="oublier('${(i.cle||i.contenu).slice(0,30).replace(/'/g,"")}')">oublier</span></div>`).join("")
+        <div class="ligne">${i.cle?`<span class="k">${esc(i.cle)}</span>`:""}
+          <span class="v">${esc(i.contenu)}</span>
+          <span class="oublier" data-sujet="${esc(i.cle||i.contenu).slice(0,60)}" onclick="oublier(this.dataset.sujet)">oublier</span></div>`).join("")
         : `<div class="vide">Rien pour l'instant.</div>`}
     </div>`;
   $("#brain").innerHTML =
@@ -488,8 +493,8 @@ async function chargerCrm(){
     }
     c.innerHTML = r.items.map(it => `
       <div class="tache">
-        <div class="txt"><b>${it.nom}</b>
-          <div class="meta">${(it.colonnes||[]).join(" · ")}</div></div>
+        <div class="txt"><b>${esc(it.nom)}</b>
+          <div class="meta">${esc((it.colonnes||[]).join(" · "))}</div></div>
       </div>`).join("");
   }catch(e){
     c.innerHTML = `<div class="carte vide">CRM indisponible.</div>`;
@@ -508,8 +513,8 @@ function taches(items){
     const duree = t.duree ? Math.round(t.duree) + " s" : "";
     return `<div class="tache ${finie?"terminee":""}">
       <div class="box">✓</div>
-      <div class="txt"><b>${t.tache || "Tâche"}</b>
-        <div class="meta">${t.modele || "Hermes"}${duree ? " · " + duree : ""}${t.resume ? " · " + t.resume.slice(0,80) : ""}</div></div>
+      <div class="txt"><b>${esc(t.tache || "Tâche")}</b>
+        <div class="meta">${esc(t.modele || "Hermes")}${duree ? " · " + duree : ""}${t.resume ? " · " + esc(t.resume.slice(0,80)) : ""}</div></div>
       ${finie ? `<span class="badge">terminée</span>` : urgente ? `<span class="badge urgent">en cours · long</span>` : `<span class="badge n2">en cours</span>`}
     </div>`;
   }).join("");
@@ -564,7 +569,7 @@ function bulle(role, texte, ts){
   const d = document.createElement("div");
   d.className = "msg " + role;
   const quand = ts ? new Date(ts*1000).toLocaleTimeString("fr-FR", {hour:"2-digit", minute:"2-digit"}) : "";
-  d.innerHTML = texte.replace(/</g,"&lt;").replace(/\n/g,"<br>")
+  d.innerHTML = esc(texte).replace(/\n/g,"<br>")
     + (quand ? `<span class="quand">${quand}</span>` : "");
   zone.appendChild(d);
   zone.scrollTop = zone.scrollHeight;

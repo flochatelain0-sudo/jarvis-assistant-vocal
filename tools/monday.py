@@ -25,6 +25,15 @@ import requests
 from core.config import reglage
 from core.registre import outil
 
+
+def _journal_echec(contexte, detail):
+    """Trace l'echec monday dans le journal Operator (visible sur la page)."""
+    try:
+        from core import operator
+        operator.journaliser("crm", f"monday : {contexte}", str(detail)[:200])
+    except Exception:
+        pass
+
 _API = "https://api.monday.com/v2"
 _TIMEOUT = 20
 
@@ -230,16 +239,27 @@ def monday_maj_item(nom: str, colonnes: str) -> str:
     except (ValueError, AssertionError):
         return "Le paramètre colonnes doit être un JSON valide."
     try:
-        donnees, erreurs = _requete(
-            """query ($b: [ID!], $n: Int!) {
-                 boards(ids: $b) { items_page(limit: $n) { items { id name } } } }""",
-            {"b": [str(_tableau())], "n": 50},
-        )
+        items, cursor = [], None
+        for _ in range(4):
+            variables = {"b": [str(_tableau())], "n": 25}
+            if cursor:
+                variables["c"] = cursor
+            donnees, erreurs = _requete(
+                """query ($b: [ID!], $n: Int!, $c: String) {
+                     boards(ids: $b) { items_page(limit: $n, cursor: $c) {
+                       cursor items { id name } } } }""",
+                variables,
+            )
+            if erreurs:
+                break
+            boards = donnees.get("boards") or []
+            page = (boards[0].get("items_page") or {}) if boards else {}
+            items.extend(page.get("items") or [])
+            cursor = page.get("cursor")
+            if not cursor:
+                break
     except Exception as e:
         return f"Impossible de joindre monday.com ({str(e)[:80]})."
-    items = []
-    for b in donnees.get("boards") or []:
-        items.extend(((b.get("items_page") or {}).get("items")) or [])
     cible = next((it for it in items
                   if (it.get("name") or "").strip().lower() == (nom or "").strip().lower()), None)
     if cible is None:
@@ -265,25 +285,36 @@ def etat_crm():
     if not _configue():
         return {"configure": False, "items": []}
     try:
-        donnees, erreurs = _requete(
-            """query ($b: [ID!]) { boards(ids: $b) { name
-                 items_page(limit: 20) { items { name
-                   column_values { text } } } } }""",
-            {"b": [str(_tableau())]},
-        )
-        if erreurs:
-            return {"configure": True, "erreur": str(erreurs[0])[:120], "items": []}
-        boards = donnees.get("boards") or []
-        items = []
-        for b in boards:
-            for it in ((b.get("items_page") or {}).get("items")) or []:
+        items, nom_tableau = [], ""
+        cursor = None
+        for _ in range(5):
+            variables = {"b": [str(_tableau())], "n": 25}
+            if cursor:
+                variables["c"] = cursor
+            donnees, erreurs = _requete(
+                """query ($b: [ID!], $n: Int!, $c: String) { boards(ids: $b) { name
+                    items_page(limit: $n, cursor: $c) { cursor items { name
+                      column_values { text } } } } }""",
+                variables,
+            )
+            if erreurs:
+                _journal_echec("erreur API", erreurs[0])
+                return {"configure": True, "erreur": str(erreurs[0])[:120], "items": []}
+            boards = donnees.get("boards") or []
+            if not boards:
+                break
+            nom_tableau = nom_tableau or (boards[0].get("name") or "")
+            page = boards[0].get("items_page") or {}
+            for it in page.get("items") or []:
                 valeurs = [cv.get("text") or "" for cv in it.get("column_values") or []]
                 items.append({
                     "nom": it.get("name", ""),
                     "colonnes": [v for v in valeurs if v][:6],
                 })
-        return {"configure": True,
-                "tableau": (boards[0].get("name") if boards else ""),
-                "items": items}
+            cursor = page.get("cursor")
+            if not cursor or len(items) >= 100:
+                break
+        return {"configure": True, "tableau": nom_tableau, "items": items}
     except Exception as e:
+        _journal_echec("injoignable", e)
         return {"configure": True, "erreur": str(e)[:120], "items": []}

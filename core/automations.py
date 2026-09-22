@@ -278,7 +278,7 @@ def executer_maintenant(identifiant):
 # ------------------------------------------------------------- planificateur
 
 def _boucle():
-    """Le planificateur : reveille chaque minute, execute ce qui est du."""
+    """Le planificateur : reveille toutes les 15 s, execute ce qui est du."""
     while not _ARRET.is_set():
         try:
             maintenant = time.time()
@@ -299,7 +299,7 @@ def _boucle():
                 _executer_automation(auto)
         except Exception:
             LOG.exception("boucle automations")
-        _ARRET.wait(60)
+        _ARRET.wait(15)
 
 
 def demarrer():

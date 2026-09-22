@@ -254,6 +254,11 @@ def message_suivant():
         return None
 
 
+def message_en_attente():
+    """True si des demandes ecrites attendent (sans les consommer)."""
+    return not _MESSAGES.empty()
+
+
 def reponse_message(ident, texte):
     """Depose la reponse de l'assistant pour la page (et l'affiche)."""
     with _VERROU:
@@ -307,6 +312,8 @@ def monter_routes(app):
 
     html = _RACINE / "web" / "operator.html"
 
+    _PAGE_CACHE = {"contenu": None}
+
     @app.get("/operator")
     def operator_page(request: Request):
         refus = garde(request)
@@ -315,7 +322,9 @@ def monter_routes(app):
         if not html.exists():
             return HTMLResponse("<h1>Operator</h1><p>web/operator.html manquant.</p>",
                                 status_code=500)
-        return HTMLResponse(html.read_text(encoding="utf-8"))
+        if _PAGE_CACHE["contenu"] is None:
+            _PAGE_CACHE["contenu"] = html.read_text(encoding="utf-8")
+        return HTMLResponse(_PAGE_CACHE["contenu"])
 
     @app.get("/api/operator/etat")
     def api_etat(request: Request):

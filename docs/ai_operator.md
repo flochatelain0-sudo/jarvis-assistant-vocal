@@ -20,7 +20,7 @@ confirmation.
 | Emails (envoyer) | `envoyer_mail` ✍️ | [mail.md](mail.md) |
 | Agenda (tous tes calendriers) | `tools/agenda.py` 🔍 + créer/supprimer ✍️ | [agenda.md](agenda.md) |
 | CRM / facturation Google Sheets | `tools/classeurs.py` 🔍 + écriture ✍️ | [classeurs.md](classeurs.md) |
-| CRM monday.com (via MCP) | `mcp_externes:` ✍️ | [frameworks_mcp.md](frameworks_mcp.md) |
+| CRM monday.com (natif) | `tools/monday.py` 🔍 + écriture ✍️ | [monday.md](monday.md) |
 | Facturation facture.net (lecture) | `tools/factures.py` 🔍 | doc intégrée |
 | ERP / SaaS / infra (via MCP) | `mcp_externes:` ✍️ | [mcp_externe.md](mcp_externe.md) |
 
@@ -39,9 +39,14 @@ classeurs:
   alias:
     partenaires: "1AbC..."    # tes classeurs CRM/facturation
     factures: "1XyZ..."
-mcp_externes:
-  - nom: monday               # si ton CRM vit dans monday.com
-    url: "https://mcp.monday.com/mcp"
+monday:                       # CRM monday.com NATIF (recommande ; voir monday.md)
+  token: "eyJ..."             # avatar > Developers > My access tokens
+  tableau: 1234567890         # ID du board (l'URL : /boards/<ID>)
+
+# (alternative) monday via MCP externe :
+# mcp_externes:
+#   - nom: monday
+#     url: "https://mcp.monday.com/mcp"
     entetes:
       Authorization: "Bearer TON_JETON_API_MONDAY"
 ```

@@ -1406,6 +1406,25 @@ def _drainer_messages_ecrits(historique):
             LOG.exception("prononciation message ecrit")
 
 
+def demarrer_drain_ecrit(historique):
+    """Thread dedie au chat ecrit : il ne depend PLUS du cycle micro.
+
+    La page Operator obtient ses reponses en 1-2 s, meme pendant que la
+    boucle vocale ecoute un bloc audio ou prononce une reponse.
+    """
+    def boucle():
+        while True:
+            try:
+                if operator.message_en_attente():
+                    _drainer_messages_ecrits(historique)
+                    continue
+            except Exception:
+                LOG.exception("boucle drain ecrit")
+            time.sleep(0.25)
+
+    threading.Thread(target=boucle, daemon=True, name="drain-ecrit").start()
+
+
 def traiter(audio, whisper, historique, flux, reveil):
     """Transcrit, repond, parle. Renvoie True si on doit enchainer (relance)."""
     debut_stt = time.monotonic()
@@ -1786,12 +1805,12 @@ def main():
     except Exception:
         LOG.exception("scene au demarrage")
 
+    demarrer_drain_ecrit(historique)
     tampon = deque(maxlen=6)
     enchainer = False
 
     try:
         while True:
-            _drainer_messages_ecrits(historique)
             suite = enchainer
             if not enchainer:
                 bloc = lire_bloc(flux)

@@ -259,6 +259,15 @@ def test_message_ecrit_file_et_reponse():
     assert operator.lire_reponse(m["id"]) is None  # consommee une fois
 
 
+def test_message_en_attente_ne_consomme_pas():
+    assert operator.message_en_attente() is False
+    operator.envoyer_message("premiere question")
+    assert operator.message_en_attente() is True
+    assert operator.message_en_attente() is True          # toujours la
+    assert operator.message_suivant()["texte"] == "premiere question"
+    assert operator.message_en_attente() is False         # consommee
+
+
 def test_message_vide_ou_trop_long_refuse():
     assert operator.envoyer_message("  ")["ok"] is False
     assert operator.envoyer_message("x" * 700)["ok"] is False
