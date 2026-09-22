@@ -363,3 +363,39 @@ def test_etat_crm_expose_le_pipeline(monkeypatch):
     etapes = {e["etape"]: e for e in etat["pipeline"]}
     assert etapes["R1 à venir"]["nb"] == 1
     assert etapes["R2"]["montant"] == 200000.0
+
+
+def test_a_relancer_trouve_les_statuts_d_attente(monkeypatch):
+    _reglages(monkeypatch, token="tok", tableau="42")
+    reponse = {"boards": [{"name": "CRM", "items_page": {"items": [
+        {"name": "Lopez", "column_values": [
+            {"title": "Statut", "text": "À relancer"}]},
+        {"name": "Martin", "column_values": [
+            {"title": "Statut", "text": "En attente de réponse"}]},
+        {"name": "Acme", "column_values": [
+            {"title": "Statut", "text": "Négociation"}]},
+        {"name": "Vendu", "column_values": [
+            {"title": "Statut", "text": "Signé"}]},
+    ]}}]}
+    _mock_requete(monkeypatch, (reponse, []))
+    from tools import monday
+    r = monday.a_relancer()
+    noms = [x["nom"] for x in r["relances"]]
+    assert noms == ["Lopez", "Martin"]
+
+
+def test_a_relancer_vide_quand_non_configure(monkeypatch):
+    _reglages(monkeypatch, token="", tableau="")
+    from tools import monday
+    assert monday.a_relancer() == {"relances": []}
+
+
+def test_a_relancer_erreur_api_ne_plante_pas(monkeypatch):
+    _reglages(monkeypatch, token="tok", tableau="42")
+
+    def faux(query, variables=None):
+        raise RuntimeError("reseau coupe")
+
+    from tools import monday
+    monkeypatch.setattr(monday, "_requete", faux)
+    assert monday.a_relancer() == {"relances": []}

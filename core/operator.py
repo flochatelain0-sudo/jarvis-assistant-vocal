@@ -623,6 +623,14 @@ def monter_routes(app):
         from tools.monday import etat_crm
         return etat_crm()
 
+    @app.get("/api/operator/relances")
+    def api_relances(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from tools.monday import a_relancer
+        return a_relancer()
+
     @app.get("/api/operator/fiche/{nom}")
     def api_fiche(nom: str, request: Request):
         refus = garde(request)

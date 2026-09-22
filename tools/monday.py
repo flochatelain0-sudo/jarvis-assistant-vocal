@@ -458,6 +458,31 @@ def _chercher_items(nom, limite=30):
     return items
 
 
+def a_relancer():
+    """Dossiers a relancer pour la page Operator : ceux dont le statut
+    suggere l'attente (relance, attente, a recontacter...). Renvoie
+    {relances: [{nom, statut, montant}], aucune exception."""
+    try:
+        etat = etat_crm()
+    except Exception:
+        return {"relances": []}
+    if not etat.get("configure"):
+        return {"relances": []}
+    mots = ("relance", "attente", "recontact", "sans reponse", "a rappeler",
+            "a joindre", "suivi")
+    relances = []
+    for it in etat.get("items") or []:
+        statut = ""
+        for c in it.get("colonnes") or []:
+            if any(m in (c.get("titre") or "").lower()
+                   for m in ("statut", "etape", "status", "stage")):
+                statut = c.get("valeur") or ""
+                break
+        if any(m in _sans_accent(statut) for m in mots):
+            relances.append({"nom": it.get("nom", ""), "statut": statut})
+    return {"relances": relances[:20]}
+
+
 def fiche_client(nom):
     """Fiche complete d'un item monday pour la page Operator : toutes les
     colonnes (pas seulement les 6 premieres), par nom d'item. Renvoie
