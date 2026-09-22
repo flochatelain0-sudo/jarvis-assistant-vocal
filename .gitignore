@@ -56,3 +56,4 @@ finances/*
 # Journal Operator : donnees locales (ce que Jarvis a fait chez toi)
 data/operator_journal.json
 data/automations.json
+data/knowledge.json

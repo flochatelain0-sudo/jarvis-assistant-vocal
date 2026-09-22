@@ -688,3 +688,48 @@ def monter_routes(app):
             return {"ok": False, "message": "Sujet manquant."}
         journaliser("systeme", f"Mémoire effacée depuis la page : {sujet[:60]}")
         return {"ok": True, "message": forget(sujet)}
+
+    @app.get("/api/operator/knowledge")
+    def api_knowledge(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from tools import knowledge
+        return {"documents": [{"id": d["id"], "titre": d["titre"],
+                              "source": d.get("source", ""),
+                              "ts": d.get("ts", 0),
+                              "taille": len(d.get("contenu", ""))}
+                             for d in knowledge.documents()]}
+
+    @app.post("/api/operator/knowledge")
+    async def api_knowledge_ajouter(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from tools import knowledge
+        corps = {}
+        try:
+            corps = await request.json() or {}
+        except Exception:
+            corps = {}
+        titre = str((corps.get("titre") or "").strip())[:80]
+        contenu = str((corps.get("contenu") or "").strip())
+        if not contenu:
+            return {"ok": False, "message": "Contenu manquant."}
+        try:
+            doc = knowledge.ajouter_depuis_texte(contenu, titre=titre)
+        except ValueError as e:
+            return {"ok": False, "message": str(e)}
+        journaliser("lecture", f"Document ajouté à la base : {doc['titre']}")
+        return {"ok": True, "document": {"id": doc["id"], "titre": doc["titre"]}}
+
+    @app.get("/api/operator/knowledge/{ident}")
+    def api_knowledge_document(ident: int, request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from tools import knowledge
+        doc = knowledge.retrouver(ident)
+        if not doc:
+            return {"ok": False, "message": "Document introuvable."}
+        return {"ok": True, "document": doc}

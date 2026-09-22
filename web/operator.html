@@ -226,6 +226,13 @@
   .auto .quand{color:var(--info);font-size:12px;white-space:nowrap}
   /* ---------- brain ---------- */
   .brain{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:11px}
+  .docs-zone{display:grid;gap:11px}
+  .docs-actions{display:flex;gap:9px}
+  .docs{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:11px}
+  .doc{background:var(--verre);border:1px solid var(--bord);border-radius:16px;padding:13px 15px;cursor:pointer;transition:border-color .2s}
+  .doc:hover{border-color:var(--acc)}
+  .doc .d-titre{font-size:13.5px;font-weight:600;letter-spacing:-.01em}
+  .doc .d-meta{color:var(--dim);font-size:11.5px;margin-top:4px;display:flex;justify-content:space-between;align-items:center}
   .brain .zone{background:var(--verre);border:1px solid var(--bord);border-radius:16px;
     padding:15px 17px;backdrop-filter:blur(12px)}
   .brain .zone h3{margin:0 0 11px;font-size:11px;color:var(--tres-dim);letter-spacing:.13em;
@@ -373,6 +380,14 @@
 
   <h2 class="sec">🧠 Le Cerveau — ce que Jarvis sait de toi</h2>
   <div class="brain" id="brain"></div>
+  <h2 class="sec">📚 Base de connaissances — documents <span class="badge" id="nb-docs" style="display:none">0</span></h2>
+  <div class="docs-zone">
+    <div class="docs-actions">
+      <button class="btn prime mini" onclick="uploadDoc()">⬆ UPLOAD</button>
+      <button class="btn ghost mini" onclick="insererDoc()">+ INSERT</button>
+    </div>
+    <div class="docs" id="docs"></div>
+  </div>
 
   <h2 class="sec">📈 Progression du jour</h2>
   <div class="pipe">
@@ -789,8 +804,69 @@ async function rafraichir(){
       || (e.kpis.periode_nuit ? "Pendant que tu dormais" : "Traité par l'IA");
     feed(e.a_valider);
     taches(e.taches);
+    chargerDocs();
     appliquerVue();
   }catch(err){ console.error(err); }
+}
+
+// ------------------------------------------------------------- knowledge
+async function chargerDocs(){
+  try{
+    const r = await api("/api/operator/knowledge");
+    const docs = r.documents || [];
+    const badge = $("#nb-docs");
+    badge.textContent = docs.length;
+    badge.style.display = docs.length ? "" : "none";
+    $("#docs").innerHTML = docs.length ? docs.map(d => `
+      <div class="doc" onclick="insererDoc(${d.id}, '${esc(d.titre).replace(/'/g,"&#39;")}')">
+        <div class="d-titre">📄 ${esc(d.titre)}</div>
+        <div class="d-meta"><span>${esc(d.source || "texte")}</span><span>${Math.max(1, Math.round(d.taille/1024))} Ko</span></div>
+      </div>`).join("")
+      : `<div class="vide">Aucun document. UPLOAD pour en ajouter un.</div>`;
+  }catch(err){ console.error(err); }
+}
+
+async function uploadDoc(){
+  const contenu = prompt("Colle le texte du document (ou le chemin d'un fichier .txt/.md) :", "");
+  if(!contenu || !contenu.trim()) return;
+  let corps = {contenu: contenu.trim()};
+  if(/^~?\/?[\w\-./]+\.(txt|md|csv|json)$/i.test(contenu.trim())){
+    corps = {contenu: "", titre: contenu.trim()};
+  }
+  try{
+    const r = await api("/api/operator/knowledge", {method:"POST", body:JSON.stringify(corps)});
+    if(!r.ok) { alert(r.message || "Ajout impossible."); return; }
+    chargerDocs();
+  }catch(err){ alert("Ajout impossible : " + err); }
+}
+
+async function insererDoc(id, titre){
+  try{
+    const r = await api("/api/operator/knowledge/" + id);
+    if(!r.ok) return;
+    const d = r.document;
+    const zone = $("#messages");
+    const div = document.createElement("div");
+    div.className = "msg vous edition";
+    div.innerHTML = `<div class="editeur-mail">
+      <label>Document « ${esc(d.titre)} » — extrait inséré dans la conversation</label>
+      <textarea id="doc-extrait" rows="8">${esc((d.contenu||"").slice(0,4000))}</textarea>
+      <div class="actions">
+        <button class="btn prime" onclick="envoyerDoc(${d.id})">Poser une question sur ce document</button>
+        <button class="btn ghost" onclick="this.closest('.edition').remove()">Fermer</button>
+      </div>
+    </div>`;
+    zone.appendChild(div);
+    zone.scrollTop = zone.scrollHeight;
+  }catch(err){ console.error(err); }
+}
+
+async function envoyerDoc(id){
+  const extrait = document.getElementById("doc-extrait").value;
+  const q = prompt("Ta question sur ce document :", "Résume ce document");
+  if(!q) return;
+  await api("/api/operator/message", {method:"POST", body:JSON.stringify({
+    texte: q + " (document : " + extrait.slice(0,500) + ")"})});
 }
 // ---------------------------------------------------------------- chat
 function bulleValidation(texte, id, niveau, outil){
