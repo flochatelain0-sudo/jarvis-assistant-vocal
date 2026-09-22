@@ -35,6 +35,16 @@ def reglage(chemin, defaut=None):
     return valeur
 
 
+def definir_volatile(chemin, valeur):
+    """Modifie un reglage EN MEMOIRE seulement (rien n'est ecrit sur disque).
+    Sert aux changements de session : agent actif de la page Operator, etc."""
+    noeud = _charger()
+    cles = chemin.split(".")
+    for cle in cles[:-1]:
+        noeud = noeud.setdefault(cle, {})
+    noeud[cles[-1]] = valeur
+
+
 def definir(chemin, valeur):
     """Modifie une valeur (ex. 'assistant.personnalite') et reecrit config.yaml."""
     conf = _charger()

@@ -53,6 +53,14 @@
   #recherche{width:260px;background:rgba(0,0,0,.35);border:1px solid var(--bord);
     border-radius:10px;padding:8px 12px;color:var(--txt);font-size:13px;outline:none}
   #recherche:focus{border-color:var(--info)}
+  .agents{display:flex;gap:8px;margin:18px 0 0;flex-wrap:wrap}
+  .agent{display:flex;align-items:center;gap:8px;padding:7px 14px;border-radius:10px;
+    border:1px solid var(--bord);background:var(--verre);cursor:pointer;
+    font-size:12px;color:var(--dim);transition:all .18s}
+  .agent:hover{color:var(--txt);border-color:var(--bord2)}
+  .agent.on{color:#FFB380;border-color:rgba(255,85,0,.5);
+    background:rgba(255,69,0,.12);box-shadow:0 0 14px rgba(255,85,0,.18)}
+  .agent small{opacity:.6;font-size:10px}
   .topbar .salutation{flex:1}
   .topbar .salutation .sur{color:var(--tres-dim);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
   .topbar h1{font-size:17px;margin:2px 0 0;font-weight:600}
@@ -329,6 +337,7 @@
 
   <div class="kpis" id="kpis"></div>
 
+  <div class="agents" id="agents"></div>
   <h2 class="sec">💬 La conversation — voix et écrit, un seul fil <span class="badge" id="nb-valider" style="display:none"></span></h2>
   <div class="chat">
     <div class="messages" id="messages">
@@ -612,6 +621,27 @@ async function chargerPlanning(){
         <span class="pl-agenda">${esc(ev.agenda)}</span></div>`).join("");
   }catch(e){ c.innerHTML = `<li class="vide">Agenda indisponible.</li>`; }
 }
+async function chargerAgents(){
+  try{
+    const r = await api("/api/operator/agents");
+    const zone = $("#agents");
+    zone.innerHTML = (r.agents||[]).map(a => `
+      <div class="agent ${a.id===r.actif?'on':''}" data-id="${esc(a.id)}"
+           onclick="changerAgent('${esc(a.id)}')">
+        <b>${esc(a.nom)}</b><small>${esc(a.role)}</small>
+      </div>`).join("");
+  }catch(e){}
+}
+
+async function changerAgent(id){
+  const r = await api("/api/operator/agent", {method:"POST", body:JSON.stringify({agent:id})});
+  if(r.ok){
+    document.querySelectorAll(".agent").forEach(el =>
+      el.classList.toggle("on", el.dataset.id === id));
+    bulle("aide", "Agent actif : " + id + ".");
+  }
+}
+
 async function chargerRelances(){
   const c = $("#relances");
   const b = $("#nb-relances");
@@ -1004,6 +1034,7 @@ chargerPlanning();
 chargerBrain();
 chargerCrm();
 chargerRelances();
+chargerAgents();
 setInterval(rafraichir, 5000);
 async function synchroniserVocal(){
   try{

@@ -16,6 +16,21 @@ PRESETS = {
         "Tu es extremement concis : tu vas droit au but, idealement en une phrase, "
         "sans formule de politesse superflue."
     ),
+    "builder": (
+        "Tu es Builder, l'agent technique de l'equipe : developpement, "
+        "architecture, debugging, scripts. Reponses precises et techniques, "
+        "avec des exemples de code quand c'est utile."
+    ),
+    "counsel": (
+        "Tu es Counsel, l'agent juridique et strategique : conformite, "
+        "contrats, analyse de risques. Prudent, structure, tu rappelles "
+        "systematiquement qu'il ne s'agit pas d'un avis d'avocat."
+    ),
+    "marketer": (
+        "Tu es Marketer, l'agent marque et contenu : strategie de "
+        "communication, posts, emails de prospection. Ton creatif et oriente "
+        "impact, tu proposes des alternatives."
+    ),
 }
 
 DEFAUT = "neutre"
@@ -24,6 +39,21 @@ DEFAUT = "neutre"
 def persona(nom):
     """Renvoie le texte de personnalite pour un preset (defaut si inconnu)."""
     return PRESETS.get(nom, PRESETS[DEFAUT])
+
+
+def est_agent(nom):
+    """Vrai si le preset est un agent nomme (onglet de la page Operator)."""
+    return nom in ("builder", "counsel", "marketer")
+
+
+def agents():
+    """Les agents disponibles pour les onglets de la page Operator."""
+    return [
+        {"id": "neutre", "nom": "Jarvis", "role": "coordinateur"},
+        {"id": "builder", "nom": "Builder", "role": "technique"},
+        {"id": "counsel", "nom": "Counsel", "role": "juridique"},
+        {"id": "marketer", "nom": "Marketer", "role": "contenu"},
+    ]
 
 
 def normaliser(mode):

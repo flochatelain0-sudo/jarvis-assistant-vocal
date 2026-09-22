@@ -623,6 +623,36 @@ def monter_routes(app):
         from tools.monday import etat_crm
         return etat_crm()
 
+    @app.get("/api/operator/agents")
+    def api_agents(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from core.personnalite import agents
+        from core.config import reglage
+        actif = str(reglage("assistant.personnalite", "neutre") or "neutre")
+        return {"agents": agents(), "actif": actif}
+
+    @app.post("/api/operator/agent")
+    async def api_agent_changer(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        corps = {}
+        try:
+            corps = await request.json()
+        except Exception:
+            corps = {}
+        agent = str((corps or {}).get("agent") or "").strip()
+        from core.personnalite import est_agent
+        from core.config import definir_volatile
+        if agent == "neutre" or est_agent(agent):
+            definir_volatile("assistant.personnalite", agent)
+            journaliser("systeme", f"Agent actif : {agent}",
+                        "changement depuis la page Operator")
+            return {"ok": True, "actif": agent}
+        return {"ok": False, "message": f"Agent inconnu : {agent}"}
+
     @app.get("/api/operator/relances")
     def api_relances(request: Request):
         refus = garde(request)
