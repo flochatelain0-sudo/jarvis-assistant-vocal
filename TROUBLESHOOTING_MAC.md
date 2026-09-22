@@ -148,10 +148,10 @@ périphérique d'entrée dans `audio.micro`, ou un micro USB dédié.
 
 ## Voix
 
-### Je veux Claude mais pas payer ElevenLabs
+### Je veux une belle voix sans payer de TTS cloud
 
 Installe une voix **Piper** (locale, gratuite, illimitée) : Jarvis la prend
-automatiquement dès qu'aucune clé ElevenLabs n'est configurée.
+automatiquement dès qu'elle est présente dans `voix/`.
 
 ```bash
 mkdir -p voix
@@ -161,9 +161,8 @@ curl -L -o voix/fr_FR-siwis-medium.onnx.json \
   https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/siwis/medium/fr_FR-siwis-medium.onnx.json
 ```
 
-Les **deux** fichiers sont nécessaires. Laisse `elevenlabs.cle` vide dans
-`config.yaml` : au démarrage, le journal indique alors
-« pas de cle ElevenLabs : repli sur la voix locale Piper ».
+Les **deux** fichiers sont nécessaires. Au démarrage, le journal indique
+alors « provider TTS : Piper ».
 
 ### Jarvis répond par écrit mais ne parle pas
 
@@ -176,9 +175,8 @@ say -v Thomas "Bonjour, je suis Jarvis"
 - **Rien ne sort** → aucune voix française installée. Réglages Système →
   Accessibilité → Contenu énoncé → Voix système → Gérer les voix → ajoute
   **Thomas** ou **Amélie**. Jarvis la détecte automatiquement.
-- **Ça parle** → le problème est en amont : clé ElevenLabs absente ou invalide
-  (mode cloud), ou pas de `.onnx` dans `voix/` (mode local). `doctor.py` le dit
-  dans sa section **Voix (TTS)**.
+- **Ça parle** → le problème est en amont : pas de `.onnx` dans `voix/`.
+  `doctor.py` le dit dans sa section **Voix (TTS)**.
 
 ### La voix est anglaise alors que le texte est français
 

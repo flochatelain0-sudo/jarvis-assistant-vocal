@@ -9,7 +9,7 @@ mode: hybride                  # local | hybride | qualite  (voir docs/costs.md)
                                # (l'ancien "cloud" reste accepte = hybride)
 
 cloud:
-  fournisseur: openai          # openai | anthropic (Claude) | gemini
+  fournisseur: mistral         # mistral | openai | anthropic (Claude) | gemini
 
 openai:
   cle: "sk-proj-..."           # cle API Platform ; l'abonnement ChatGPT ne la remplace pas
@@ -76,15 +76,18 @@ anthropic:                     # fournisseur Claude / Anthropic alternatif
   modele: "claude-haiku-4-5"          # mode hybride : modele economique (reflexes + vision)
   modele_qualite: "claude-sonnet-4-5" # mode qualite : modele le plus fort
 
-elevenlabs:                    # facultatif ; sans cle, Jarvis garde la voix de l'OS
-  cle: ""                      # https://elevenlabs.io , profil -> API key (commence par sk_)
-  voix: ""                     # ID d'une voix (onglet Voices) ; vide = 1re du compte
-  modele: "eleven_flash_v2_5"
-  langue: "fr"                 # force la langue (flash/turbo v2.5) : bonne prononciation des accents
+mistral:                      # Mistral AI (console.mistral.ai) ; voir docs/mistral.md
+  cle: ""                      # section API keys (commence par ...)
+  modele: "mistral-small-latest"       # mode hybride : rapide et economique
+  modele_qualite: "mistral-large-latest"  # mode qualite
+  max_tokens: 2048             # plafond par reponse
+  timeout: 90                  # secondes max par appel
+  max_retries: 1
+  # url: "https://api.mistral.ai/v1"   # API officielle ; laisse ce defaut
 
 tts:
-  moteur: auto                 # auto | elevenlabs | piper | kokoro | windows
-                               # auto = ElevenLabs en cloud, Piper/Kokoro en local
+  moteur: auto                 # auto | piper | kokoro | windows
+                               # auto = voix locale (Piper/Kokoro), sinon la voix de l'OS
 
 hue:                           # Philips Hue, API locale
   pont: "192.168.1.XXX"        # adresse du pont sur ton reseau
@@ -358,7 +361,7 @@ budget:                        # suivi de conso + garde-fous (N12) ; voir docs/c
     haiku: [1.0, 5.0]          # tarifs API Anthropic (a ajuster si besoin)
     sonnet: [3.0, 15.0]
     opus: [5.0, 25.0]
-  prix_elevenlabs: 0.10        # $ / 1000 caracteres synthetises (estimation ; ajuste selon ton offre)
+  prix_tts: 0.0               # $ / 1000 caracteres ; 0 = voix locale (Piper), gratuite
   plafond_jour: null           # $/jour ; null = pas de plafond. Ex: 2.0
   plafond_mois: null           # $/mois ; null = pas de plafond. Ex: 30.0
   alerte_pct: 80               # alerte VOCALE a ce % du plafond (jour ET mois)

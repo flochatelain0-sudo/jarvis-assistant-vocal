@@ -30,13 +30,13 @@ class PanneauSwitchTests(unittest.TestCase):
         self.assertFalse(resultat["ok"])
         ecrire.assert_not_called()
 
-    def test_switch_elevenlabs_reinitialise_le_tts(self):
+    def test_switch_piper_reinitialise_le_tts(self):
         with patch("core.config.definir") as ecrire, \
                 patch("core.tts.reinitialiser") as reinitialiser:
-            resultat = panneau._definir_reglage("tts.moteur", "elevenlabs")
+            resultat = panneau._definir_reglage("tts.moteur", "piper")
 
         self.assertTrue(resultat["ok"])
-        ecrire.assert_called_once_with("tts.moteur", "elevenlabs")
+        ecrire.assert_called_once_with("tts.moteur", "piper")
         reinitialiser.assert_called_once_with()
 
 

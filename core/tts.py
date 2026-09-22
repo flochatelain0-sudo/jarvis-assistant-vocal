@@ -5,31 +5,21 @@ ou None. jarvis14 se charge de JOUER l'audio (avec sa gestion d'interruption) et
 retombe sur la voix integree a l'OS si le provider renvoie None (SAPI sur
 Windows, `say` sur macOS, espeak sur Linux — cf. core/plateforme).
 
-  - ElevenLabsProvider : cloud (qualite max), voix configurable.
   - PiperProvider      : local, 100% offline, voix francaise Piper (.onnx).
+  - KokoroProvider     : local, kokoro-onnx (voix FR de qualite moyenne).
+  - OSProvider         : demande le repli gere par jarvis14.dire().
 
-Choix par config.yaml (`tts.moteur`) et par le mode local/hybride/qualite. En
-local sans modele Piper, ou en cloud sans cle ElevenLabs, on retombe proprement
-sur la voix integree de l'OS (SAPI sur Windows, `say` sur macOS, espeak sur Linux).
+Choix par config.yaml (`tts.moteur`) et par le mode local/hybride/qualite.
+Sans modele Piper installe, on retombe proprement sur la voix integree de
+l'OS (SAPI sur Windows, `say` sur macOS, espeak sur Linux).
 
 Note honnete sur le TTS local francais : Piper est recommande (voix FR eprouvees
 comme fr_FR-siwis / fr_FR-tom, tres leger, temps reel sur CPU). Kokoro (kokoro-onnx)
 ne propose qu'une voix FR recente et de qualite moyenne ; Piper est un meilleur
 choix pour le francais aujourd'hui.
 """
-import json
 import logging
-import urllib.request
 from pathlib import Path
-
-# Magasin de certificats du SYSTEME plutot que le bundle certifi (un antivirus qui
-# intercepte le TLS ferait sinon echouer l'appel a ElevenLabs). truststore gere les
-# trois OS : magasin Windows, Keychain macOS, magasin Linux.
-try:
-    import truststore
-    truststore.inject_into_ssl()
-except Exception:
-    pass
 
 from core import plateforme
 from core.config import reglage
@@ -52,71 +42,6 @@ class ProviderTTS:
 class OSProvider(ProviderTTS):
     """Demande volontairement le repli OS gere par jarvis14.dire()."""
     nom = "OS"
-
-
-# --------------------------------------------------------------- ElevenLabs
-
-class ElevenLabsProvider(ProviderTTS):
-    nom = "ElevenLabs"
-
-    def __init__(self):
-        self.cle = reglage("elevenlabs.cle", "")
-        self.voix = reglage("elevenlabs.voix", "")
-        self.modele = reglage("elevenlabs.modele", "eleven_flash_v2_5")
-        self._voix_resolue = None
-
-    def disponible(self):
-        return bool(self.cle)
-
-    def _resoudre_voix(self):
-        if self.voix:
-            return self.voix
-        if self._voix_resolue:
-            return self._voix_resolue
-        try:
-            requete = urllib.request.Request(
-                "https://api.elevenlabs.io/v1/voices",
-                headers={"xi-api-key": self.cle})
-            with urllib.request.urlopen(requete, timeout=6) as reponse:
-                d = json.loads(reponse.read().decode("utf-8"))
-            self._voix_resolue = d["voices"][0]["voice_id"]
-        except Exception:
-            self._voix_resolue = "21m00Tcm4TlvDq8ikWAM"   # Rachel, par defaut
-        return self._voix_resolue
-
-    def synthetiser(self, texte):
-        try:
-            import miniaudio
-            import numpy as np
-        except ImportError:
-            return None
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{self._resoudre_voix()}"
-        charge = {"text": texte, "model_id": self.modele}
-        # Flash/Turbo v2.5 acceptent language_code : on force le francais pour une
-        # bonne prononciation des accents (e accent, c cedille...) quelle que soit
-        # la voix (sinon la langue est auto-detectee et parfois lue en anglais).
-        if any(x in self.modele for x in ("flash", "turbo")):
-            charge["language_code"] = reglage("elevenlabs.langue", "fr")
-        corps = json.dumps(charge).encode("utf-8")
-        requete = urllib.request.Request(url, data=corps, method="POST", headers={
-            "xi-api-key": self.cle, "Content-Type": "application/json",
-            "Accept": "audio/mpeg"})
-        try:
-            with urllib.request.urlopen(requete, timeout=15) as reponse:
-                mp3 = reponse.read()
-            decode = miniaudio.decode(
-                mp3, nchannels=1, sample_rate=24000,
-                output_format=miniaudio.SampleFormat.SIGNED16)
-            try:                                  # N12 : comptabilite voix (au caractere)
-                from core import budget
-                budget.enregistrer_tts(len(texte or ""))
-            except Exception:
-                pass
-            return np.frombuffer(decode.samples, dtype=np.int16), 24000
-        except Exception as e:
-            print(f"  [ElevenLabs] indisponible ({e}), repli "
-                  f"{plateforme.nom_voix_systeme()}.")
-            return None
 
 
 # --------------------------------------------------------------- Piper (local)
@@ -270,36 +195,23 @@ def _provider_local():
 def tts():
     """Provider TTS courant.
 
-    ``tts.moteur`` peut valoir auto/elevenlabs/piper/kokoro/os. Le mode
-    local garde sa promesse de confidentialite : ElevenLabs y est ignore et un
-    moteur local est choisi. En hybride SANS cle ElevenLabs mais avec une voix
-    locale installee, on prefere cette voix locale au repli de l'OS.
+    ``tts.moteur`` peut valoir auto/piper/kokoro/os. Le mode local garde sa
+    promesse de confidentialite : un moteur local est toujours choisi. En
+    auto, on prend la voix locale installee, sinon le repli de l'OS.
     """
     global _TTS
     if _TTS is None:
         from core.routage import mode_actuel
         m = mode_actuel()
         moteur = (reglage("tts.moteur", "auto") or "auto").lower()
-        if m == "local":
-            if moteur in {"auto", "elevenlabs"}:
-                moteur = (reglage("voix_locale", "piper") or "piper").lower()
-        else:
-            if moteur == "auto":
-                moteur = "elevenlabs"
-        if moteur == "elevenlabs":
-            cloud = ElevenLabsProvider()
-            if not cloud.disponible():
-                # sans cle ElevenLabs, une voix locale installee vaut mieux
-                # que le repli de l'OS (le vrai repli OS reste dans dire()).
-                local = _provider_local()
-                if local.disponible():
-                    _TTS = local
-                    LOG.info("pas de cle ElevenLabs : repli sur la voix locale %s",
-                             local.nom)
-                else:
-                    _TTS = cloud
+        if moteur == "auto" or moteur == "elevenlabs":
+            # Valeur "elevenlabs" : ancienne config. On la traite comme auto.
+            moteur = (reglage("voix_locale", "piper") or "piper").lower()
+            local = _provider_local()
+            if local.disponible():
+                _TTS = local
             else:
-                _TTS = cloud
+                _TTS = OSProvider()
         elif moteur == "kokoro":
             _TTS = KokoroProvider()
         elif moteur == "piper":

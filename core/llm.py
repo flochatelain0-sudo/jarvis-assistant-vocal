@@ -223,6 +223,140 @@ class ClaudeProvider(ProviderLLM):
         return rep
 
 
+# --------------------------------------------------------------- Mistral (cloud)
+
+class MistralProvider(ProviderLLM):
+    """Mistral AI via l'API compatible OpenAI (chat completions).
+
+    L'assistant parle le format Anthropic (blocs text / tool_use /
+    tool_result) : ce provider traduit dans les deux sens, comme
+    OllamaProvider. Les schemas d'outils passent presque tels quels ;
+    seul ``additionalProperties: false`` est elague car Mistral le
+    rejette sinon sur l'appel entier.
+    """
+
+    nom = "Mistral"
+
+    def __init__(self, modele=None, qualite=False):
+        self.modele = modele or cloud.modele(qualite=qualite)
+        self.qualite = qualite
+        self.client = cloud.client_mistral()
+
+    def disponible(self):
+        return self.client is not None
+
+    @staticmethod
+    def _elaguer_schema(schema):
+        """Retire les mots-cles que Mistral refuse, en profondeur."""
+        if not isinstance(schema, dict):
+            return schema
+        propre = {k: v for k, v in schema.items()
+                  if k not in {"additionalProperties", "$schema", "$id"}}
+        if "properties" in propre and isinstance(propre["properties"], dict):
+            propre["properties"] = {
+                k: MistralProvider._elaguer_schema(v)
+                for k, v in propre["properties"].items()}
+        if isinstance(propre.get("items"), dict):
+            propre["items"] = MistralProvider._elaguer_schema(propre["items"])
+        return propre
+
+    @staticmethod
+    def _outils(outils):
+        return [{
+            "type": "function",
+            "function": {
+                "name": o["name"],
+                "description": o.get("description", ""),
+                "parameters": MistralProvider._elaguer_schema(
+                    o.get("input_schema") or {"type": "object", "properties": {}}),
+            },
+        } for o in outils]
+
+    def _traduire(self, historique):
+        """Historique Anthropic interne -> messages chat completions."""
+        messages = []
+        for message in historique:
+            role = message.get("role", "user")
+            contenu = message.get("content", "")
+            if isinstance(contenu, str):
+                messages.append({"role": role, "content": contenu})
+                continue
+            if role == "assistant":
+                textes = [b.text for b in (contenu or [])
+                          if getattr(b, "type", None) == "text" and b.text]
+                appels = []
+                for bloc in contenu or []:
+                    if getattr(bloc, "type", None) != "tool_use":
+                        continue
+                    appels.append({
+                        "id": bloc.id or f"appel_{len(appels)}",
+                        "type": "function",
+                        "function": {
+                            "name": bloc.name,
+                            "arguments": json.dumps(
+                                bloc.input or {}, ensure_ascii=False)},
+                    })
+                if textes or appels:
+                    messages.append({
+                        "role": "assistant",
+                        "content": " ".join(textes) or None,
+                        "tool_calls": appels or None,
+                    })
+                continue
+            for resultat in contenu or []:
+                if not isinstance(resultat, dict) or resultat.get("type") != "tool_result":
+                    continue
+                sortie = resultat.get("content", "")
+                if isinstance(sortie, list):
+                    texte = "".join(b.get("text", "") if isinstance(b, dict) else ""
+                                     for b in sortie)
+                    image = next((b.get("source", {}).get("data", "")
+                                  for b in sortie if isinstance(b, dict)
+                                  and b.get("type") == "image"), "")
+                    if image:
+                        texte = "(capture d'ecran omise : pipeline vision non actif)"
+                    sortie = texte or "(vide)"
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": resultat.get("tool_use_id", ""),
+                    "content": str(sortie),
+                })
+        return messages
+
+    def repondre(self, systeme, historique, outils):
+        kwargs = {
+            "model": self.modele,
+            "messages": [{"role": "system", "content": systeme}]
+                        + self._traduire(historique),
+            "max_tokens": int(reglage("mistral.max_tokens", 2048)),
+        }
+        outils_api = self._outils(outils)
+        if outils_api:
+            kwargs["tools"] = outils_api
+        rep = self.client.chat.completions.create(**kwargs)
+        cloud.enregistrer_usage(rep, "Mistral (Jarvis)", self.modele)
+
+        message = rep.choices[0].message
+        blocs = []
+        if (message.content or "").strip():
+            blocs.append(Bloc("text", text=message.content.strip()))
+        for appel in getattr(message, "tool_calls", None) or []:
+            brut = getattr(appel.function, "arguments", "{}") or "{}"
+            try:
+                arguments = json.loads(brut) if isinstance(brut, str) else dict(brut)
+            except (ValueError, TypeError):
+                LOG.warning("Mistral: arguments outil invalides (%s)", brut)
+                arguments = {}
+            blocs.append(Bloc(
+                "tool_use",
+                id=getattr(appel, "id", None) or f"appel_{len(blocs)}",
+                name=getattr(appel.function, "name", ""),
+                input=arguments,
+            ))
+        stop = "tool_use" if any(b.type == "tool_use" for b in blocs) else "end"
+        return Reponse(stop, blocs)
+
+
 # --------------------------------------------------------------- Gemini (cloud)
 
 class GeminiProvider(ProviderLLM):
@@ -548,8 +682,8 @@ def llm():
     - local   : Ollama.
     - hybride : cloud economique (OpenAI par defaut) - reflexes + vision.
     - qualite : cloud fort (GPT-6 Astra par defaut).
-    Le service cloud vient du reglage `cloud.fournisseur` : openai,
-    anthropic (Claude) ou gemini (alternative a palier gratuit).
+    Le service cloud vient du reglage `cloud.fournisseur` : mistral,
+    openai, anthropic (Claude) ou gemini (alternative a palier gratuit).
 """
     global _LLM
     if _LLM is None:
@@ -559,7 +693,9 @@ def llm():
             _LLM = OllamaProvider()
         else:
             qualite = m == "qualite"
-            if cloud.fournisseur() == "openai":
+            if cloud.fournisseur() == "mistral":
+                _LLM = MistralProvider(cloud.modele(qualite=qualite), qualite=qualite)
+            elif cloud.fournisseur() == "openai":
                 _LLM = OpenAIProvider(cloud.modele(qualite=qualite), qualite=qualite)
             elif cloud.fournisseur() == "gemini":
                 _LLM = GeminiProvider(

@@ -3,7 +3,7 @@ Assistant vocal local, avec mot d'activation et actions.
 
 Dites « Hey Jarvis », parlez, taisez-vous. Il repond et agit.
 Chaine : openWakeWord -> faster-whisper -> LLM cloud configurable/Ollama (+ outils)
-         -> moteur vocal configurable (ElevenLabs/Piper/Kokoro/SAPI,
+         -> moteur vocal configurable (Piper/Kokoro/voix OS,
          repli sur la voix integree a l'OS : SAPI, `say` sur macOS, espeak sur Linux)
 
 Architecture : les outils vivent dans tools/ (auto-decouverts via core.registre),
@@ -385,10 +385,10 @@ def basculer_micro(force=None):
 
 
 def couper_parole():
-    """Arrete immediatement la synthese en cours (ElevenLabs, Piper ou voix OS)."""
+    """Arrete immediatement la synthese en cours (Piper ou voix OS)."""
     _INTERRUPTION.set()
     try:
-        sd.stop()          # coupe la lecture ElevenLabs sur le haut-parleur
+        sd.stop()          # coupe la lecture audio sur le haut-parleur
     except Exception:
         pass
     processus = _PROCESSUS_PAROLE
@@ -438,7 +438,7 @@ def _jouer_audio(audio, frequence):
 
 
 def dire(texte, interruptible=True):
-    """Prononce un texte via le provider TTS courant (ElevenLabs en cloud, Piper en
+    """Prononce un texte via le provider TTS courant (Piper/Kokoro en local,
     local) ; repli sur la voix integree a l'OS si le provider est indisponible.
 
     interruptible=False : le barge-in est desactive pendant cette phrase (utilise
@@ -464,7 +464,7 @@ def dire(texte, interruptible=True):
 def _dire_voix_systeme(texte):
     """Voix integree a l'OS : SAPI (Windows), `say` (macOS), espeak (Linux).
 
-    C'est le dernier recours quand ElevenLabs ou Piper ne rendent rien. Le texte
+    C'est le dernier recours quand Piper/Kokoro ne rendent rien. Le texte
     est envoye au moteur par l'entree standard, jamais sur la ligne de commande :
     une apostrophe francaise ne peut donc pas casser le littoral. L'appel est
     interruptible via couper_parole().
@@ -828,7 +828,8 @@ def repondre(historique):
                     "tourne et que le modele est telecharge.")
         from core import cloud
         return ("Ma cle OpenAI n'est pas configuree." if cloud.fournisseur() == "openai"
-                else "Ma cle Anthropic n'est pas configuree.")
+                else "Ma cle Anthropic n'est pas configuree." if cloud.fournisseur() == "anthropic"
+                else "Ma cle Mistral n'est pas configuree.")
 
     fil_accuse = None
     accuse_donne = False
@@ -1571,7 +1572,8 @@ def main():
                   "modele (config ollama.modele).")
         else:
             from core import cloud
-            nom_cle = "openai.cle" if cloud.fournisseur() == "openai" else "anthropic.cle"
+            nom_cle = {"openai": "openai.cle", "anthropic": "anthropic.cle",
+                       "mistral": "mistral.cle"}.get(cloud.fournisseur(), "anthropic.cle")
             print(f"ATTENTION : aucune cle cloud dans config.yaml ({nom_cle}). "
                   "L'assistant ne pourra pas repondre.")
 

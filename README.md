@@ -88,7 +88,7 @@ flowchart LR
     WW --> STT[faster-whisper<br/>STT — local]
     STT --> LLM{{LLM<br/>Cloud configurable ☁️<br/>OU Ollama 🏠}}
     LLM <-->|appels d'outils| TOOLS[🧰 Outils]
-    LLM --> TTS{{Voix configurable<br/>ElevenLabs · Piper · Kokoro · Windows}}
+    LLM --> TTS{{Voix locale<br/>Piper · Kokoro · voix OS}}
     TTS --> SPK([🔊 Haut-parleurs])
 
     SAT([📡 Satellite audio réseau<br/>Android · ESP32 · Linux]) -->|audio LAN authentifié| STT
@@ -191,7 +191,7 @@ Aucun outil n'est imposé : prends celui qui te convient.
 
 Tout est dans un unique `config.yaml` **non versionné** (copié depuis
 `config.example.yaml`, qui documente chaque clé). Nouvelles sections côté config :
-`cloud`/`openai`/`anthropic` (LLM cloud), `tts`/`elevenlabs` (voix), `hermes` (délégation), `integrations`/`hub` (Vault + génération), `suivi` (pipeline
+`cloud`/`mistral`/`openai`/`anthropic` (LLM cloud), `tts` (voix locale), `hermes` (délégation), `integrations`/`hub` (Vault + génération), `suivi` (pipeline
 de contenus), `securite.toujours` (autorisations N2 mémorisées), `budget.prix`
 (coût LLM), `serveur`/`pont_iphone`. Guides par intégration :
 

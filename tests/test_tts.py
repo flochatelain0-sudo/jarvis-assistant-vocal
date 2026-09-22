@@ -117,32 +117,32 @@ def _tts_neuf():
     tts.reinitialiser()
 
 
-def _fabrique(monkeypatch, mode, cle_eleven, piper_dispo):
+def _fabrique(monkeypatch, mode, piper_dispo, moteur="auto"):
     monkeypatch.setattr("core.routage.mode_actuel", lambda: mode)
     monkeypatch.setattr(tts, "reglage",
                         lambda chemin, defaut=None:
-                        cle_eleven if chemin == "elevenlabs.cle" else defaut)
+                        moteur if chemin == "tts.moteur" else defaut)
     monkeypatch.setattr(tts.PiperProvider, "disponible", lambda self: piper_dispo)
     return tts.tts()
 
 
 def test_mode_local_utilise_piper(monkeypatch):
-    assert _fabrique(monkeypatch, "local", "", True).nom == "Piper"
+    assert _fabrique(monkeypatch, "local", True).nom == "Piper"
 
 
-def test_hybride_avec_cle_utilise_elevenlabs(monkeypatch):
-    assert _fabrique(monkeypatch, "hybride", "cle-xyz", True).nom == "ElevenLabs"
+def test_hybride_auto_utilise_piper(monkeypatch):
+    """Plus de TTS cloud : auto = la voix locale installee."""
+    assert _fabrique(monkeypatch, "hybride", True).nom == "Piper"
 
 
-def test_hybride_sans_cle_bascule_sur_piper(monkeypatch):
-    """Claude sans payer ElevenLabs : la voix locale installee doit primer sur
-    le repli de l'OS, nettement moins bon."""
-    assert _fabrique(monkeypatch, "hybride", "", True).nom == "Piper"
+def test_hybride_sans_piper_replie_sur_l_os(monkeypatch):
+    """Rien d'installe : OSProvider, qui rendra None -> voix de l'OS."""
+    assert _fabrique(monkeypatch, "hybride", False).nom == "OS"
 
 
-def test_hybride_sans_cle_ni_piper_reste_sur_elevenlabs(monkeypatch):
-    """Rien d'installe : on garde ElevenLabs, qui rendra None -> voix de l'OS."""
-    assert _fabrique(monkeypatch, "hybride", "", False).nom == "ElevenLabs"
+def test_ancienne_config_elevenlabs_traitee_comme_auto(monkeypatch):
+    """Une config heritee avec tts.moteur=elevenlabs ne doit pas casser :"""
+    assert _fabrique(monkeypatch, "hybride", True, moteur="elevenlabs").nom == "Piper"
 
 
 # ------------------------------------------------- reglages de voix (Piper)

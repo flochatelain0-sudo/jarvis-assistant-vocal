@@ -229,16 +229,14 @@ def v_voix():
                      f"docs/local.md). Sinon Jarvis parle avec la "
                      f"{plateforme.nom_voix_systeme()}.")
     else:
-        if reglage("elevenlabs.cle", ""):
-            ok("cle ElevenLabs presente")
-        else:
-            warn("pas de cle ElevenLabs",
-                 f"Jarvis parlera avec la {plateforme.nom_voix_systeme()}. Optionnel.")
+        warn("aucune voix Piper (.onnx)",
+             f"Jarvis parlera avec la {plateforme.nom_voix_systeme()}. "
+             "Une voix Piper donne un meilleur resultat.")
     if plateforme.voix_systeme_disponible():
         ok(f"voix de secours disponible : {plateforme.nom_voix_systeme()}")
     else:
         warn("aucune voix de secours integree a l'OS",
-             "sans ElevenLabs ni Piper, Jarvis restera muet.")
+             "sans Piper ni voix OS, Jarvis restera muet.")
 
 
 def _port_ouvert(hote, port, timeout=2):

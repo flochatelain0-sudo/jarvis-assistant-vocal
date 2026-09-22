@@ -25,7 +25,6 @@ dependencies = [
     # exige les droits root et tire tout PyObjC ; Jarvis s'en passe proprement.
     "keyboard>=0.13.5 ; sys_platform == 'win32'",
     "mcp>=2.0.0",
-    "miniaudio>=1.71",
     "mss>=10.2.0",
     "numpy>=2.5.1",
     # Bibliothèques CUDA pour faster-whisper sur GPU NVIDIA : uniquement là où

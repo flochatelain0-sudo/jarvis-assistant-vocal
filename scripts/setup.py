@@ -180,11 +180,10 @@ def ecrire_config(conf):
 
 
 CLES_CLOUD = [
-    ("anthropic", "cle", True, "Claude (obligatoire en cloud)",
+    ("anthropic", "cle", False, "Claude",
      "https://console.anthropic.com/  ->  API keys"),
-    ("elevenlabs", "cle", False,
-     "ElevenLabs (voix ; optionnel, sinon la voix integree a l'OS)",
-     "https://elevenlabs.io  ->  profil  ->  API key"),
+    ("mistral", "cle", False, "Mistral AI",
+     "https://console.mistral.ai/  ->  API keys"),
 ]
 
 
@@ -317,7 +316,7 @@ def main():
     else:
         conf = charger_exemple()
         dire_titre("Mode d'utilisation")
-        print("  1) cloud  — Claude + ElevenLabs (qualite max, cle API requise)")
+        print("  1) cloud  — Mistral AI (ou Claude/OpenAI) + voix locale Piper")
         print("  2) local  — Ollama + Piper (100% hors ligne, gratuit, GPU recommande)")
         choix = demander("Ton choix (1/2)", "1")
         (config_local if choix.strip() == "2" else config_cloud)(conf)

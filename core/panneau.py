@@ -37,7 +37,6 @@ _HOTES_LOCAUX = {"localhost", "127.0.0.1", "::1", "[::1]"}
 # Progression des "ollama pull" en cours : nom -> {statut, pct, message}.
 _PULLS = {}
 _OPENAI_CACHE = {"ts": 0.0, "ids": set(), "erreur": ""}
-_ELEVENLABS_CACHE = {"ts": 0.0, "voix": [], "erreur": ""}
 
 
 # ============================================================ catalogue modeles
@@ -439,7 +438,6 @@ _CLES_REGLABLES = {
     "mode": "str", "audio.micro": "int", "audio.haut_parleur": "nint",
     "assistant.personnalite": "str", "assistant.duree_suite": "int",
     "assistant.seuil_reveil": "float", "tts.moteur": "str",
-    "elevenlabs.voix": "str", "elevenlabs.modele": "str",
 }
 
 
@@ -457,33 +455,6 @@ def _audio_devices():
         return [], []
 
 
-def _elevenlabs_voix():
-    """Liste les voix du compte sans jamais renvoyer la cle au navigateur."""
-    cle = str(reglage("elevenlabs.cle", "") or "").strip()
-    if not cle:
-        return {"configure": False, "joignable": False, "voix": [],
-                "erreur": "Cle ElevenLabs absente."}
-    maintenant = time.time()
-    if maintenant - _ELEVENLABS_CACHE["ts"] > 60:
-        try:
-            import urllib.request
-            requete = urllib.request.Request(
-                "https://api.elevenlabs.io/v1/voices",
-                headers={"xi-api-key": cle})
-            with urllib.request.urlopen(requete, timeout=8) as rep:
-                data = json.loads(rep.read().decode("utf-8"))
-            voix = [{"id": v.get("voice_id", ""), "nom": v.get("name", "Voix"),
-                     "categorie": v.get("category", "")}
-                    for v in data.get("voices", []) if v.get("voice_id")]
-            _ELEVENLABS_CACHE.update(ts=maintenant, voix=voix, erreur="")
-        except Exception as e:
-            LOG.warning("liste voix ElevenLabs: %s", e)
-            _ELEVENLABS_CACHE.update(ts=maintenant, voix=[], erreur=str(e)[:160])
-    return {"configure": True, "joignable": bool(_ELEVENLABS_CACHE["voix"]),
-            "voix": list(_ELEVENLABS_CACHE["voix"]),
-            "erreur": _ELEVENLABS_CACHE["erreur"]}
-
-
 def _reglages():
     entrees, sorties = _audio_devices()
     return {
@@ -494,9 +465,6 @@ def _reglages():
         "duree_suite": reglage("assistant.duree_suite", 10),
         "seuil_reveil": reglage("assistant.seuil_reveil", 0.5),
         "tts_moteur": reglage("tts.moteur", "auto"),
-        "elevenlabs_voix": reglage("elevenlabs.voix", ""),
-        "elevenlabs_modele": reglage("elevenlabs.modele", "eleven_flash_v2_5"),
-        "elevenlabs": _elevenlabs_voix(),
         "entrees": entrees, "sorties": sorties,
         "personnalites": ["jarvis_sarcastique", "neutre", "concis"],
     }
@@ -522,10 +490,10 @@ def _definir_reglage(cle, valeur):
                 return {"ok": False, "message": "Mode invalide."}
             return {"ok": True, "message": f"Mode {valeur} actif immediatement."}
         if cle == "tts.moteur" and valeur not in {
-                "auto", "elevenlabs", "piper", "kokoro", "windows"}:
+                "auto", "piper", "kokoro", "windows"}:
             return {"ok": False, "message": "Moteur vocal invalide."}
         definir(cle, valeur)
-        if cle.startswith("tts.") or cle.startswith("elevenlabs."):
+        if cle.startswith("tts."):
             from core import tts
             tts.reinitialiser()
             return {"ok": True, "message": "Voix activee pour la prochaine reponse."}

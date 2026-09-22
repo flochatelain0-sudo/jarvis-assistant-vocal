@@ -203,7 +203,6 @@ def _etat_controles():
     mode = mode_actuel()
     fournisseur = cloud.fournisseur()
     openai = panneau._openai_etat()
-    eleven = panneau._elevenlabs_voix()
     installes = panneau._ollama_installes()
 
     modeles_openai = list(openai.get("catalogue", []))
@@ -260,11 +259,7 @@ def _etat_controles():
         },
         "voix": {
             "moteur": reglage("tts.moteur", "auto"),
-            "elevenlabs_voix": reglage("elevenlabs.voix", ""),
-            "elevenlabs_modele": reglage("elevenlabs.modele", "eleven_flash_v2_5"),
-            "elevenlabs": eleven,
-            "moteurs": ["auto", "elevenlabs", "piper", "kokoro", "windows"],
-            "modeles_elevenlabs": ["eleven_flash_v2_5", "eleven_multilingual_v2"],
+            "moteurs": ["auto", "piper", "kokoro", "windows"],
         },
         "panneau_url": f"http://127.0.0.1:{int(reglage('serveur.port', 8790))}/panneau",
     }
@@ -286,12 +281,6 @@ def _appliquer_controle(donnees):
             fournisseur=str(donnees.get("fournisseur", "openai")).strip().lower())
     elif action == "moteur_voix":
         resultat = panneau._definir_reglage("tts.moteur", donnees.get("valeur", ""))
-    elif action == "voix_elevenlabs":
-        resultat = panneau._definir_reglage(
-            "elevenlabs.voix", donnees.get("valeur", ""))
-    elif action == "modele_elevenlabs":
-        resultat = panneau._definir_reglage(
-            "elevenlabs.modele", donnees.get("valeur", ""))
     elif action == "tester_voix":
         from core import voix
         threading.Thread(
