@@ -235,6 +235,13 @@
   .tache .meta{color:var(--dim);font-size:12px}
   .tache .badge{margin-left:auto}
   .fiche-champ b{color:var(--info);font-weight:500}
+  .msg.briefing{max-width:88%;border-color:rgba(56,189,248,.35);background:rgba(14,165,233,.10)}
+  .brief-titre{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--info);margin-bottom:6px}
+  .brief-champs{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+  .brief-questions ol{margin:6px 0 0 18px;padding:0}
+  .brief-questions li{margin:3px 0}
+  .brief-questions b{font-size:12px;opacity:.8}
+  .brief-note{font-size:11px;opacity:.55;margin-top:8px}
   /* ---------- pipeline + regle ---------- */
   .pipe,.regle{background:var(--verre);border:1px solid var(--bord);border-radius:18px;
     padding:17px 20px;backdrop-filter:blur(12px)}
@@ -697,6 +704,22 @@ function bulleValidation(texte, id, niveau){
   zone.appendChild(d);
   zone.scrollTop = zone.scrollHeight;
 }
+function bulleBriefing(m){
+  const zone = $("#messages");
+  const d = document.createElement("div");
+  d.className = "msg jarvis briefing";
+  const champs = (m.champs||[]).map(c =>
+    `<span class="fiche-champ"><b>${esc(c.titre)}</b> ${esc(c.valeur)}</span>`).join("");
+  const questions = (m.questions||[]).map((q,i) =>
+    `<li>${esc(q)}</li>`).join("");
+  d.innerHTML = `<div class="brief-titre">\u{1F4CB} Briefing \u00b7 <b>${esc(m.client)}</b>${m.rdv ? " \u00b7 " + esc(m.rdv) : ""}</div>`
+    + `<div class="brief-champs">${champs}</div>`
+    + (questions ? `<div class="brief-questions"><b>3 questions \u00e0 poser :</b><ol>${questions}</ol></div>` : "")
+    + `<div class="brief-note">Fiche CRM monday \u00b7 r\u00e9sum\u00e9e \u00e0 voix haute</div>`;
+  zone.appendChild(d);
+  zone.scrollTop = zone.scrollHeight;
+}
+
 async function validerAction(id){
   const r = await api("/api/operator/valider/" + id, {method:"POST"});
   const carte = document.querySelector(`[data-validation="${id}"]`);
@@ -790,6 +813,7 @@ async function chargerConversation(){
                                             type: m.type, id: m.id, niveau: m.niveau}));
     fil.forEach(m => {
       if(m.type === "validation" && m.id != null) bulleValidation(m.texte, m.id, m.niveau);
+      else if(m.type === "briefing") bulleBriefing(m);
       else bulle(m.role, m.texte, m.ts);
     });
     const deja = new Set(fil.map(m => m.texte));

@@ -168,6 +168,63 @@ def test_ouverture_du_site_monday_n_est_pas_une_lecture_crm():
     assert d is None or d.outil != "monday_tableaux"
 
 
+# ---------------------------------------------------------------- briefing
+
+def _reponse_items(nom="Acme", colonnes=None):
+    colonnes = colonnes or [{"id": "statut", "title": "Statut", "text": "En cours"}]
+    return ({"boards": [{"name": "Clients", "items_page": {
+        "cursor": None,
+        "items": [{"id": "42", "name": nom,
+                   "column_values": colonnes}]}}]}, [])
+
+
+def test_brief_client_affiche_la_fiche_et_les_questions(monkeypatch):
+    from tools import monday
+    _reglages(monkeypatch, token="tok", tableau="123")
+    _mock_requete(monkeypatch, _reponse_items("Acme", [
+        {"id": "a", "title": "Budget", "text": "285 000 euros"},
+        {"id": "b", "title": "Statut", "text": "En cours"},
+    ]))
+    cartes = []
+    monkeypatch.setattr("core.operator.carte_briefing", cartes.append)
+    monkeypatch.setattr("tools.agenda.planning_du_jour",
+                        lambda: {"evenements": [], "configure": True})
+    resultat = monday.brief_client("Acme")
+    assert "briefing" in resultat.lower() or "Acme" in resultat
+    assert len(cartes) == 1
+    carte = cartes[0]
+    assert carte["client"] == "Acme"
+    assert carte["champs"][0]["titre"] == "Budget"
+    assert len(carte["questions"]) == 3
+
+
+def test_brief_client_sans_client_demande_lequel(monkeypatch):
+    from tools import monday
+    _reglages(monkeypatch, token="tok", tableau="123")
+    assert monday.brief_client("") == "Quel client ?"
+
+
+def test_brief_client_introuvable_le_dit(monkeypatch):
+    from tools import monday
+    _reglages(monkeypatch, token="tok", tableau="123")
+    _mock_requete(monkeypatch, ({"boards": [{"items_page": {
+        "cursor": None, "items": []}}]}, []))
+    assert "aucun client" in monday.brief_client("Personne").lower()
+
+
+def test_questions_closing_s_adaptent_aux_donnees():
+    from tools.monday import _questions_closing
+    q = _questions_closing({"statut": "attente accord de principe banque"},
+                           "", [("Statut", "attente accord banque")])
+    assert "banque" in q[0].lower()
+
+
+def test_brief_client_non_configure(monkeypatch):
+    from tools import monday
+    _reglages(monkeypatch, token="", tableau="")
+    assert "config.yaml" in monday.brief_client("Acme")
+
+
 def test_domaine_monday_expose_les_outils_au_llm():
     from core.routage_intentions import modules_pour_phrase
     assert "monday" in modules_pour_phrase("mes tableaux monday")

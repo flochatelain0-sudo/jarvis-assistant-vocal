@@ -329,6 +329,27 @@ def conversation():
         return list(_CONVERSATION)
 
 
+def carte_briefing(donnees):
+    """Injecte une carte de briefing client dans la conversation de la page
+    (meme mecanisme que les validations). Affiche la fiche CRM, le RDV et les
+    3 questions de closing, pendant que Jarvis resume a voix haute."""
+    client = str(donnees.get("client", "") or "?")[:60]
+    rdv = str(donnees.get("rdv", "") or "")[:80]
+    champs = donnees.get("champs") or []
+    questions = donnees.get("questions") or []
+    with _VERROU:
+        _CONVERSATION.append({
+            "role": "jarvis", "type": "briefing",
+            "texte": f"Briefing {client}",
+            "client": client, "rdv": rdv,
+            "champs": [{"titre": c.get("titre", ""), "valeur": c.get("valeur", "")}
+                       for c in champs[:8]],
+            "questions": [str(q)[:200] for q in questions[:3]],
+            "ts": time.time(),
+        })
+        del _CONVERSATION[:-_MAX_CONV]
+
+
 # ------------------------------------------------------------------ routes
 
 def monter_routes(app):

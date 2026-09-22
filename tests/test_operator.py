@@ -304,3 +304,23 @@ def test_fil_vocal_rejoue_les_transcriptions_du_hud(monkeypatch):
     roles = [e["t"] for e in fil]
     assert roles == ["vous", "outil", "jarvis"]
     assert fil[0]["texte"] == "allume la lumiere"
+
+
+# ---------------------------------------------------------------- carte briefing
+
+def test_carte_briefing_injectee_dans_la_conversation():
+    from core import operator
+    operator.carte_briefing({
+        "client": "Acme",
+        "rdv": "14:00",
+        "champs": [{"titre": "Budget", "valeur": "285k"}],
+        "questions": ["Ou en es-tu du financement ?",
+                      "Qu'est-ce qui pourrait bloquer la decision ?",
+                      "Qu'est-ce qui t'empecherait de lancer ce mois-ci ?"],
+    })
+    messages = operator.conversation()
+    briefings = [m for m in messages if m.get("type") == "briefing"]
+    assert briefings, "aucune carte briefing dans la conversation"
+    b = briefings[-1]
+    assert b["client"] == "Acme" and b["rdv"] == "14:00"
+    assert len(b["questions"]) == 3

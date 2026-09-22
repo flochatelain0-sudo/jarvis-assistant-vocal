@@ -153,13 +153,46 @@ def lire_mails(nombre: int = 5) -> str:
                 elif bas.startswith("subject:"):
                     sujet = _decoder_entete(ligne[8:].strip())
             nom, adresse = parseaddr(exp)
-            lignes.append(f"{i}. De {nom or adresse or exp} : « {sujet or 'sans objet'} »")
+            etiquette = _etiqueter_spam(adresse or exp, sujet)
+            lignes.append(f"{i}. De {nom or adresse or exp} : "
+                          f"« {sujet or 'sans objet'} »"
+                          + (f" [{etiquette}]" if etiquette else ""))
         imap.logout()
         if not lignes:
             return "Ta boite de reception est vide."
-        return "Tes derniers mails. " + " ".join(lignes)
+        poubelle = [l.split(".")[0] for l in lignes if "[poubelle]" in l]
+        conclusion = ("Tes derniers mails. " + " ".join(lignes))
+        if poubelle:
+            conclusion += (
+                " Les mails marques [poubelle] sont des spams, pubs ou "
+                "newsletters sans valeur : propose de les mettre a la "
+                "corbeille avec mettre_a_la_corbeille (un par un, le "
+                "systeme demandera confirmation).")
+        return conclusion
     except Exception as e:
         return f"Impossible de lire les mails : {e}"
+
+
+_MOTS_PUBLI = ("newsletter", "unsubscribe", "desabonner", "desinscription",
+               "promo", "promotion", "solde", "soldes", "-20%", "-30%",
+               "marketing", "no-reply", "noreply", "donotreply", "notification")
+
+
+def _etiqueter_spam(adresse, sujet):
+    """Etiquette heuristique d'un mail sans valeur : pub, newsletter, spam.
+    Renvoie 'poubelle' ou ''. Jamais une exception : le tri reste informatif,
+    la suppression reste une action confirmee (mettre_a_la_corbeille)."""
+    a = (adresse or "").lower()
+    s = (sujet or "").lower()
+    if any(mot in a for mot in ("noreply", "no-reply", "donotreply")):
+        if any(mot in s for mot in _MOTS_PUBLI):
+            return "poubelle"
+    if any(mot in s for mot in ("newsletter", "unsubscribe", "desabonner",
+                                "desinscription")):
+        return "poubelle"
+    if any(b in s for b in ("-20%", "-30%", "-50%", "soldes", "black friday")):
+        return "poubelle"
+    return ""
 
 
 @outil(

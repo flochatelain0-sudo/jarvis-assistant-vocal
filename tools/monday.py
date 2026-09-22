@@ -329,6 +329,147 @@ def etat_crm():
         return {"configure": True, "erreur": str(e)[:120], "items": []}
 
 
+# ---------------------------------------------------------------- briefing
+
+def _chercher_items(nom, limite=30):
+    """Items du tableau principal dont le nom contient `nom` (insensible a la
+    casse et aux accents). Renvoie [(id, nom, [(titre, valeur), ...])]."""
+    items, cursor = [], None
+    cible = re.sub(r"\s+", " ", (nom or "").strip().lower())
+    for _ in range(4):
+        variables = {"b": [str(_tableau())], "n": 25}
+        if cursor:
+            variables["c"] = cursor
+        donnees, erreurs = _requete(
+            """query ($b: [ID!], $n: Int!, $c: String) { boards(ids: $b) {
+                 items_page(limit: $n, cursor: $c) { cursor items { id name
+                   column_values { id title text } } } } }""",
+            variables,
+        )
+        if erreurs:
+            break
+        boards = donnees.get("boards") or []
+        if not boards:
+            break
+        page = boards[0].get("items_page") or {}
+        for it in page.get("items") or []:
+            nom_item = (it.get("name") or "").strip()
+            if cible and cible not in nom_item.lower():
+                continue
+            colonnes = []
+            for cv in it.get("column_values") or []:
+                texte = cv.get("text") or ""
+                if texte:
+                    colonnes.append((cv.get("title") or "", texte[:80]))
+            items.append((it.get("id"), nom_item, colonnes))
+            if len(items) >= limite:
+                return items
+        cursor = page.get("cursor")
+        if not cursor:
+            break
+    return items
+
+
+@outil(
+    nom="brief_client",
+    description="Prepare le briefing d'un appel client : fiche CRM monday "
+                "(colonnes : montant, statut, historique...), RDV du jour "
+                "correspondant dans l'agenda, et 3 questions de closing "
+                "generees selon les donnees. Pour \u00ab brief-moi sur mon "
+                "appel avec Pierre \u00bb, \u00ab prepare mon appel avec "
+                "Acme \u00bb. Affiche la fiche complete sur la page Operator "
+                "et resume a voix haute. LECTURE SEULE.",
+    parametres={
+        "type": "object",
+        "properties": {
+            "client": {
+                "type": "string",
+                "description": "Nom du client \u00e0 chercher dans monday.",
+            },
+        },
+        "required": ["client"],
+    },
+    lent=True,
+    phrase_attente="Je prepare ton briefing.",
+    mcp_expose=False,
+)
+def brief_client(client: str = "") -> str:
+    """Briefing avant appel : fiche monday + RDV du jour + carte sur la page."""
+    if not _configue():
+        return _message_non_configure()
+    client = (client or "").strip()
+    if not client:
+        return "Quel client ?"
+    try:
+        items = _chercher_items(client)
+    except Exception as e:
+        return f"Impossible de joindre monday.com ({str(e)[:80]})."
+    if not items:
+        return f"Je ne trouve aucun client \u00ab {client} \u00bb dans ton CRM monday."
+
+    fiche = items[0]
+    _, nom, colonnes = fiche
+    champs = {t.lower(): v for t, v in colonnes}
+
+    rdv = ""
+    try:
+        from tools.agenda import planning_du_jour
+        planning = planning_du_jour()
+        for ev in planning.get("evenements", []):
+            titre = (ev.get("titre") or "").lower()
+            if client.lower() in titre or any(
+                    mot and mot in titre for mot in client.lower().split()):
+                rdv = (f"{ev.get('heure', '')} {ev.get('titre', '')}").strip()
+                break
+    except Exception:
+        rdv = ""
+
+    questions = _questions_closing(champs, rdv, colonnes)
+
+    try:
+        from core import operator
+        operator.carte_briefing({
+            "client": nom,
+            "champs": [{"titre": t, "valeur": v} for t, v in colonnes[:8]],
+            "rdv": rdv,
+            "questions": questions,
+        })
+    except Exception:
+        pass
+
+    resume = f"{nom}"
+    if rdv:
+        resume += f" \u2014 RDV {rdv}"
+    nb_champs = len(colonnes)
+    resume += (f" : {nb_champs} informations dans la fiche"
+               if nb_champs else "")
+    return (f"Voici ton briefing pour {nom}. La fiche complete est affichee "
+            f"sur la page Operator avec les 3 questions a poser. "
+            + " ".join(f"{i+1}. {q}" for i, q in enumerate(questions)))
+
+
+def _questions_closing(champs, rdv, colonnes):
+    """3 questions de closing, adaptees aux donnees disponibles."""
+    questions = []
+    texte_champs = " ".join(v.lower() for v in champs.values())
+    if any(mot in texte_champs for mot in
+           ("banque", "financement", "credit", "pret")):
+        questions.append(
+            "Ou en es-tu de l'accord de principe de ta banque ?")
+    else:
+        questions.append(
+            "Ou en es-tu du financement de ton projet ?")
+    if any(mot in texte_champs for mot in
+           ("notaire", "terrain", "compromis", "signe", "signature")):
+        questions.append(
+            "Le terrain est-il secured et le compromis signe chez le notaire ?")
+    else:
+        questions.append("Qu'est-ce qui pourrait bloquer la decision ?")
+    questions.append(
+        "Qu'est-ce qui t'empecherait de lancer le projet ce mois-ci ?")
+    return questions[:3]
+
+
 # ------------------------------------------------- route prioritaire
 
 _MOTS_CRM = {"tableau", "tableaux", "item", "items", "crm", "client",
