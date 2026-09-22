@@ -222,11 +222,17 @@ function kpis(k){
   document.querySelectorAll(".barre orange i")[0].style.width = Math.min(100, val/tot*100) + "%";
 }
 
-function journal(entrees, nuit){
-  $("#titre-nuit").textContent = (nuit ? "Pendant que tu dormais" : "Traité par l'IA");
+const VIDES = {
+  mails: "Aucun mail traité dans les 24 dernières heures — dis « Hey Jarvis, lis mes mails ».",
+  agenda: "Aucun événement d'agenda traité récemment — autorise-le : uv run python scripts/google_login.py agenda",
+  contacts: "Aucune écriture CRM récente — Jarvis écrira ici après confirmation d'un ajout client.",
+  finances: "Aucune action facturation récente — demande « où j'en suis sur mes factures ».",
+  fil: "Rien encore — les actions automatiques de Jarvis apparaîtront ici.",
+};
+function journal(entrees, nuit, filtre){
   const ul = $("#journal");
   if(!entrees.length){
-    ul.innerHTML = `<li class="vide">Rien encore — les actions automatiques de Jarvis apparaîtront ici.</li>`;
+    ul.innerHTML = `<li class="vide">${VIDES[filtre] || VIDES.fil}</li>`;
     return;
   }
   ul.innerHTML = entrees.map(e => `
@@ -289,13 +295,46 @@ function taches(items){
   }).join("");
 }
 
+// -------------------------------------------------------------- vues
+let vue = "fil";
+let dernierEtat = null;
+const FILTRES = {
+  fil: null, mails: ["mail"], agenda: ["agenda"], contacts: ["crm"],
+  finances: ["facture"], taches: null,
+};
+const TITRES = {
+  mails: "Messagerie — traitée par l'IA", agenda: "Agenda — surveillé par l'IA",
+  contacts: "Contacts & CRM — écrit par l'IA", finances: "Finances — facturation & budget",
+};
+function appliquerVue(){
+  document.querySelectorAll("aside .it[data-vue]").forEach(el =>
+    el.classList.toggle("on", el.dataset.vue === vue));
+  if (!dernierEtat) return;
+  if (vue === "taches"){
+    document.getElementById("taches").scrollIntoView({behavior:"smooth"});
+    return;
+  }
+  const c = FILTRES[vue];
+  journal(c ? dernierEtat.journal.filter(e => c.includes(e.categorie))
+            : dernierEtat.journal,
+          dernierEtat.kpis.periode_nuit, vue);
+  $("#titre-nuit").textContent = TITRES[vue]
+    || (dernierEtat.kpis.periode_nuit ? "Pendant que tu dormais" : "Traité par l'IA");
+}
+document.querySelectorAll("aside .it[data-vue]").forEach(el =>
+  el.addEventListener("click", () => { vue = el.dataset.vue; appliquerVue(); }));
+
 async function rafraichir(){
   try{
     const e = await api("/api/operator/etat");
+    dernierEtat = e;
     kpis(e.kpis);
-    journal(e.journal, e.kpis.periode_nuit);
+    journal(e.journal, e.kpis.periode_nuit, vue);
+    $("#titre-nuit").textContent = TITRES[vue]
+      || (e.kpis.periode_nuit ? "Pendant que tu dormais" : "Traité par l'IA");
     feed(e.a_valider);
     taches(e.taches);
+    appliquerVue();
   }catch(err){ console.error(err); }
 }
 $("#bonjour").textContent = bonjour();
