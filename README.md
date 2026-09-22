@@ -64,6 +64,8 @@ ESP32 avec audio ou Pi Zero ([options et fonctionnement](docs/satellite.md) ·
 - 🎬 **Hub de contenu** — vault d'inspirations Insta/TikTok (télécharge, transcrit, indexe), idées & scripts générés, ingestion YouTube ([docs/hub_contenu.md](docs/hub_contenu.md))
 - 🗂️ **Suivi de contenus** — pipeline vidéo *idée → script → tournage → montage → publié*, croisé avec ton agenda ; « où j'en suis ? » ([docs/suivi_contenu.md](docs/suivi_contenu.md))
 - 🤝 **Délégation à Hermes** — confie la réflexion / recherche de fond à un agent délibératif **local** (doctrine : Jarvis tient les clés & le corps, Hermes pense) ([docs/hermes.md](docs/hermes.md))
+- 🧾 **Google Sheets (CRM & facturation)** — lit, cherche et écrit dans tes classeurs (clients, factures, plannings), confirmation vocale pour chaque écriture ([docs/classeurs.md](docs/classeurs.md))
+- 🤖 **AI Operator** — la pile employé IA 24/7 : Gmail + Agenda + Sheets + monday.com + facturation, sous doctrine 95/5 : Jarvis prépare, tu valides ([docs/ai_operator.md](docs/ai_operator.md))
 - 🧭 **HUD & panneau web local** (`/panneau`) — commandes rapides de modèle/voix, état de la chaîne, réglages et permissions — **accessibles en local uniquement** ([docs/panneau.md](docs/panneau.md))
 - 🔐 **Sécurité graduée** — niveaux **N1/N2/N3** par outil, « toujours autoriser » révocable, budget LLM par fournisseur
 - 💸 **Routage & budgets** — 3 modes (local / hybride / qualité), fournisseur cloud et voix configurables séparément, suivi des coûts et **bascule auto en local** au plafond ([docs/costs.md](docs/costs.md))

@@ -22,6 +22,7 @@ _RACINE = Path(__file__).resolve().parent.parent
 # envoi, corbeille) : c'est ce dont tools/mail.py a besoin.
 SCOPES_AGENDA = ["https://www.googleapis.com/auth/calendar"]
 SCOPES_MAIL = ["https://mail.google.com/"]
+SCOPES_SHEETS = ["https://www.googleapis.com/auth/spreadsheets"]
 
 
 def chemin(valeur, defaut):

@@ -104,7 +104,38 @@ Rappels de sécurité (voir [mcp_externe.md](mcp_externe.md)) : tout outil
 distant demande confirmation vocale sauf `sans_confirmation` — c'est voulu,
 car les effets d'un agent distant ne se devinent pas depuis son nom.
 
-## 4. Aller plus loin
+## 4. monday.com (CRM) via son serveur MCP hébergé
+
+monday.com expose un serveur MCP officiel hébergé — aucun code à installer :
+Jarvis s'y branche avec le pont universel `mcp_externes:`.
+
+1. Crée un jeton API : monday.com → avatar → *Settings* → *API & Webhooks* →
+   *Personal API tokens* (voir la
+   [doc monday.com](https://developer.monday.com/api-reference/docs/mcp-api-token)).
+2. Déclare-le dans `config.yaml` :
+
+```yaml
+mcp_externes:
+  - nom: monday
+    url: "https://mcp.monday.com/mcp"
+    entetes:
+      Authorization: "Bearer TON_JETON_API_MONDAY"
+    sans_confirmation: []   # lecture ET ecriture demandent ton accord vocal
+```
+
+Les outils monday (rechercher des items, créer des fiches, mises à jour,
+dashboards… plus de 60 outils) apparaissent comme des outils natifs de Jarvis,
+préfixés `monday_`. Chaque appel distant exige ta confirmation vocale,
+sauf ceux listés dans `sans_confirmation` — tu peux y mettre les outils en
+lecture seule si tu veux un CRM interrogeable sans friction.
+
+> **Attention** : l'URL correcte est `https://mcp.monday.com/mcp` — le
+> transport SSE (`/sse`) est déprécié et non supporté par monday.com.
+
+Tes données CRM Sheets et monday restent couvertes par la règle 95/5 :
+Jarvis lit, prépare, rédige — rien ne part sans ton feu vert.
+
+## 5. Aller plus loin
 
 - **Vocabulaire** : OpenJarvis répond en anglais par défaut ; Jarvis lui
   parlera dans la langue de ses prompts système comme avec tout serveur MCP.

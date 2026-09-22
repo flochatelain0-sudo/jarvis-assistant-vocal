@@ -241,6 +241,11 @@ agenda:                        # Google Agenda, API officielle OAuth2 (voir docs
 
 loopstr:                        # echeances de partenariats via flux iCal (voir docs/agenda.md)
   url: ""                       # URL du flux iCal Loopstr (donnees perso, non exposees via MCP)
+classeurs:                     # Google Sheets (CRM, facturation, plannings) ; voir docs/classeurs.md
+  token: ""                     # vide = google_token_sheets.json a la racine
+  alias:                        # noms courts pour tes classeurs (id ou URL copiee) :
+    # partenaires: "1AbC..."    # ex. classeur US Partner List
+    # factures: "1XyZ..."       # ex. classeur Invoice 2026
 
 serveur:                       # UN serveur web pour TOUT (pont iPhone + webhook Twilio V2 + futures PWA)
   actif: false                 # true = lance le serveur au demarrage (requis pour le pont iPhone)

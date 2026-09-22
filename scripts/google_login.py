@@ -1,8 +1,9 @@
-"""Autorisation Google (OAuth) pour Jarvis : Gmail et/ou Agenda.
+"""Autorisation Google (OAuth) pour Jarvis : Gmail, Agenda et/ou Sheets.
 
     uv run python scripts/google_login.py mail        # Gmail (IMAP + SMTP)
     uv run python scripts/google_login.py agenda      # Google Agenda
-    uv run python scripts/google_login.py mail agenda # les deux
+    uv run python scripts/google_login.py sheets      # Google Sheets (classeurs)
+    uv run python scripts/google_login.py mail agenda sheets  # les trois
 
 A lancer UNE FOIS. Un navigateur s'ouvre, tu choisis ton compte, tu acceptes ;
 le jeton est ecrit a cote du projet et se rafraichit ensuite tout seul.
@@ -27,6 +28,9 @@ USAGES = {
              "Gmail (lire, envoyer, corbeille)"),
     "agenda": (google_oauth.SCOPES_AGENDA, "agenda.token", "google_token.json",
                "Google Agenda (evenements)"),
+    "sheets": (google_oauth.SCOPES_SHEETS, "classeurs.token",
+                "google_token_sheets.json",
+                "Google Sheets (classeurs : lire et ecrire)"),
 }
 
 
