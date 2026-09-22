@@ -67,6 +67,18 @@ Surveille ta consommation dans le panneau web → onglet **État** → **Budget*
 le mode `hybride` confie les tâches de fond au modèle local quand c'est
 possible, et `budget.plafond_jour` coupe le cloud si un plafond est atteint.
 
+## Le tableau de bord Operator
+
+La page **`/operator`** (serveur web local, comme `/panneau`) reproduit le CRM
+« AI Operator » : design sombre violet, KPIs des dernières 24 h, journal
+« Pendant que tu dormais », et surtout la **file « À valider »** — les actions
+en attente de ton feu vert, celles-là mêmes que Jarvis te demande à la voix.
+Valider ou refuser depuis la page équivaut au oui/non vocal ; rien ne part
+sans l'un ou l'autre.
+
+Ouvre `http://localhost:8790/operator` pendant que Jarvis tourne
+(`serveur.actif: true`). Accessible en local uniquement.
+
 ## Rappel sécurité
 
 - Aucune écriture (mail, classeur, monday, agenda) ne part sans confirmation
