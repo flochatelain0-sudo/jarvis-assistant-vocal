@@ -291,9 +291,9 @@ class VoxtralProvider(ProviderTTS):
 # --------------------------------------------------------------- diagnostic Voxtral
 
 def lister_voix_voxtral():
-    """Liste les voix disponibles (presets + voix clonees) pour verifier une
-    configuration. Renvoie None si la cle est absente, sinon la reponse de
-    l'API telle quelle. Usage : scripts/voix_voxtral.py ou en console."""
+    """Liste TOUTES les voix du compte (presets + clonees, toutes pages).
+    Renvoie {"items": [...], "total": n} ou None si la cle est absacente.
+    Usage : scripts/voix_voxtral.py."""
     cle = str(reglage("mistral.cle", "") or "").strip()
     if not cle:
         return None
@@ -302,16 +302,25 @@ def lister_voix_voxtral():
     import urllib.request
     url = (str(reglage("mistral.url", "https://api.mistral.ai/v1"))
            or "https://api.mistral.ai/v1").rstrip("/")
-    requete = urllib.request.Request(
-        f"{url}/audio/voices?type=preset", method="GET",
-        headers={"Authorization": f"Bearer {cle}",
-                 "Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(requete, timeout=30) as reponse:
-            return json.loads(reponse.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        detail = e.read().decode("utf-8", "replace")[:300]
-        raise RuntimeError(f"HTTP {e.code} sur {e.url} : {detail}")
+    items, page, total_pages = [], 1, 1
+    while page <= total_pages:
+        requete = urllib.request.Request(
+            f"{url}/audio/voices?type=all&page={page}&page_size=100",
+            method="GET",
+            headers={"Authorization": f"Bearer {cle}",
+                     "Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(requete, timeout=30) as reponse:
+                donnees = json.loads(reponse.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            detail = e.read().decode("utf-8", "replace")[:300]
+            raise RuntimeError(f"HTTP {e.code} sur {e.url} : {detail}")
+        items.extend(donnees.get("items", []))
+        total_pages = int(donnees.get("total_pages", 1) or 1)
+        page += 1
+        if page > 50:
+            break
+    return {"items": items, "total": len(items)}
 
 
 # --------------------------------------------------------------- fabrique

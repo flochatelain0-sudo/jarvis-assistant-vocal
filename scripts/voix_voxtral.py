@@ -33,8 +33,8 @@ def principal():
         reponse = tts.lister_voix_voxtral()
         items = reponse.get("items", []) if isinstance(reponse, dict) else (reponse or [])
         if not items:
-            print("  (aucune voix preset listee : essaie le Studio Mistral)")
-        for v in items[:40]:
+            print("  (aucune voix listee : cree-en une dans le Studio Mistral)")
+        for v in items[:60]:
             if isinstance(v, dict):
                 nom = v.get("name") or "?"
                 vid = v.get("id") or "?"
