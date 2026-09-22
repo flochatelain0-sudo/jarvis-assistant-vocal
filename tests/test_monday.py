@@ -315,3 +315,51 @@ def test_fiche_client_erreur_api_ne_plante_pas(monkeypatch):
     from tools import monday
     monkeypatch.setattr(monday, "_requete", faux)
     assert monday.fiche_client("acme") is None
+
+
+def test_etapes_pipeline_regroupe_par_statut():
+    from tools.monday import _etapes_pipeline
+    items = [
+        {"nom": "A", "colonnes": [
+            {"titre": "Statut", "valeur": "R1 à venir"},
+            {"titre": "Montant", "valeur": "100000"}]},
+        {"nom": "B", "colonnes": [
+            {"titre": "Statut", "valeur": "R1 à venir"},
+            {"titre": "Montant", "valeur": "50000"}]},
+        {"nom": "C", "colonnes": [
+            {"titre": "Statut", "valeur": "Négociation"},
+            {"titre": "Montant", "valeur": "200000"}]},
+        {"nom": "D", "colonnes": [
+            {"titre": "Statut", "valeur": "Perdu"},
+            {"titre": "Montant", "valeur": "99000"}]},
+        {"nom": "E", "colonnes": [
+            {"titre": "Montant", "valeur": "99000"}]},
+    ]
+    etapes = _etapes_pipeline(items)
+    assert [e["etape"] for e in etapes] == ["R1 à venir", "Négociation"]
+    assert etapes[0]["nb"] == 2 and etapes[0]["montant"] == 150000.0
+    assert etapes[1]["nb"] == 1 and etapes[1]["montant"] == 200000.0
+
+
+def test_etapes_pipeline_vide_sans_statut():
+    from tools.monday import _etapes_pipeline
+    assert _etapes_pipeline([]) == []
+    assert _etapes_pipeline([{"nom": "X", "colonnes": []}]) == []
+
+
+def test_etat_crm_expose_le_pipeline(monkeypatch):
+    _reglages(monkeypatch, token="tok", tableau="42")
+    reponse = {"boards": [{"name": "CRM", "items_page": {"items": [
+        {"name": "A", "column_values": [
+            {"title": "Statut", "text": "R1 à venir"},
+            {"title": "Montant", "text": "100000"}]},
+        {"name": "B", "column_values": [
+            {"title": "Statut", "text": "R2"},
+            {"title": "Montant", "text": "200000"}]},
+    ]}}]}
+    _mock_requete(monkeypatch, (reponse, []))
+    from tools import monday
+    etat = monday.etat_crm()
+    etapes = {e["etape"]: e for e in etat["pipeline"]}
+    assert etapes["R1 à venir"]["nb"] == 1
+    assert etapes["R2"]["montant"] == 200000.0

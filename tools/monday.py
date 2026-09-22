@@ -335,6 +335,41 @@ def _kpis_business(items):
             "pipeline": pipeline, "nb_pipeline": n_pipeline}
 
 
+def _etapes_pipeline(items):
+    """Distribution des dossiers par etape (statut monday), pour le graphe
+    pipeline de la page Operator : [{etape, nb, montant}], premier-vu
+    d'abord. Les dossiers perdus et sans statut sont exclus."""
+    etapes = {}
+    ordre = []
+    for it in items:
+        statut = montant = ""
+        for c in it.get("colonnes") or []:
+            titre = (c.get("titre") or "").lower()
+            if any(m in titre for m in ("statut", "etape", "status", "stage")):
+                statut = (c.get("valeur") or "").strip()
+            elif any(m in titre for m in ("montant", "prix", "budget", "price",
+                                          "amount", "valeur")):
+                montant = c.get("valeur") or ""
+        if not statut:
+            continue
+        if any(m in _sans_accent(statut) for m in _MOTS_PERDUS):
+            continue
+        nombre = 0.0
+        for morceau in montant.replace(",", ".").strip().replace(" ", "").split("|"):
+            try:
+                nombre = float(morceau.strip("EUR€kK"))
+                break
+            except ValueError:
+                continue
+        cle = statut[:40]
+        if cle not in etapes:
+            etapes[cle] = {"etape": cle, "nb": 0, "montant": 0.0}
+            ordre.append(cle)
+        etapes[cle]["nb"] += 1
+        etapes[cle]["montant"] += nombre
+    return [etapes[c] for c in ordre]
+
+
 def etat_crm():
     """Vue CRM pour la page Operator : les items du tableau principal."""
     if not _configue():
@@ -375,7 +410,8 @@ def etat_crm():
             if not cursor or len(items) >= 100:
                 break
         return {"configure": True, "tableau": nom_tableau, "items": items,
-                "business": _kpis_business(items)}
+                "business": _kpis_business(items),
+                "pipeline": _etapes_pipeline(items)}
     except Exception as e:
         _journal_echec("injoignable", e)
         return {"configure": True, "erreur": str(e)[:120], "items": []}
