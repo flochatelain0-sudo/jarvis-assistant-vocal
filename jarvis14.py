@@ -1325,6 +1325,60 @@ def _tronquer(historique):
             historique.pop(0)
 
 
+def traiter_ecrit(demande, historique):
+    """Traite un message TAPE depuis la page Operator : meme pipeline que la
+    voix (routage, outils, 95/5), reponse affichee ET prononcee.
+    Renvoie le texte de reponse (jamais d'exception : la page attend une reponse).
+    """
+    question = nettoyer((demande or "").strip())
+    if not question:
+        return ""
+    print(f"  Vous (ecrit) : {question}")
+    _hud("dire_vous", question)
+    _hud("etat", "reflexion")
+    try:
+        historique.append({"role": "user", "content": question})
+        texte = repondre(historique)
+        if texte == SENTINEL_CONFIRM:
+            # Une action attend ton accord : annonce et laisse la confirmation
+            # venir par la voix ou la page (file a valider).
+            annonce = registre.annonce_en_attente() or "Une action attend ta confirmation."
+            _hud("dire_jarvis", annonce)
+            _afficher_overlay(annonce)
+            _hud_status()
+            print(f"  Jarvis : {annonce}\n")
+            _tronquer(historique)
+            return annonce
+        if not texte:
+            texte = "C'est fait."
+        texte = nettoyer_reponse_vocale(texte)
+        _hud("dire_jarvis", texte)
+        _afficher_overlay(texte)
+        _hud_status()
+        dire(texte)
+        print(f"  Jarvis : {texte}\n")
+        _tronquer(historique)
+        return texte
+    except Exception:
+        LOG.exception("message ecrit")
+        return "Desole, une erreur est survenue en traitant ta demande."
+
+
+def _drainer_messages_ecrits(historique):
+    """Consomme les demandes tapees sur la page Operator (une par iteration)."""
+    try:
+        demande = operator.message_suivant()
+    except Exception:
+        return
+    if demande is None:
+        return
+    reponse = traiter_ecrit(demande.get("texte", ""), historique)
+    try:
+        operator.reponse_message(demande.get("id", 0), reponse)
+    except Exception:
+        LOG.exception("reponse message ecrit")
+
+
 def traiter(audio, whisper, historique, flux, reveil):
     """Transcrit, repond, parle. Renvoie True si on doit enchainer (relance)."""
     debut_stt = time.monotonic()
@@ -1703,6 +1757,7 @@ def main():
 
     try:
         while True:
+            _drainer_messages_ecrits(historique)
             suite = enchainer
             if not enchainer:
                 bloc = lire_bloc(flux)

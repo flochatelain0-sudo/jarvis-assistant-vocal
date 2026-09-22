@@ -172,3 +172,26 @@ def test_post_exige_json():
     req = _Req(method="POST")
     req.headers = {"content-type": "text/plain"}
     assert valider(req).status_code == 415
+
+
+# --------------------------------------------------------- messagerie ecrite
+
+def test_message_ecrit_file_et_reponse():
+    operator.envoyer_message("lis mes mails")
+    m = operator.message_suivant()
+    assert m["texte"] == "lis mes mails"
+    assert operator.message_suivant() is None      # file videe
+    operator.reponse_message(m["id"], "Voici tes 3 mails.")
+    assert operator.lire_reponse(m["id"]) == "Voici tes 3 mails."
+    assert operator.lire_reponse(m["id"]) is None  # consommee une fois
+
+
+def test_message_vide_ou_trop_long_refuse():
+    assert operator.envoyer_message("  ")["ok"] is False
+    assert operator.envoyer_message("x" * 700)["ok"] is False
+
+
+def test_conversation_garde_les_derniers():
+    for i in range(50):
+        operator.envoyer_message(f"message {i}")
+    assert len(operator.conversation()) <= 40

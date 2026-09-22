@@ -21,8 +21,10 @@ en JSON uniquement (anti-CSRF). Le journal ne contient jamais de secrets —
 des lignes d'activite : outil, cible, heure, resultat.
 """
 
+import itertools
 import json
 import logging
+import queue
 import threading
 import time
 from pathlib import Path
@@ -37,6 +39,13 @@ _MAX_ENTREES = 500              # journal borne : pas de croissance infinie
 
 _VERROU = threading.RLock()     # reentrant : journaliser appelle _charger sous verrou
 _ENTREES = None                 # liste chargee paresseusement
+
+# Messages texte envoyes depuis la page Operator : consommes par la boucle
+# principale de l'assistant, entre deux ecoutes micro. La reponse est rendue
+# a la page via _REPONSES (id -> texte).
+_MESSAGES = queue.Queue()
+_REPONSES = {}
+_COMPTEUR = itertools.count(1)
 
 
 # ------------------------------------------------------------------ journal
@@ -174,6 +183,63 @@ def refuser():
     return {"ok": True, "message": f"{nom} annulé."}
 
 
+# ------------------------------------------------------- messagerie ecrite
+
+# Derniers echanges affiches dans la page (bornes).
+_CONVERSATION = []
+_MAX_CONV = 40
+
+
+def envoyer_message(texte):
+    """Demande tapee sur la page Operator : mise en file pour la boucle.
+
+    La reponse arrive plus tard (reponse_message) ; la page pollera avec
+    l'identifiant renvoye ici. Jamais bloquant.
+    """
+    texte = (texte or "").strip()
+    if not texte:
+        return {"ok": False, "message": "Message vide."}
+    if len(texte) > 600:
+        return {"ok": False, "message": "Message trop long (600 caracteres max)."}
+    ident = next(_COMPTEUR)
+    _MESSAGES.put({"id": ident, "texte": texte})
+    with _VERROU:
+        _CONVERSATION.append({"role": "vous", "texte": texte, "ts": time.time()})
+        del _CONVERSATION[:-_MAX_CONV]
+    journaliser("lecture", f"Demande écrite : {texte[:80]}")
+    return {"ok": True, "id": ident}
+
+
+def message_suivant():
+    """Prochaine demande a traiter, ou None (appelle par la boucle principale)."""
+    try:
+        return _MESSAGES.get_nowait()
+    except queue.Empty:
+        return None
+
+
+def reponse_message(ident, texte):
+    """Depose la reponse de l'assistant pour la page (et l'affiche)."""
+    with _VERROU:
+        _REPONSES[ident] = str(texte or "")[:2000]
+        _CONVERSATION.append({"role": "jarvis", "texte": str(texte or "")[:2000],
+                             "ts": time.time()})
+        del _CONVERSATION[:-_MAX_CONV]
+        # purger les reponses de plus de 10 minutes : pas de fuite memoire
+        _REPONSES.pop(ident, None) if False else None
+
+
+def lire_reponse(ident):
+    """La page demande la reponse ; disparait une fois lue (consommee)."""
+    return _REPONSES.pop(int(ident), None)
+
+
+def conversation():
+    """Derniers echanges, pour affichage immediat a l'ouverture de la page."""
+    with _VERROU:
+        return list(_CONVERSATION)
+
+
 # ------------------------------------------------------------------ routes
 
 def monter_routes(app):
@@ -224,6 +290,33 @@ def monter_routes(app):
         if refus:
             return refus
         return valider()
+
+    @app.post("/api/operator/message")
+    def api_message(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        corps = {}
+        try:
+            corps = request.json()
+        except Exception:
+            corps = {}
+        return envoyer_message((corps or {}).get("texte", ""))
+
+    @app.get("/api/operator/reponse/{ident}")
+    def api_reponse(ident: int, request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        texte = lire_reponse(ident)
+        return {"pret": texte is not None, "texte": texte or ""}
+
+    @app.get("/api/operator/conversation")
+    def api_conversation(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        return {"messages": conversation()}
 
     @app.post("/api/operator/refuser")
     def api_refuser(request: Request):

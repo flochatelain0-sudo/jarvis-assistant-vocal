@@ -118,6 +118,19 @@
   .regle .legende{display:flex;justify-content:space-between;color:var(--dim);font-size:12px}
   .legende b{color:var(--txt)}
 
+  /* ---------- chat ---------- */
+  .chat{background:var(--card);border:1px solid var(--bord);border-radius:16px;padding:14px}
+  .chat .messages{display:flex;flex-direction:column;gap:9px;max-height:260px;overflow-y:auto;margin-bottom:10px}
+  .msg{max-width:78%;padding:9px 13px;border-radius:13px;font-size:13.5px;line-height:1.45;white-space:pre-wrap}
+  .msg.aide{align-self:center;background:var(--card2);color:var(--dim);font-size:12px;max-width:100%;border:1px dashed var(--bord)}
+  .msg.vous{align-self:flex-end;background:var(--acc2);border:1px solid var(--acc)}
+  .msg.jarvis{align-self:flex-start;background:var(--card2);border:1px solid var(--bord)}
+  .msg .quand{display:block;color:var(--dim);font-size:10.5px;margin-top:3px}
+  .saisie{display:flex;gap:9px}
+  .saisie input{flex:1;background:var(--card2);border:1px solid var(--bord);color:var(--txt);
+    border-radius:10px;padding:9px 13px;font-size:13.5px;outline:none;font-family:inherit}
+  .saisie input:focus{border-color:var(--acc)}
+
   /* ---------- taches ---------- */
   .taches{display:flex;flex-direction:column;gap:9px}
   .tache{background:var(--card);border:1px solid var(--bord);border-radius:12px;
@@ -155,7 +168,7 @@
 <main>
   <div class="topbar">
     <h1 id="bonjour">Ta journée</h1>
-    <input placeholder="Rechercher un contact, une entreprise…">
+    
     <span class="chip" onclick="rafraichir()">↻ Actualiser</span>
     <span class="chip" onclick="location.href='/panneau'">Réglages</span>
     <div class="profil"><div class="avatar" id="avatar">F</div><span id="profil-nom" class="dim">Moi</span></div>
@@ -168,6 +181,17 @@
 
   <h2 class="sec">🔥 À valider <span class="badge" id="nb-valider">0</span></h2>
   <div class="feed" id="feed"></div>
+
+  <h2 class="sec">💬 Parler à Jarvis — écris ta demande</h2>
+  <div class="chat">
+    <div class="messages" id="messages">
+      <div class="msg aide">Écris comme tu parles : « lis mes mails », « où j'en suis sur mes factures ? », « ajoute un client Acme contact John dans factures ». La réponse arrive ici ET à voix haute.</div>
+    </div>
+    <form class="saisie" onsubmit="return envoyerDemande(event)">
+      <input id="demande" placeholder="Écris à Jarvis… (Entrée pour envoyer)" autocomplete="off">
+      <button class="btn prime" type="submit">Envoyer</button>
+    </form>
+  </div>
 
   <h2 class="sec">📈 Progression du jour</h2>
   <div class="pipe">
@@ -337,8 +361,58 @@ async function rafraichir(){
     appliquerVue();
   }catch(err){ console.error(err); }
 }
+// ---------------------------------------------------------------- chat
+function bulle(role, texte, ts){
+  const zone = $("#messages");
+  const d = document.createElement("div");
+  d.className = "msg " + role;
+  const quand = ts ? new Date(ts*1000).toLocaleTimeString("fr-FR", {hour:"2-digit", minute:"2-digit"}) : "";
+  d.innerHTML = texte.replace(/</g,"&lt;").replace(/\n/g,"<br>")
+    + (quand ? `<span class="quand">${quand}</span>` : "");
+  zone.appendChild(d);
+  zone.scrollTop = zone.scrollHeight;
+}
+let enAttente = false;
+async function envoyerDemande(ev){
+  if(ev) ev.preventDefault();
+  const champ = $("#demande");
+  const texte = champ.value.trim();
+  if(!texte || enAttente) return false;
+  champ.value = "";
+  bulle("vous", texte);
+  enAttente = true;
+  bulle("aide", "Jarvis traite ta demande…");
+  try{
+    const r = await api("/api/operator/message", {method:"POST", body:JSON.stringify({texte})});
+    if(!r.ok){ bulle("aide", r.message || "Envoi impossible."); enAttente = false; return false; }
+    // poll la reponse (l'assistant la traite entre deux ecoutes micro : rapide)
+    for(let i=0;i<200;i++){
+      await new Promise(r2 => setTimeout(r2, 500));
+      const rep = await api("/api/operator/reponse/" + r.id);
+      if(rep.pret){
+        $("#messages").lastElementChild.remove();   // enleve "traite..."
+        bulle("jarvis", rep.texte);
+        enAttente = false;
+        rafraichir();
+        return false;
+      }
+    }
+    $("#messages").lastElementChild.remove();
+    bulle("aide", "Pas de réponse en 100 s — Jarvis est peut-être occupé à parler.");
+  }catch(e){ console.error(e); }
+  enAttente = false;
+  return false;
+}
+async function chargerConversation(){
+  try{
+    const c = await api("/api/operator/conversation");
+    (c.messages||[]).forEach(m => bulle(m.role === "vous" ? "vous" : "jarvis", m.texte, m.ts));
+  }catch(e){}
+}
+
 $("#bonjour").textContent = bonjour();
 profil();
+chargerConversation();
 rafraichir();
 setInterval(rafraichir, 5000);
 </script>
