@@ -287,21 +287,25 @@ def tts():
             if moteur == "auto":
                 moteur = "elevenlabs"
         if moteur == "elevenlabs":
-            _TTS = ElevenLabsProvider()
+            cloud = ElevenLabsProvider()
+            if not cloud.disponible():
+                # sans cle ElevenLabs, une voix locale installee vaut mieux
+                # que le repli de l'OS (le vrai repli OS reste dans dire()).
+                local = _provider_local()
+                if local.disponible():
+                    _TTS = local
+                    LOG.info("pas de cle ElevenLabs : repli sur la voix locale %s",
+                             local.nom)
+                else:
+                    _TTS = cloud
+            else:
+                _TTS = cloud
         elif moteur == "kokoro":
             _TTS = KokoroProvider()
         elif moteur == "piper":
             _TTS = PiperProvider()
         else:
-            # hybride sans cle ElevenLabs : la voix locale vaut mieux que le
-            # repli de l'OS (le vrai repli OS reste gere par jarvis14.dire()).
-            cloud = ElevenLabsProvider()
-            local = _provider_local()
-            if not cloud.disponible() and local.disponible():
-                _TTS = local
-                LOG.info("pas de cle ElevenLabs : repli sur la voix locale %s", local.nom)
-            else:
-                _TTS = cloud
+            _TTS = OSProvider()
         LOG.info("provider TTS : %s (mode %s)", _TTS.nom, m)
     return _TTS
 

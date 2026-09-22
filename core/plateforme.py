@@ -595,6 +595,32 @@ def _cliquer_mac(bouton, double) -> bool:
         return False
 
 
+def touche_pressee(touche: str) -> bool:
+    """Vrai si la touche physique (escape, control...) est actuellement enfoncee.
+    Best-effort : False si l'OS ne sait pas dire."""
+    if EST_WINDOWS:
+        try:
+            import ctypes
+            codes = {"escape": 0x1B}
+            code = codes.get(str(touche or "").strip().lower())
+            if code is None:
+                return False
+            return bool(ctypes.windll.user32.GetAsyncKeyState(code) & 0x8000)
+        except Exception:
+            return False
+    if EST_MAC:
+        try:
+            from Quartz import CGEventSourceKeyState, kCGEventSourceStateHIDSystemState
+            codes = {"escape": 53}
+            code = codes.get(str(touche or "").strip().lower())
+            if code is None:
+                return False
+            return bool(CGEventSourceKeyState(kCGEventSourceStateHIDSystemState, code))
+        except Exception:
+            return False
+    return False
+
+
 def souris_defiler(vertical=0, horizontal=0) -> bool:
     """Fait défiler. Positif = vers le haut / la gauche, comme une molette."""
     vertical, horizontal = int(vertical), int(horizontal)
