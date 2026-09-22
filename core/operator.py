@@ -144,6 +144,39 @@ def _taches():
         return []
 
 
+def _vie():
+    """Etat vivant de l'assistant (HUD) : ecoute, reflexion, parole.
+
+    L'Operator est la page unique de Jarvis : elle affiche aussi le pouls de
+    l'assistant, pas seulement ses actions. Le HUD reste la source de verite.
+    """
+    try:
+        import hud
+        return {
+            "etat": hud._ETAT.get("etat", "veille"),
+            "modele": hud._ETAT.get("modele", ""),
+            "routage": hud._ETAT.get("routage", ""),
+            "micro": hud._ETAT.get("micro", False),
+        }
+    except Exception:
+        return {"etat": "veille", "modele": "", "routage": "", "micro": False}
+
+
+def _fil_vocal():
+    """Dernieres transcriptions voix (toi + Jarvis), rejouees dans le chat.
+
+    Le HUD tient l'historique borne ; l'Operator se contente de le relire pour
+    que la conversation ecrite et la conversation vocale ne fassent qu'une.
+    """
+    try:
+        import hud
+        return [{"t": e.get("t", ""), "texte": e.get("texte", e.get("detail", "")),
+                 "nom": e.get("nom", "")}
+                for e in list(hud._HISTORIQUE)]
+    except Exception:
+        return []
+
+
 def etat():
     """L'etat complet servi a la page Operator (API GET)."""
     return {
@@ -151,6 +184,8 @@ def etat():
         "a_valider": _file_validation(),
         "journal": _charger()[:60],
         "taches": _taches(),
+        "vie": _vie(),
+        "fil_vocal": _fil_vocal(),
     }
 
 

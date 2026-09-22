@@ -7,6 +7,7 @@ verifient, ainsi que le garde « local uniquement » et le journal borne.
 """
 
 import json
+import sys
 
 import pytest
 
@@ -195,3 +196,30 @@ def test_conversation_garde_les_derniers():
     for i in range(50):
         operator.envoyer_message(f"message {i}")
     assert len(operator.conversation()) <= 40
+
+
+# ------------------------------------------------------------------ vie + fil vocal
+
+def test_etat_expose_la_vie_de_l_assistant():
+    etat = operator.etat()
+    assert "vie" in etat
+    assert etat["vie"]["etat"] in {"veille", "ecoute", "reflexion", "parole"}
+    assert "fil_vocal" in etat
+    assert isinstance(etat["fil_vocal"], list)
+
+
+def test_fil_vocal_rejoue_les_transcriptions_du_hud(monkeypatch):
+    import types
+
+    class _Hud(types.SimpleNamespace):
+        _HISTORIQUE = [
+            {"t": "vous", "texte": "allume la lumiere"},
+            {"t": "outil", "nom": "luminotes", "detail": "chambre"},
+            {"t": "jarvis", "texte": "C'est fait."},
+        ]
+
+    monkeypatch.setitem(sys.modules, "hud", _Hud)
+    fil = operator._fil_vocal()
+    roles = [e["t"] for e in fil]
+    assert roles == ["vous", "outil", "jarvis"]
+    assert fil[0]["texte"] == "allume la lumiere"

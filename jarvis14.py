@@ -1348,35 +1348,43 @@ def traiter_ecrit(demande, historique):
             _hud_status()
             print(f"  Jarvis : {annonce}\n")
             _tronquer(historique)
-            return annonce
+            return annonce, annonce
         if not texte:
             texte = "C'est fait."
         texte = nettoyer_reponse_vocale(texte)
         _hud("dire_jarvis", texte)
         _afficher_overlay(texte)
         _hud_status()
-        dire(texte)
         print(f"  Jarvis : {texte}\n")
         _tronquer(historique)
-        return texte
+        return texte, texte
     except Exception:
         LOG.exception("message ecrit")
-        return "Desole, une erreur est survenue en traitant ta demande."
+        return ("Desole, une erreur est survenue en traitant ta demande.", "")
 
 
 def _drainer_messages_ecrits(historique):
-    """Consomme les demandes tapees sur la page Operator (une par iteration)."""
+    """Consomme les demandes tapees sur la page Operator (une par iteration).
+
+    La reponse est deposee AVANT la prononciation : la page l'affiche des que
+    le texte est pret, sans attendre que Jarvis finisse de parler.
+    """
     try:
         demande = operator.message_suivant()
     except Exception:
         return
     if demande is None:
         return
-    reponse = traiter_ecrit(demande.get("texte", ""), historique)
+    reponse, a_prononcer = traiter_ecrit(demande.get("texte", ""), historique)
     try:
         operator.reponse_message(demande.get("id", 0), reponse)
     except Exception:
         LOG.exception("reponse message ecrit")
+    if a_prononcer:
+        try:
+            threading.Thread(target=dire, args=(a_prononcer,), daemon=True).start()
+        except Exception:
+            LOG.exception("prononciation message ecrit")
 
 
 def traiter(audio, whisper, historique, flux, reveil):
