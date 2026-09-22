@@ -230,3 +230,52 @@ def test_domaine_monday_expose_les_outils_au_llm():
     assert "monday" in modules_pour_phrase("mes tableaux monday")
     assert "monday" in modules_pour_phrase("ou j'en suis sur mon CRM")
     assert modules_pour_phrase("bonjour") == set()
+
+
+def _items_business():
+    return [
+        {"nom": "Acme", "colonnes": [
+            {"titre": "Statut", "valeur": "Signé"},
+            {"titre": "Montant", "valeur": "285 000 €"}]},
+        {"nom": "Beta", "colonnes": [
+            {"titre": "Statut", "valeur": "En cours"},
+            {"titre": "Montant", "valeur": "150000"}]},
+        {"nom": "Perdu & Co", "colonnes": [
+            {"titre": "Statut", "valeur": "Perdu"},
+            {"titre": "Montant", "valeur": "120000"}]},
+        {"nom": "Sans statut", "colonnes": [
+            {"titre": "Montant", "valeur": "99000"}]},
+    ]
+
+
+def test_kpis_business_separes_signes_et_pipeline():
+    from tools.monday import _kpis_business
+    k = _kpis_business(_items_business())
+    assert k["nb_signes"] == 1 and k["signes"] == 285000.0
+    assert k["nb_pipeline"] == 1 and k["pipeline"] == 150000.0
+
+
+def test_kpis_business_ne_plante_pas_sans_montant():
+    from tools.monday import _kpis_business
+    k = _kpis_business([{"nom": "X", "colonnes": [
+        {"titre": "Statut", "valeur": "Signé"}]}])
+    assert k["nb_signes"] == 1 and k["signes"] == 0.0
+
+
+def test_etat_crm_expose_les_kpis_business(monkeypatch):
+    _reglages(monkeypatch, token="tok", tableau="42")
+    _mock_requete(monkeypatch, ({"boards": [{"name": "CRM", "items_page": {
+        "items": [
+            {"name": "Acme", "column_values": [
+                {"title": "Statut", "text": "Signé"},
+                {"title": "Montant", "text": "285 000 €"}]},
+            {"name": "Beta", "column_values": [
+                {"title": "Statut", "text": "Négociation"},
+                {"title": "Montant", "text": "150000"}]},
+        ]}}]}, []))
+    from tools import monday
+    etat = monday.etat_crm()
+    assert etat["business"]["nb_signes"] == 1
+    assert etat["business"]["signes"] == 285000.0
+    assert etat["business"]["nb_pipeline"] == 1
+    assert etat["business"]["pipeline"] == 150000.0

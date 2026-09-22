@@ -611,7 +611,18 @@ async function chargerCrm(){
       c.innerHTML = `<div class="carte vide">Aucun item dans ton tableau monday.com.</div>`;
       return;
     }
-    c.innerHTML = r.items.map(it => `
+    let entete = "";
+    if(r.business && (r.business.nb_signes || r.business.nb_pipeline)){
+      const euros = n => new Intl.NumberFormat("fr-FR",
+        {style:"currency", currency:"EUR", maximumFractionDigits:0}).format(n);
+      entete = `<div class="kpis">
+        <div class="kpi ok"><div class="v">${euros(r.business.signes)}</div>
+          <div class="l">signé · ${r.business.nb_signes} dossier(s)</div></div>
+        <div class="kpi info"><div class="v">${euros(r.business.pipeline)}</div>
+          <div class="l">pipeline · ${r.business.nb_pipeline} dossier(s)</div></div>
+      </div>`;
+    }
+    c.innerHTML = entete + r.items.map(it => `
       <div class="tache">
         <div class="txt"><b>${esc(it.nom)}</b>
           <div class="meta">${(it.colonnes||[]).map(c =>

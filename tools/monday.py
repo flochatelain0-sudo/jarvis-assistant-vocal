@@ -284,6 +284,57 @@ def monday_maj_item(nom: str, colonnes: str) -> str:
 
 # --------------------------------------------------------------- pour l'Operator
 
+_MOTS_SIGNES = ("signe", "gagne", "won", "close", "accepte", "valide")
+_MOTS_PERDUS = ("perdu", "lost", "abandon", "refuse", "annule")
+
+
+def _sans_accent(texte):
+    """Minuscules sans accents : 'Sign\u00e9' -> 'signe', pour que les
+    heuristiques de statut marchent quelle que soit la saisie monday."""
+    import unicodedata
+    retour = unicodedata.normalize("NFKD", str(texte or ""))
+    return "".join(c for c in retour if not unicodedata.combining(c)).lower()
+
+
+def _kpis_business(items):
+    """KPIs business du CRM (heuristique sur les colonnes) :
+    signes (montant + nombre) vs pipeline (montant + nombre). Les titres de
+    colonnes varient d'un tableau a l'autre : on cherche les mots signe/perdu
+    dans les statuts, et montant/prix/budget pour les euros. Jamais une
+    exception : la page affiche ce qu'on a su deviner."""
+    signes = pipeline = 0.0
+    n_signes = n_pipeline = 0
+    for it in items:
+        statut = montant = ""
+        for c in it.get("colonnes") or []:
+            titre = (c.get("titre") or "").lower()
+            valeur = (c.get("valeur") or "").lower()
+            if any(m in titre for m in ("statut", "etape", "status", "stage")):
+                statut = _sans_accent(valeur)
+            elif any(m in titre for m in ("montant", "prix", "budget", "price",
+                                          "amount", "valeur")):
+                montant = c.get("valeur") or ""
+        nombre = 0.0
+        for morceau in montant.replace(",", ".").strip().replace(" ", "").split("|"):
+            try:
+                nombre = float(morceau.strip("EUR€€kK"))
+                break
+            except ValueError:
+                continue
+        if not statut:
+            continue
+        if any(m in statut for m in _MOTS_SIGNES):
+            signes += nombre
+            n_signes += 1
+        elif any(m in statut for m in _MOTS_PERDUS):
+            continue
+        else:
+            pipeline += nombre
+            n_pipeline += 1
+    return {"signes": signes, "nb_signes": n_signes,
+            "pipeline": pipeline, "nb_pipeline": n_pipeline}
+
+
 def etat_crm():
     """Vue CRM pour la page Operator : les items du tableau principal."""
     if not _configue():
@@ -323,7 +374,8 @@ def etat_crm():
             cursor = page.get("cursor")
             if not cursor or len(items) >= 100:
                 break
-        return {"configure": True, "tableau": nom_tableau, "items": items}
+        return {"configure": True, "tableau": nom_tableau, "items": items,
+                "business": _kpis_business(items)}
     except Exception as e:
         _journal_echec("injoignable", e)
         return {"configure": True, "erreur": str(e)[:120], "items": []}
