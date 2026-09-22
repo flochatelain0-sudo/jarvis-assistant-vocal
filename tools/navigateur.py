@@ -229,7 +229,12 @@ def _protege(url):
     description="Ouvre un SITE WEB ou lance une RECHERCHE dans Chrome. C'est le "
                 "SEUL outil a utiliser pour 'ouvre Netflix/YouTube', 'va sur le "
                 "site X', une adresse en .com/.fr ou 'cherche X'. Ne jamais utiliser "
-                "ouvrir_application pour un site. Donne soit une URL, soit recherche.",
+                "ouvrir_application pour un site. ATTENTION : si la question porte "
+                "sur les DONNEES d'un CRM (monday.com, mes tableaux, mes items, mon "
+                "CRM), n'utilise PAS browser_open — utilise les outils monday_* qui "
+                "lisent l'API. browser_open ne sert que si l'utilisateur demande "
+                "EXPLICITEMENT d'ouvrir un site dans le navigateur. "
+                "Donne soit une URL, soit recherche.",
     parametres={
         "type": "object",
         "properties": {

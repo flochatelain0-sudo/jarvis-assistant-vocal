@@ -77,8 +77,11 @@ def _requete(query, variables=None):
 
 @outil(
     nom="monday_tableaux",
-    description="Liste tes tableaux monday.com (ID + nom). Pour « mes tableaux "
-                "monday », « quel est mon CRM ». LECTURE SEULE.",
+    description="Liste tes tableaux monday.com via l'API (ID + nom). C'est "
+                "l'outil à utiliser POUR TOUTE question sur ton CRM monday.com : "
+                "« mes tableaux monday », « quel est mon CRM », « où j'en suis sur "
+                "mon CRM ». JAMAIS browser_open pour monday : la donnée CRM se lit "
+                "par l'API, pas en ouvrant le site. LECTURE SEULE.",
     parametres={"type": "object", "properties": {}},
     mcp_expose=False,
 )
