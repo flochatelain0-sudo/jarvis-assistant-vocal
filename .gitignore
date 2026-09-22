@@ -55,3 +55,4 @@ finances/*
 !finances/abonnements.example.yaml
 # Journal Operator : donnees locales (ce que Jarvis a fait chez toi)
 data/operator_journal.json
+data/automations.json

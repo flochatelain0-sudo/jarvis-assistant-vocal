@@ -136,11 +136,21 @@ class _Client:
 
 
 class _Req:
-    def __init__(self, host="127.0.0.1", forwarded=False, method="GET"):
+    """Faux Request : json() renvoie une coroutine, comme le vrai FastAPI."""
+
+    def __init__(self, host="127.0.0.1", forwarded=False, method="GET", corps=None):
         import types
         self.client = _Client(host)
         self.headers = {"x-forwarded-for": "1.2.3.4"} if forwarded else {}
+        if method == "POST":
+            self.headers["content-type"] = "application/json"
         self.method = method
+        self._corps = corps if corps is not None else {}
+
+    async def json(self):
+        if isinstance(self._corps, Exception):
+            raise self._corps
+        return self._corps
 
 
 def _app_routes():
@@ -174,6 +184,67 @@ def test_post_exige_json():
     req = _Req(method="POST")
     req.headers = {"content-type": "text/plain"}
     assert valider(req).status_code == 415
+
+
+# ------------------------------------------------- routes POST asynchrones
+
+def _attendre(appel):
+    import asyncio
+    resultat = appel()
+    if asyncio.iscoroutine(resultat):
+        resultat = asyncio.run(resultat)
+    return resultat
+
+
+def test_route_message_lit_le_corps_async():
+    app = _app_routes()
+    route = dict(app.routes)["/api/operator/message"]
+    req = _Req(method="POST", corps={"texte": "lis mes mails"})
+    res = _attendre(lambda: route(req))
+    assert res["ok"] is True
+    m = operator.message_suivant()
+    assert m["texte"] == "lis mes mails"
+
+
+def test_route_message_corps_invalide_ne_plante_pas():
+    app = _app_routes()
+    route = dict(app.routes)["/api/operator/message"]
+    req = _Req(method="POST", corps=ValueError("pas du json"))
+    res = _attendre(lambda: route(req))
+    assert res["ok"] is False
+
+
+def test_route_automation_basculer_lit_le_corps_async(tmp_path, monkeypatch):
+    from core import automations as autos
+    monkeypatch.setattr(autos, "_FICHIER", tmp_path / "automations.json")
+    monkeypatch.setattr(autos, "_AUTOMATIONS", None)
+    auto = autos.ajouter("Test", "08:00", "brief")
+    app = _app_routes()
+    route = dict(app.routes)["/api/operator/automations/{identifiant}/basculer"]
+    req = _Req(method="POST", corps={"active": False})
+    res = _attendre(lambda: route(auto["id"], req))
+    assert res["ok"] is True
+
+
+def test_route_automation_creer_lit_le_corps_async(tmp_path, monkeypatch):
+    from core import automations as autos
+    monkeypatch.setattr(autos, "_FICHIER", tmp_path / "automations.json")
+    monkeypatch.setattr(autos, "_AUTOMATIONS", None)
+    app = _app_routes()
+    route = dict(app.routes)["/api/operator/automations"]
+    req = _Req(method="POST",
+               corps={"nom": "Brief test", "moment": "08:00", "action": "brief"})
+    res = _attendre(lambda: route(req))
+    assert res["ok"] is True
+    assert res["automation"]["nom"] == "Brief test"
+
+
+def test_route_brain_oublier_lit_le_corps_async(monkeypatch):
+    app = _app_routes()
+    route = dict(app.routes)["/api/operator/brain/oublier"]
+    req = _Req(method="POST", corps={"sujet": "test"})
+    res = _attendre(lambda: route(req))
+    assert "ok" in res
 
 
 # --------------------------------------------------------- messagerie ecrite

@@ -333,13 +333,13 @@ def monter_routes(app):
         return valider()
 
     @app.post("/api/operator/message")
-    def api_message(request: Request):
+    async def api_message(request: Request):
         refus = garde(request)
         if refus:
             return refus
         corps = {}
         try:
-            corps = request.json()
+            corps = await request.json()
         except Exception:
             corps = {}
         return envoyer_message((corps or {}).get("texte", ""))
@@ -384,14 +384,14 @@ def monter_routes(app):
         return {"automations": autos.lister()}
 
     @app.post("/api/operator/automations")
-    def api_automation_creer(request: Request):
+    async def api_automation_creer(request: Request):
         refus = garde(request)
         if refus:
             return refus
         from core import automations as autos
         corps = {}
         try:
-            corps = request.json() or {}
+            corps = await request.json() or {}
         except Exception:
             corps = {}
         auto = autos.ajouter(
@@ -404,14 +404,14 @@ def monter_routes(app):
         return {"ok": True, "automation": auto}
 
     @app.post("/api/operator/automations/{identifiant}/basculer")
-    def api_automation_basculer(identifiant: str, request: Request):
+    async def api_automation_basculer(identifiant: str, request: Request):
         refus = garde(request)
         if refus:
             return refus
         from core import automations as autos
         corps = {}
         try:
-            corps = request.json() or {}
+            corps = await request.json() or {}
         except Exception:
             corps = {}
         ok = autos.activer(identifiant, bool(corps.get("active", True)))
@@ -454,14 +454,14 @@ def monter_routes(app):
         return etat_crm()
 
     @app.post("/api/operator/brain/oublier")
-    def api_brain_oublier(request: Request):
+    async def api_brain_oublier(request: Request):
         refus = garde(request)
         if refus:
             return refus
         from tools.memoire import forget
         corps = {}
         try:
-            corps = request.json() or {}
+            corps = await request.json() or {}
         except Exception:
             corps = {}
         sujet = (corps.get("sujet") or "").strip()
