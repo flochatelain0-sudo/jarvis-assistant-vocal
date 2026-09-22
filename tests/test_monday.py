@@ -133,3 +133,43 @@ def test_etat_crm_pour_operator(monkeypatch):
     assert etat["configure"] is True
     assert etat["tableau"] == "CRM"
     assert etat["items"][0]["nom"] == "Acme"
+
+# ------------------------------------------------------- route prioritaire
+
+def test_route_mes_tableaux_monday():
+    from core.routage_intentions import decider_prioritaire
+    d = decider_prioritaire("mes tableaux monday")
+    assert d is not None and d.type == "outil"
+    assert d.outil == "monday_tableaux"
+
+
+def test_route_mes_items_monday():
+    from core.routage_intentions import decider_prioritaire
+    d = decider_prioritaire("mes items monday")
+    assert d is not None and d.outil == "monday_items"
+
+
+def test_route_boards_monday():
+    from core.routage_intentions import decider_prioritaire
+    d = decider_prioritaire("mes boards monday")
+    assert d is not None and d.outil == "monday_tableaux"
+
+
+def test_ecriture_monday_ne_passe_pas_par_la_route_directe():
+    from core.routage_intentions import decider_prioritaire
+    assert decider_prioritaire("ajoute un client Acme dans monday") is None
+    assert decider_prioritaire("cree une affaire dans monday") is None
+    assert decider_prioritaire("passe le client Acme en signe dans monday") is None
+
+
+def test_ouverture_du_site_monday_n_est_pas_une_lecture_crm():
+    from core.routage_intentions import decider_prioritaire
+    d = decider_prioritaire("ouvre monday.com dans chrome")
+    assert d is None or d.outil != "monday_tableaux"
+
+
+def test_domaine_monday_expose_les_outils_au_llm():
+    from core.routage_intentions import modules_pour_phrase
+    assert "monday" in modules_pour_phrase("mes tableaux monday")
+    assert "monday" in modules_pour_phrase("ou j'en suis sur mon CRM")
+    assert modules_pour_phrase("bonjour") == set()

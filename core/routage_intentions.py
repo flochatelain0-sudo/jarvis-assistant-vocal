@@ -71,6 +71,7 @@ def decider_prioritaire(phrase: str, piece: str = "") -> Decision | None:
     for module, fonction in (
         ("tools.alexa", "router_commande"),
         ("tools.media", "router_commande_media"),
+        ("tools.monday", "router_commande_monday"),
         ("tools.apps", "router_ouverture_simple"),
     ):
         try:
@@ -151,6 +152,9 @@ _DOMAINES = (
     (("instagram", "abonne", "followers", "vues"), {"instagram"}),
     (("appel", "appelle", "telephone", "raccroche"), {"appels", "appel_direct"}),
     (("obs", "stream", "direct", "replay", "scene"), {"obs", "scenes"}),
+    (("monday", "mon crm", "mon tableau", "mes tableaux", "mes items",
+      "mes clients dans le crm", "ou j en suis sur mon crm"),
+     {"monday"}),
     (("memoire", "souviens", "rappelle toi", "oublie"), {"memoire"}),
     (("note", "notes", "idee", "pense bete"), {"notes"}),
     (("mode hybride", "mode qualite", "mode local", "mode cloud"),

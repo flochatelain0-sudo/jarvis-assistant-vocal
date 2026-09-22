@@ -19,6 +19,7 @@ SECURITE :
 """
 
 import json
+import re
 
 import requests
 
@@ -321,3 +322,41 @@ def etat_crm():
     except Exception as e:
         _journal_echec("injoignable", e)
         return {"configure": True, "erreur": str(e)[:120], "items": []}
+
+
+# ------------------------------------------------- route prioritaire
+
+_MOTS_CRM = {"tableau", "tableaux", "item", "items", "crm", "client",
+             "clients", "affaire", "affaires", "contact", "contacts",
+             "board", "boards", "pipeline"}
+_VERBES_OUVERTURE = {"ouvre", "ouvrir", "va", "vas", "aller", "site",
+                     "navigateur", "chrome"}
+_VERBES_ECRITURE = {"ajoute", "ajouter", "cree", "creer", "modifie", "modifier",
+                    "supprime", "supprimer", "passe", "changer", "change",
+                    "update", "mets", "mettre", "enregistre", "sauvegarde"}
+
+
+def router_commande_monday(phrase, piece=""):
+    """Questions monday en lecture : route directe, sans laisser le LLM choisir.
+
+    Renvoie (nom_outil, arguments) pour les lectures CRM (« mes tableaux
+    monday », « ou j'en suis sur mon CRM »), ou None sinon. Les ecritures
+    (creer/modifier un item) restent au LLM : elles exigent une extraction
+    d'arguments et une confirmation 95/5.
+    """
+    from core.util import sans_accents
+    mots = re.sub(r"[^a-z0-9]+", " ",
+                  sans_accents(str(phrase or "").lower())).split()
+    if "monday" not in mots and "mondays" not in mots:
+        return None
+    if set(mots) & _VERBES_ECRITURE:
+        return None
+    if any(v in mots for v in _VERBES_OUVERTURE) and not (set(mots) & _MOTS_CRM):
+        return None
+    if any(m in mots for m in ("tableau", "tableaux", "board", "boards")):
+        return ("monday_tableaux", {})
+    if set(mots) & _MOTS_CRM:
+        return ("monday_items", {"limite": 10})
+    if "ou" in mots and "suis" in mots:
+        return ("monday_tableaux", {})
+    return None
