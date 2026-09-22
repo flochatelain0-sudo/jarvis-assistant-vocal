@@ -219,6 +219,37 @@ def refuser_tout():
     return {"ok": True, "message": f"{n} action(s) refusée(s)."}
 
 
+def valider_id(ident):
+    """Valide l'action identifiee (bouton d'une carte de la conversation)."""
+    from core import registre
+    annonce = _annonce_de_id(ident)
+    resultat = registre.executer_confirme_id(int(ident), memoriser=False)
+    if resultat is None:
+        return {"ok": False, "message": "Action deja traitee."}
+    journaliser("validation", f"Action validee depuis la page : {annonce or ident}",
+                str(resultat)[:400])
+    return {"ok": True, "resultat": str(resultat)[:400], "reste": len(registre.file_en_attente())}
+
+
+def refuser_id(ident):
+    """Refuse l'action identifiee (bouton d'une carte de la conversation)."""
+    from core import registre
+    annonce = _annonce_de_id(ident)
+    if not registre.annuler_confirme_id(int(ident)):
+        return {"ok": False, "message": "Action deja traitee."}
+    journaliser("validation", f"Action refusee depuis la page : {annonce or ident}")
+    return {"ok": True, "message": f"{annonce or ident} annule.", "reste": len(registre.file_en_attente())}
+
+
+def _annonce_de_id(ident):
+    """L'annonce de l'action identifiee, si elle est encore en file."""
+    from core import registre
+    for e in registre.file_en_attente():
+        if e["id"] == int(ident):
+            return e["annonce"]
+    return None
+
+
 # ------------------------------------------------------- messagerie ecrite
 
 # Derniers echanges affiches dans la page (bornes).
@@ -280,7 +311,19 @@ def lire_reponse(ident):
     return valeur[0] if valeur else None
 
 
+def question_validation(ident, outil, niv, annonce):
+    """Une action attend ton feu vert : la question apparait dans la conversation
+    avec ses boutons Valider / Refuser, comme une vraie question de Jarvis."""
+    texte = (annonce or f"Je vais executer {outil}.") + " Tu confirmes ?"
+    with _VERROU:
+        _CONVERSATION.append({"role": "jarvis", "type": "validation",
+                              "texte": texte, "id": ident,
+                              "niveau": niv, "ts": time.time()})
+        del _CONVERSATION[:-_MAX_CONV]
+
+
 def conversation():
+
     """Derniers echanges, pour affichage immediat a l'ouverture de la page."""
     with _VERROU:
         return list(_CONVERSATION)
@@ -374,6 +417,20 @@ def monter_routes(app):
         if refus:
             return refus
         return refuser()
+
+    @app.post("/api/operator/valider/{ident}")
+    def api_valider_id(ident: int, request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        return valider_id(ident)
+
+    @app.post("/api/operator/refuser/{ident}")
+    def api_refuser_id(ident: int, request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        return refuser_id(ident)
 
     @app.post("/api/operator/refuser_tout")
     def api_refuser_tout(request: Request):

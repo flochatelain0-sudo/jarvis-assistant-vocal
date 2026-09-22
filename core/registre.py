@@ -5,6 +5,7 @@ Au demarrage, charger_outils() importe tous les modules de tools/ pour peupler
 le registre. Le reste de l'assistant n'a plus a connaitre les outils un par un.
 """
 import importlib
+import itertools
 import logging
 import pkgutil
 
@@ -14,7 +15,8 @@ _REGISTRE = {}      # nom -> Outil
 # File des actions en attente de confirmation vocale ou web. La premiere
 # attendue est celle que la voix traite (compatibilite _EN_ATTENTE).
 _EN_ATTENTE = None  # (Outil, args) le plus ancien, ou None
-_FILE = []          # [(Outil, args), ...] toutes les actions en attente
+_FILE = []          # [(id, Outil, args), ...] toutes les actions en attente
+_COMPTEUR = itertools.count(1)  # identifiant stable de chaque action en file
 
 
 class Outil:
@@ -209,15 +211,29 @@ def phrase_attente(noms):
 
 # ---------------------------------------------------------------- confirmation
 
+def _maj_tete():
+    """Recale le pointeur de la voix sur la plus ancienne action en file."""
+    global _EN_ATTENTE
+    _EN_ATTENTE = (_FILE[0][1], _FILE[0][2]) if _FILE else None
+
 def mettre_en_attente(outil_obj, args):
     """Range une action a confirmer. Renvoie un resultat neutre pour Claude.
 
     Plusieurs actions peuvent attendre simultanement (une par tour LLM) : la
-    plus ancienne reste celle que la voix confirme, les autres suivent.
+    plus ancienne reste celle que la voix confirme, les autres suivent. Chaque
+    entree porte un identifiant stable : la page Operator peut valider une
+    action précise, et la question apparait dans la conversation ecrite.
     """
     global _EN_ATTENTE
-    _FILE.append((outil_obj, args))
-    _EN_ATTENTE = _FILE[0][0], _FILE[0][1]
+    ident = next(_COMPTEUR)
+    _FILE.append((ident, outil_obj, args))
+    _maj_tete()
+    try:
+        from core import operator
+        operator.question_validation(ident, outil_obj.nom, niveau(outil_obj.nom),
+                                     _annonce_de(outil_obj, args))
+    except Exception:
+        pass
     return "En attente de la confirmation vocale de l'utilisateur."
 
 
@@ -243,29 +259,16 @@ def nom_en_attente():
 
 
 def file_en_attente():
-    """Toutes les actions en attente : [(nom, niveau, annonce), ...].
+    """Toutes les actions en attente : [(id, nom, niveau, annonce), ...].
 
     Pour la page Operator : montrer TOUT ce qui attend le feu vert, pas
     seulement la derniere. Ordre d'arrivee conserve.
     """
-    return [{"outil": o.nom, "niveau": niveau(o.nom), "annonce": _annonce_de(o, a)}
-            for o, a in _FILE]
+    return [{"id": i, "outil": o.nom, "niveau": niveau(o.nom), "annonce": _annonce_de(o, a)}
+            for i, o, a in _FILE]
 
 
-def executer_confirme(memoriser=False):
-    """Execute l'action en attente et renvoie son resultat.
-
-    memoriser=True (l'utilisateur a dit "oui, toujours") : si l'outil est N2, on
-    l'ajoute au 'toujours autoriser' (revocable) ; un N3 REFUSE la memorisation et
-    on le lui dit, mais l'action de ce tour est quand meme executee.
-    """
-    global _EN_ATTENTE
-    if _EN_ATTENTE is None:
-        return ""
-    outil_obj, args = _EN_ATTENTE
-    if _FILE:
-        _FILE.pop(0)
-    _EN_ATTENTE = (_FILE[0][0], _FILE[0][1]) if _FILE else None
+def _executer(outil_obj, args, memoriser=False):
     suffixe = ""
     if memoriser:
         if autoriser_toujours(outil_obj.nom):
@@ -279,13 +282,49 @@ def executer_confirme(memoriser=False):
         return "Desole, je n'ai pas reussi a faire ca."
     return (str(res) + suffixe) if suffixe else res
 
+def executer_confirme(memoriser=False):
+    """Execute la plus ancienne action en attente et renvoie son resultat.
+
+    memoriser=True (l'utilisateur a dit "oui, toujours") : si l'outil est N2, on
+    l'ajoute au 'toujours autoriser' (revocable) ; un N3 REFUSE la memorisation et
+    on le lui dit, mais l'action de ce tour est quand meme executee.
+    """
+    global _EN_ATTENTE
+    if _EN_ATTENTE is None:
+        return ""
+    outil_obj, args = _EN_ATTENTE
+    if _FILE:
+        _FILE.pop(0)
+    _maj_tete()
+    return _executer(outil_obj, args, memoriser)
+
+def executer_confirme_id(ident, memoriser=False):
+    """Execute l'action en attente portant cet identifiant (page Operator).
+
+    Renvoie None si l'identifiant n'est plus en file (deja traite).
+    """
+    for pos, (i, o, a) in enumerate(_FILE):
+        if i == ident:
+            _FILE.pop(pos)
+            _maj_tete()
+            return _executer(o, a, memoriser)
+    return None
+
 
 def annuler_confirme():
     """Annule la plus ancienne action en attente (equivalent d'un « non »)."""
-    global _EN_ATTENTE
     if _FILE:
         _FILE.pop(0)
-    _EN_ATTENTE = (_FILE[0][0], _FILE[0][1]) if _FILE else None
+    _maj_tete()
+
+def annuler_confirme_id(ident):
+    """Annule l'action en attente portant cet identifiant (page Operator)."""
+    for pos, (i, o, a) in enumerate(_FILE):
+        if i == ident:
+            _FILE.pop(pos)
+            _maj_tete()
+            return True
+    return False
 
 
 def refuser_toutes():

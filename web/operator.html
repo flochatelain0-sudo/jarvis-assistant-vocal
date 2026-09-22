@@ -166,6 +166,11 @@
     border-bottom-left-radius:5px}
   .msg .quand{display:block;color:var(--tres-dim);font-size:10.5px;margin-top:4px}
   .msg.vous .quand{color:rgba(255,255,255,.55)}
+  .msg.validation{max-width:88%;border-color:rgba(139,92,246,.35);background:rgba(109,40,217,.12)}
+  .msg.validation .actions-val{display:flex;gap:8px;align-items:center;margin-top:9px;flex-wrap:wrap}
+  .btn.mini{padding:5px 13px;font-size:12px}
+  .verdict{font-size:12px;margin-top:8px;padding-top:7px;border-top:1px solid var(--bord)}
+  .verdict.ok{color:var(--ok)} .verdict.ko{color:var(--ko)}
   .saisie{display:flex;gap:10px}
   .saisie input{flex:1;background:rgba(0,0,0,.3);border:1px solid var(--bord);color:var(--txt);
     border-radius:13px;padding:11px 16px;font-size:14px;outline:none;font-family:inherit;transition:border-color .2s}
@@ -596,9 +601,16 @@ function appliquerVue(){
 document.querySelectorAll("aside .it[data-vue]").forEach(el =>
   el.addEventListener("click", () => { vue = el.dataset.vue; appliquerVue(); }));
 
+let validationsAffichees = new Set();
 async function rafraichir(){
   try{
     const e = await api("/api/operator/etat");
+    (e.a_valider||[]).forEach(a => {
+      if(!validationsAffichees.has(a.id)){
+        validationsAffichees.add(a.id);
+        bulleValidation(a.annonce + " Tu confirmes ?", a.id, a.niveau);
+      }
+    });
     dernierEtat = e;
     majVie(e.vie);
     kpis(e.kpis);
@@ -611,6 +623,39 @@ async function rafraichir(){
   }catch(err){ console.error(err); }
 }
 // ---------------------------------------------------------------- chat
+function bulleValidation(texte, id, niveau){
+  const zone = $("#messages");
+  const d = document.createElement("div");
+  d.className = "msg jarvis validation";
+  d.dataset.validation = id;
+  d.innerHTML = esc(texte).replace(/\n/g,"<br>")
+    + `<div class="actions-val"><button class="btn prime mini" data-id="${id}" onclick="validerAction(this.dataset.id)">Valider</button>`
+    + `<button class="btn ko mini" data-id="${id}" onclick="refuserAction(this.dataset.id)">Refuser</button>`
+    + `<span class="badge ${niveau==="N3"?"n3":"n2"}">${esc(niveau)} · ${niveau==="N3"?"critique":"sensible"}</span></div>`;
+  zone.appendChild(d);
+  zone.scrollTop = zone.scrollHeight;
+}
+async function validerAction(id){
+  const r = await api("/api/operator/valider/" + id, {method:"POST"});
+  const carte = document.querySelector(`[data-validation="${id}"]`);
+  if(carte){
+    carte.querySelector(".actions-val").remove();
+    const verdict = r.ok
+      ? `<div class="verdict ok">✓ Validé — ${esc((r.resultat||"").slice(0,300))}</div>`
+      : `<div class="verdict ko">✕ ${esc(r.message||"Déjà traité.")}</div>`;
+    carte.insertAdjacentHTML("beforeend", verdict);
+  }
+  rafraichir();
+}
+async function refuserAction(id){
+  await api("/api/operator/refuser/" + id, {method:"POST"});
+  const carte = document.querySelector(`[data-validation="${id}"]`);
+  if(carte){
+    carte.querySelector(".actions-val").remove();
+    carte.insertAdjacentHTML("beforeend", `<div class="verdict ko">✕ Refusé</div>`);
+  }
+  rafraichir();
+}
 function bulle(role, texte, ts){
   const zone = $("#messages");
   const d = document.createElement("div");
@@ -679,8 +724,12 @@ async function envoyerDemande(ev){
 async function chargerConversation(){
   try{
     const c = await api("/api/operator/conversation");
-    const fil = (c.messages||[]).map(m => ({role: m.role === "vous" ? "vous" : "jarvis", texte: m.texte, ts: m.ts}));
-    fil.forEach(m => bulle(m.role, m.texte, m.ts));
+    const fil = (c.messages||[]).map(m => ({role: m.role === "vous" ? "vous" : "jarvis", texte: m.texte, ts: m.ts,
+                                            type: m.type, id: m.id, niveau: m.niveau}));
+    fil.forEach(m => {
+      if(m.type === "validation" && m.id != null) bulleValidation(m.texte, m.id, m.niveau);
+      else bulle(m.role, m.texte, m.ts);
+    });
     const deja = new Set(fil.map(m => m.texte));
     let voix = [];
     try{
@@ -695,7 +744,10 @@ async function chargerConversation(){
     if(voix.length){
       zone.innerHTML = "";
       const tous = voix.filter(v => !deja.has(v.texte)).concat(fil);
-      tous.forEach(m => bulle(m.role, m.texte, m.ts));
+      tous.forEach(m => {
+        if(m.type === "validation" && m.id != null){ bulleValidation(m.texte, m.id, m.niveau); validationsAffichees.add(m.id); }
+        else bulle(m.role, m.texte, m.ts);
+      });
     }
   }catch(e){}
 }
