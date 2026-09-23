@@ -325,6 +325,136 @@ def test_voxtral_sans_voix_est_indisponible_et_le_dit(monkeypatch):
         provider.synthetiser("Bonjour")
 
 
+def _compte_voxtral(*items):
+    return {"items": list(items), "total": len(items)}
+
+
+def _urlopen_deux_temps(audio_b64):
+    """urlopen : 1er appel 404 invalid_voice, 2e appel reussit."""
+    import urllib.error
+    etat = {"n": 0}
+    appels = []
+    def _fausse(requete, timeout=None):
+        appels.append(requete)
+        etat["n"] += 1
+        if etat["n"] == 1:
+            corps = _json.dumps({"message": "invalid_voice",
+                                 "detail": "voice_id fr_female not found"}).encode()
+            raise urllib.error.HTTPError(requete.full_url, 404, "Not Found",
+                                         {}, io.BytesIO(corps))
+        return _ReponseHTTP(_json.dumps({"audio_data": audio_b64}).encode())
+    return _fausse, appels
+
+
+def test_voxtral_auto_repare_un_preset_en_identifiant(monkeypatch):
+    """Preset (fr_female) colle par erreur : le provider liste les voix du
+    compte, en resout une et ENREGISTRE l'identifiant dans config.yaml."""
+    trames = bytes(range(0, 256)) * 20
+    audio_b64 = base64.b64encode(_wav_int16(trames, 24000)).decode()
+    reglages = {"mistral.cle": "cle-test", "voxtral.voix": "fr_female"}
+    voix_compte = _compte_voxtral({"id": "vchr_abc123", "name": "fr_female",
+                                   "languages": ["fr"]})
+    urlopen, appels = _urlopen_deux_temps(audio_b64)
+    monkeypatch.setattr(tts, "reglage",
+                        lambda chemin, defaut=None: reglages.get(chemin, defaut))
+    monkeypatch.setattr("urllib.request.urlopen", urlopen)
+    monkeypatch.setattr(tts, "lister_voix_voxtral", lambda: voix_compte)
+    ecrits = []
+    monkeypatch.setattr("core.config.definir",
+                        lambda chemin, valeur: ecrits.append((chemin, valeur)))
+    provider = tts.VoxtralProvider()
+    assert provider.synthetiser("Bonjour") is not None
+    assert provider.voix == "vchr_abc123"
+    assert ecrits == [("voxtral.voix", "vchr_abc123")]      # sauvegarde config
+    assert len(appels) == 2                                   # echec puis succes
+    assert _json.loads(appels[1].data.decode())["voice_id"] == "vchr_abc123"
+
+
+def test_voxtral_auto_reparation_cible_la_premiere_voix_francaise(monkeypatch):
+    """Le nom ne correspond a aucune voix : premiere voix francaise du compte."""
+    trames = bytes(range(0, 256)) * 20
+    audio_b64 = base64.b64encode(_wav_int16(trames, 24000)).decode()
+    reglages = {"mistral.cle": "cle-test", "voxtral.voix": "fr_female"}
+    voix_compte = _compte_voxtral(
+        {"id": "vchr_eng1", "name": "male us", "languages": ["en"]},
+        {"id": "vchr_fr1", "name": "ma voix", "languages": ["fr"]})
+    urlopen, appels = _urlopen_deux_temps(audio_b64)
+    monkeypatch.setattr(tts, "reglage",
+                        lambda chemin, defaut=None: reglages.get(chemin, defaut))
+    monkeypatch.setattr("urllib.request.urlopen", urlopen)
+    monkeypatch.setattr(tts, "lister_voix_voxtral", lambda: voix_compte)
+    ecrits = []
+    monkeypatch.setattr("core.config.definir",
+                        lambda chemin, valeur: ecrits.append((chemin, valeur)))
+    provider = tts.VoxtralProvider()
+    assert provider.synthetiser("Bonjour") is not None
+    assert provider.voix == "vchr_fr1"
+    assert ecrits == [("voxtral.voix", "vchr_fr1")]
+
+
+def test_voxtral_auto_reparation_resout_voix_vide_au_demarrage(monkeypatch):
+    """voxtral.voix vide : reparation AVANT l'erreur — plus besoin du terminal."""
+    trames = bytes(range(0, 256)) * 20
+    audio_b64 = base64.b64encode(_wav_int16(trames, 24000)).decode()
+    reglages = {"mistral.cle": "cle-test", "voxtral.voix": ""}
+    voix_compte = _compte_voxtral({"id": "vchr_abc123", "name": "fr_female",
+                                   "languages": ["fr"]})
+    def _fausse_urlopen(requete, timeout=None):
+        return _ReponseHTTP(_json.dumps({"audio_data": audio_b64}).encode())
+    monkeypatch.setattr(tts, "reglage",
+                        lambda chemin, defaut=None: reglages.get(chemin, defaut))
+    monkeypatch.setattr("urllib.request.urlopen", _fausse_urlopen)
+    monkeypatch.setattr(tts, "lister_voix_voxtral", lambda: voix_compte)
+    ecrits = []
+    monkeypatch.setattr("core.config.definir",
+                        lambda chemin, valeur: ecrits.append((chemin, valeur)))
+    provider = tts.VoxtralProvider()
+    assert provider.synthetiser("Bonjour") is not None
+    assert provider.voix == "vchr_abc123"
+    assert ecrits == [("voxtral.voix", "vchr_abc123")]
+
+
+def test_voxtral_compte_sans_voix_garde_l_erreur_claire(monkeypatch):
+    """Compte sans aucune voix : une seule tentative, puis l'erreur qui aide."""
+    reglages = {"mistral.cle": "cle-test", "tts.moteur": "voxtral"}
+    monkeypatch.setattr(tts, "reglage", lambda c, d=None: reglages.get(c, d))
+    monkeypatch.setattr(tts, "lister_voix_voxtral", lambda: {"items": []})
+    provider = tts.VoxtralProvider()
+    assert provider.voix == ""
+    with pytest.raises(RuntimeError, match="voix_voxtral"):
+        provider.synthetiser("Bonjour")
+
+
+def test_voxtral_reparation_un_seul_essai_par_instance(monkeypatch):
+    """La resolution echoue (API muette) : pas de boucle, un seul essai."""
+    trames = bytes(range(0, 256)) * 20
+    audio_b64 = base64.b64encode(_wav_int16(trames, 24000)).decode()
+    reglages = {"mistral.cle": "cle-test", "voxtral.voix": "fr_female"}
+    essais = []
+    def _lister():
+        essais.append(1)
+        raise RuntimeError("HTTP 500 : rate limit")
+    urlopen, appels = _urlopen_deux_temps(audio_b64)
+    monkeypatch.setattr(tts, "reglage",
+                        lambda chemin, defaut=None: reglages.get(chemin, defaut))
+    monkeypatch.setattr("urllib.request.urlopen", urlopen)
+    monkeypatch.setattr(tts, "lister_voix_voxtral", _lister)
+    provider = tts.VoxtralProvider()
+    assert provider.synthetiser("Bonjour") is None
+    assert len(essais) == 1
+    assert provider.voix == "fr_female"     # jamais ecrase par un echec
+
+
+def test_voxtral_voix_invalide_se_reconnait_des_erreurs_benignes(monkeypatch):
+    """403 moderation ou coupure reseau : jamais de resolution abusive."""
+    provider = tts.VoxtralProvider()
+    assert provider._voix_invalide("HTTP 404 sur url : invalid_voice") is True
+    assert provider._voix_invalide("HTTP 404 sur url : voice not found") is True
+    assert provider._voix_invalide("HTTP 403 sur url : moderation") is False
+    assert provider._voix_invalide("OSError: plus de reseau") is False
+    assert provider._voix_invalide("") is False
+
+
 # ---------------------------------------------------------------- Gemini TTS
 def test_gemini_choisi_par_la_fabrique(monkeypatch):
     reglages = {"tts.moteur": "gemini", "gemini.cle": "cle-test"}

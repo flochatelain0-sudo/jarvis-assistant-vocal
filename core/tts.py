@@ -217,8 +217,15 @@ class VoxtralProvider(ProviderTTS):
     (liste par scripts/voix_voxtral.py, ou ID d'une voix clonee dans le
     Mistral Studio). Les noms des presets (fr_female...) ne sont PAS des
     identifiants API : la reponse est un 404 invalid_voice. Sortie 24 kHz.
-    Tout echec (reseau, credit epuise, moderation 403) rend None et jarvis14
-    bascule sur la voix de l'OS, comme pour Piper et Kokoro.
+
+    AUTO-REPARATION : si la synthese echoue parce que l'identifiant configure
+    n'est pas une voix du compte (404 invalid_voice, preset colle par erreur),
+    Jarvis liste les voix du compte, en choisit une (meme nom, sinon la
+    premiere voix francaise) et l'ENREGISTRE dans config.yaml : la voix se
+    repare toute seule, sans toucher au terminal.
+
+    Tout autre echec (reseau, credit epuise, moderation 403) rend None et
+    jarvis14 bascule sur la voix de l'OS, comme pour Piper et Kokoro.
     """
 
     nom = "Voxtral"
@@ -227,17 +234,89 @@ class VoxtralProvider(ProviderTTS):
         self.voix = str(reglage("voxtral.voix", "") or "").strip()
         self.modele = str(reglage("voxtral.modele", "voxtral-mini-tts-2603")
                           or "voxtral-mini-tts-2603").strip()
+        self._deja_repare = False
 
     def disponible(self):
         return bool(str(reglage("mistral.cle", "") or "").strip() and self.voix)
 
+    @staticmethod
+    def _voix_invalide(erreur):
+        """Vrai si l'echec vient d'un identifiant de voix inconnu du compte."""
+        texte = str(erreur).lower()
+        if "invalid_voice" in texte or "voice not found" in texte:
+            return True
+        return ("http 404" in texte
+                and ("voice" in texte or "preset" in texte))
+
+    def _reparer_voix(self):
+        """Résout un VRAI identifiant de voix et le sauvegarde dans config.yaml.
+
+        Retourne le nouvel identifiant, ou None si le compte ne liste aucune
+        voix (ou si l'API ne repond pas). Un seul essai par instance : on ne
+        boucle jamais sur un compte sans voix.
+        """
+        if self._deja_repare:
+            return None
+        self._deja_repare = True
+        try:
+            reponse = lister_voix_voxtral()
+        except Exception as e:
+            print(f"  [Voxtral] auto-réparation impossible (liste des voix : {e}).")
+            return None
+        items = (reponse or {}).get("items") or []
+        if not items:
+            return None
+        cible = self.voix.lower()
+        choisie = None
+        for it in items:
+            if not it.get("id"):
+                continue
+            nom = str(it.get("name") or "").strip().lower()
+            if cible and (nom == cible or nom == cible.replace("_", " ")):
+                choisie = it
+                break
+        if choisie is None:
+            francaises = [it for it in items
+                          if it.get("id") and any(
+                              str(l).lower().startswith("fr")
+                              for l in (it.get("languages") or [""]))]
+            choisie = francaises[0] if francaises else items[0]
+        identifiant = str(choisie.get("id")).strip()
+        try:
+            from core.config import definir
+            definir("voxtral.voix", identifiant)
+            self.voix = identifiant
+            nom = str(choisie.get("name") or "?")
+            print(f"  [Voxtral] voix auto-réparée : {nom} "
+                  f"(id {identifiant}) enregistré dans config.yaml.")
+            return identifiant
+        except Exception as e:
+            print(f"  [Voxtral] voix résolue ({identifiant}) mais config.yaml "
+                  f"non réécrit : {e}")
+            return None
+
     def synthetiser(self, texte):
         if not self.voix:
-            raise RuntimeError(
-                "voxtral.voix est vide dans config.yaml : lance "
-                "'uv run python scripts/voix_voxtral.py' pour lister les "
-                "identifiants de voix de ton compte Mistral et choisis-en un.")
+            identifiant = self._reparer_voix()
+            if not identifiant:
+                raise RuntimeError(
+                    "voxtral.voix est vide dans config.yaml : lance "
+                    "'uv run python scripts/voix_voxtral.py' pour lister les "
+                    "identifiants de voix de ton compte Mistral et choisis-en un.")
 
+        resultat = self._appeler(texte)
+        if resultat is None and self._voix_invalide(self._derniere_erreur or ""):
+            print("  [Voxtral] identifiant de voix inconnu du compte — "
+                  "auto-réparation...")
+            if self._reparer_voix():
+                resultat = self._appeler(texte)
+        return resultat
+
+    _derniere_erreur = None
+
+    def _appeler(self, texte):
+        """POST /audio/speech ; None si indisponible, met _derniere_erreur."""
+        self._derniere_erreur = None
         cle = str(reglage("mistral.cle", "") or "").strip()
         if not cle or not self.voix:
             print("  [Voxtral] mistral.cle ou voxtral.voix manquant. "
@@ -270,7 +349,8 @@ class VoxtralProvider(ProviderTTS):
                     donnees = json.loads(reponse.read().decode("utf-8"))
             except urllib.error.HTTPError as e:
                 detail = e.read().decode("utf-8", "replace")[:300]
-                raise RuntimeError(f"HTTP {e.code} sur {e.url} : {detail}")
+                self._derniere_erreur = f"HTTP {e.code} sur {e.url} : {detail}"
+                raise RuntimeError(self._derniere_erreur)
             with wave.open(io.BytesIO(base64.b64decode(donnees["audio_data"]))) as w:
                 frequence = w.getframerate()
                 canaux = w.getnchannels()
@@ -289,6 +369,8 @@ class VoxtralProvider(ProviderTTS):
                 return None
             return audio, frequence
         except Exception as e:
+            if self._derniere_erreur is None:
+                self._derniere_erreur = str(e)
             print(f"  [Voxtral] echec ({e}), repli "
                   f"{plateforme.nom_voix_systeme()}.")
             return None
