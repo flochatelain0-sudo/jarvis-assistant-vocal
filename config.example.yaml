@@ -109,10 +109,6 @@ gemini:                        # alternative a Claude/OpenAI ; palier gratuit su
   cle: ""                      # https://aistudio.google.com/apikey
   modele: "gemini-2.5-flash"   # verifie les noms courants sur ai.google.dev
   modele_qualite: "gemini-2.5-pro"
-  # Voix TTS Gemini (tts.moteur: gemini) : 30 voix, dont Kore et Puck
-  # parlent un francais naturel. Liste complete : ai.google.dev/gemini-api/docs/speech-generation
-  voix_tts: "Kore"             # Kore | Puck | Zephyr | Charon | ...
-  modele_tts: "gemini-2.5-flash-tts"   # ou gemini-2.5-pro-tts (meilleur, plus lent)
   temperature: 0.3
   max_tokens: 1024
 
@@ -131,9 +127,9 @@ mistral:                      # Mistral AI (console.mistral.ai) ; voir docs/mist
   # url: "https://api.mistral.ai/v1"   # API officielle ; laisse ce defaut
 
 tts:
-  moteur: auto                 # auto | piper | kokoro | voxtral | gemini | os
+  moteur: auto                 # auto | piper | kokoro | voxtral | os
                                # auto = voix locale (Piper/Kokoro), sinon la voix de l'OS
-                               # voxtral = voix cloud de Mistral ; gemini = voix cloud Google
+                               # voxtral = voix cloud de Mistral
   voix_systeme: ""             # macOS : voix `say` choisie (ex. "Thomas (ppremium)")
                                # vide = auto-detection de la 1re voix francaise
 

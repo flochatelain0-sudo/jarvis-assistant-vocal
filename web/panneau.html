@@ -129,7 +129,6 @@
           <button data-v="auto">Auto</button>
           <button data-v="piper">Piper</button>
           <button data-v="kokoro">Kokoro</button>
-          <button data-v="gemini">Gemini</button>
           <button data-v="voxtral">Voxtral</button>
           <button data-v="os">OS</button>
         </div>
@@ -470,7 +469,7 @@ async function setReglage(cle,valeur,cibleOuBtn){
   if(cle==='tts.moteur') $$('#seg-tts button').forEach(x=>x.classList.toggle('on',x.dataset.v===valeur));
   const zone={'mode':'#audio-msg','audio.micro':'#audio-msg','audio.haut_parleur':'#audio-msg',
     'assistant.personnalite':'#voix-msg','assistant.duree_suite':'#voix-msg',
-    'gemini.voix_tts':'#tts-msg','tts.voix_systeme':'#tts-msg','voxtral.voix':'#tts-msg',
+    'tts.voix_systeme':'#tts-msg','voxtral.voix':'#tts-msg',
     'assistant.seuil_reveil':'#wake-msg','tts.moteur':'#tts-msg',
     'cloud.fournisseur':'#cloud-etat'}[cle];
   const el=zone?$(zone):null;

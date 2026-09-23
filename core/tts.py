@@ -376,99 +376,6 @@ class VoxtralProvider(ProviderTTS):
             return None
 
 
-# --------------------------------------------------------------- Gemini (cloud)
-class GeminiTTSProvider(ProviderTTS):
-    """Gemini TTS (gemini-2.5-flash-tts / -pro-tts), 30 voix plurilingues.
-
-    Utilise la meme cle que le LLM Gemini (gemini.cle, gratuite sur AI
-    Studio). gemini.voix_tts choisit la voix (defaut : Kore, feminine et
-    naturelle). Sortie PCM 24 kHz mono ; tout echec rend None et jarvis14
-    bascule sur la voix de l'OS, comme pour les autres providers cloud.
-    Requete REST directe (pas de dependance) : generateContent avec
-    responseModalities AUDIO.
-    """
-    nom = "Gemini"
-
-    def __init__(self):
-        self.voix = str(reglage("gemini.voix_tts", "Kore") or "Kore").strip() or "Kore"
-        self.modele = str(reglage("gemini.modele_tts", "gemini-2.5-flash-tts")
-                          or "gemini-2.5-flash-tts").strip()
-
-    def disponible(self):
-        return bool(str(reglage("gemini.cle", "") or "").strip())
-
-    def synthetiser(self, texte):
-        cle = str(reglage("gemini.cle", "") or "").strip()
-        if not cle:
-            return None
-        try:
-            import base64
-            import json
-            import urllib.error
-            import urllib.request
-            import numpy as np
-            url = ("https://generativelanguage.googleapis.com/v1beta/models/"
-                   + self.modele + ":generateContent?key=" + cle)
-            corps = json.dumps({
-                "contents": [{
-                    "parts": [{
-                        "text": f"Dis en francais, naturellement : {texte}"
-                    }]
-                }],
-                "generationConfig": {
-                    "responseModalities": ["AUDIO"],
-                    "speechConfig": {
-                        "voiceConfig": {
-                            "prebuiltVoiceConfig": {"voiceName": self.voix}
-                        }
-                    },
-                },
-            }).encode("utf-8")
-            requete = urllib.request.Request(url, data=corps, method="POST",
-                                             headers={"Content-Type":
-                                                      "application/json"})
-            delai = float(reglage("gemini.timeout", 90) or 90)
-            try:
-                with urllib.request.urlopen(requete, timeout=delai) as reponse:
-                    donnees = json.loads(reponse.read().decode("utf-8"))
-            except urllib.error.HTTPError as e:
-                detail = e.read().decode("utf-8", "replace")[:300]
-                raise RuntimeError(f"HTTP {e.code} sur {e.url} : {detail}")
-            parts = ((donnees.get("candidates") or [{}])[0]
-                     .get("content", {}).get("parts", []))
-            donnees_audio = None
-            mime = ""
-            for part in parts:
-                inline = part.get("inlineData") or {}
-                if inline.get("mimeType", "").startswith("audio/"):
-                    donnees_audio = inline.get("data")
-                    mime = inline.get("mimeType") or ""
-                    break
-            if not donnees_audio:
-                return None
-            # le TTS Gemini renvoie du PCM 16 bits 24 kHz mono (audio/L16)
-            audio = np.frombuffer(base64.b64decode(donnees_audio), dtype=np.int16)
-            frequence = 24000
-            if "wav" in mime:
-                import io
-                import wave
-                with wave.open(io.BytesIO(base64.b64decode(donnees_audio))) as w:
-                    frequence = w.getframerate()
-                    canaux = w.getnchannels()
-                    trames = w.readframes(w.getnframes())
-                audio = np.frombuffer(trames, dtype=np.int16)
-                if canaux > 1:
-                    audio = audio[::canaux]
-            if not len(audio):
-                return None
-            return audio, frequence
-        except Exception as e:
-            print(f"  [Gemini] echec ({e}), repli "
-                  f"{plateforme.nom_voix_systeme()}.")
-            return None
-
-
-
 # --------------------------------------------------------------- diagnostic Voxtral
 
 def lister_voix_voxtral():
@@ -518,7 +425,7 @@ def _provider_local():
 def tts():
     """Provider TTS courant.
 
-    ``tts.moteur`` peut valoir auto/piper/kokoro/voxtral/gemini/os. Voxtral est la
+    ``tts.moteur`` peut valoir auto/piper/kokoro/voxtral/os. Voxtral est la
     voix cloud de Mistral (comme Le Chat) : uniquement en mode hybride ou
     qualite, jamais impose en mode local. En auto, on prend la voix locale
     installee, sinon le repli de l'OS.
@@ -546,12 +453,6 @@ def tts():
                 _TTS = local if local.disponible() else OSProvider()
             else:
                 _TTS = VoxtralProvider()
-        elif moteur == "gemini":
-            if m == "local":
-                local = _provider_local()
-                _TTS = local if local.disponible() else OSProvider()
-            else:
-                _TTS = GeminiTTSProvider()
         else:
             _TTS = OSProvider()
         LOG.info("provider TTS : %s (mode %s)", _TTS.nom, m)
