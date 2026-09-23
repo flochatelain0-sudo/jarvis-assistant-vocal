@@ -171,6 +171,16 @@ def test_page_operator_refuse_le_tunnel():
     assert reponse.status_code == 403
 
 
+def test_page_operator_est_la_console_zoey():
+    """/operator EST la console ZOEY OS : meme build React que /console."""
+    app = _app_routes()
+    corps = dict(app.routes)["/operator"](_Req()).body
+    assert b"ZOEY_OS" in corps
+    assert b"/api/operator/message" in corps
+    assert b"/api/operator/reponse/" in corps
+    assert b"/api/operator/etat" in corps
+
+
 def test_page_console_refuse_le_tunnel():
     app = _app_routes()
     page = dict(app.routes)["/console"]

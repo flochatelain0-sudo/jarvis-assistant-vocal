@@ -410,28 +410,15 @@ def monter_routes(app):
                                     status_code=415)
         return None
 
-    html = _RACINE / "web" / "operator.html"
+    # /operator ET /console servent la console ZOEY OS (web/console.html,
+    # build React inline) : orbe vivant + conversation sur le meme moteur
+    # (chat ecrit, fil vocal, validations). L'ancienne page operator.html
+    # reste dans web/ si on veut la rebrancher un jour.
     html_console = _RACINE / "web" / "console.html"
 
-    _PAGE_CACHE = {"contenu": None}
     _PAGE_CACHE_CONSOLE = {"contenu": None}
 
-    @app.get("/operator")
-    def operator_page(request: Request):
-        refus = garde(request)
-        if refus:
-            return refus
-        if not html.exists():
-            return HTMLResponse("<h1>Operator</h1><p>web/operator.html manquant.</p>",
-                                status_code=500)
-        if _PAGE_CACHE["contenu"] is None:
-            _PAGE_CACHE["contenu"] = html.read_text(encoding="utf-8")
-        return HTMLResponse(_PAGE_CACHE["contenu"])
-
-    @app.get("/console")
-    def console_page(request: Request):
-        """La console ZOEY OS : orbe vivant + conversation, meme moteur que
-        l'Operator (chat ecrit, fil vocal, validations) — local uniquement."""
+    def _servir_console(request: Request):
         refus = garde(request)
         if refus:
             return refus
@@ -441,6 +428,16 @@ def monter_routes(app):
         if _PAGE_CACHE_CONSOLE["contenu"] is None:
             _PAGE_CACHE_CONSOLE["contenu"] = html_console.read_text(encoding="utf-8")
         return HTMLResponse(_PAGE_CACHE_CONSOLE["contenu"])
+
+    @app.get("/operator")
+    def operator_page(request: Request):
+        """La page Operator EST la console ZOEY OS — local uniquement."""
+        return _servir_console(request)
+
+    @app.get("/console")
+    def console_page(request: Request):
+        """Alias de /operator : meme console ZOEY OS."""
+        return _servir_console(request)
 
     @app.get("/api/operator/etat")
     def api_etat(request: Request):
