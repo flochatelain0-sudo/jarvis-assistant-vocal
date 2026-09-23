@@ -200,3 +200,14 @@ def test_route_mails_negative():
     from tools.mail_operateur import router_compte_rendu_mails
     assert router_compte_rendu_mails("quelle heure est-il") is None
     assert router_compte_rendu_mails("mets la météo") is None
+
+
+def test_reponse_message_ne_duplique_pas():
+    from core import operator
+    operator._CONVERSATION.clear()
+    operator.reponse_vue("Identique.")
+    operator.reponse_message(1, "Identique.")
+    operator.reponse_message(2, "Different.")
+    textes = [m["texte"] for m in operator.conversation()]
+    assert textes.count("Identique.") == 1
+    assert "Different." in textes

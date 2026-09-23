@@ -353,11 +353,17 @@ def etat_traitement():
 
 
 def reponse_message(ident, texte):
-    """Depose la reponse de l'assistant pour la page (et l'affiche)."""
+    """Depose la reponse de l'assistant pour la page (et l'affiche).
+    Anti-doublon : si le meme texte vient d'etre depose (reponse_vue), on
+    ne le reinjecte pas."""
+    texte = str(texte or "")[:2000]
     with _VERROU:
-        _REPONSES[ident] = (str(texte or "")[:2000], time.time())
-        _CONVERSATION.append({"role": "jarvis", "texte": str(texte or "")[:2000],
-                             "ts": time.time()})
+        _REPONSES[ident] = (texte, time.time())
+        derniers = _CONVERSATION[-3:]
+        if not any(m.get("texte") == texte and m.get("role") == "jarvis"
+                  for m in derniers):
+            _CONVERSATION.append({"role": "jarvis", "texte": texte,
+                                 "ts": time.time()})
         del _CONVERSATION[:-_MAX_CONV]
         # purger les reponses de plus de 10 minutes : pas de fuite memoire
         limite = time.time() - 600
@@ -392,7 +398,8 @@ def reponse_vue(texte):
     reponse identique consecutive n'est pas reinjectee."""
     texte = str(texte or "")[:2000]
     with _VERROU:
-        if _CONVERSATION and _CONVERSATION[-1].get("texte") == texte:
+        if any(m.get("texte") == texte and m.get("role") == "jarvis"
+               for m in _CONVERSATION[-3:]):
             return
         _CONVERSATION.append({"role": "jarvis", "texte": texte,
                               "ts": time.time()})

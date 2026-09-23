@@ -157,11 +157,8 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, onNouveauBut, j
     if (!texte || reflechir) return
     setSaisie('')
     setReflechir(true)
-    const reponse = await attendreReponse(texte)
+    await attendreReponse(texte)
     setReflechir(false)
-    if (reponse !== null) {
-      setMessages((p) => [...p, { id: ++compteur, role: 'zoey', texte: reponse, ts: maintenant() }])
-    }
   }
 
   if (!ouverte) {
