@@ -305,6 +305,33 @@ def _carte_compte_rendu(familles: dict) -> None:
         LOG.exception("mail_operateur : injection carte mails impossible")
 
 
+def router_compte_rendu_mails(phrase: str):
+    """Route deterministe : les formulations de compte rendu mail declenchent
+    directement l'outil, sans passer par le LLM (qui improvise parfois une
+    reponse sans appeler l'outil -> ni carte ni action dans la console).
+    Renvoie (nom_outil, arguments) ou None."""
+    p = _sans_accent(phrase)
+    if not any(mot in p for mot in ("mail", "email", "courriel", "boite")):
+        return None
+    intentions_rendu = (
+        "compte rendu", "compte-rendu", "recap", "resume", "resume moi",
+        "quels mails", "quels email", "qu est ce que j ai recu",
+        "qu ai je recu", "mes mails du jour", "mes mails d aujourd hui",
+        "j ai quoi comme mail", "j ai recu quoi",
+    )
+    intentions_tri = (
+        "traite mes mails", "fais le tri", "trie mes mails",
+        "fais le tri de ma boite", "mes mails du matin", "ou j en suis sur mes mails",
+    )
+    if any(mot in p for mot in intentions_tri):
+        return "operateur_mails", {}
+    if any(mot in p for mot in ("lire", "lis mes", "j ai quoi")):
+        return "lire_mails", {}
+    if any(mot in p for mot in intentions_rendu):
+        return "compte_rendu_mails", {}
+    return None
+
+
 def domaine_entreprise() -> str:
     try:
         from core.config import reglage

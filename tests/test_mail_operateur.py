@@ -184,3 +184,19 @@ def test_boite_vide(bac, monkeypatch):
     imap_vide.uid = _uid_vide
     monkeypatch.setattr(m, "_imap", lambda: imap_vide)
     assert "vide" in mo.operateur_mails().lower()
+
+
+def test_route_compte_rendu_mails():
+    from tools.mail_operateur import router_compte_rendu_mails
+    assert router_compte_rendu_mails("compte rendu de mes mails") == \
+        ("compte_rendu_mails", {})
+    assert router_compte_rendu_mails("récap de mes emails") == \
+        ("compte_rendu_mails", {})
+    assert router_compte_rendu_mails("traite mes mails") == \
+        ("operateur_mails", {})
+
+
+def test_route_mails_negative():
+    from tools.mail_operateur import router_compte_rendu_mails
+    assert router_compte_rendu_mails("quelle heure est-il") is None
+    assert router_compte_rendu_mails("mets la météo") is None

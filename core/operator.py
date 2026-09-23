@@ -385,6 +385,20 @@ def question_validation(ident, outil, niv, annonce):
         del _CONVERSATION[:-_MAX_CONV]
 
 
+def reponse_vue(texte):
+    """Depose une reponse vocale dans la conversation de la console : meme
+    quand la reponse ne vient PAS du pipeline ecrit (reponse vocale, route
+    prioritaire), elle s'affiche dans le fil. Dedup sur le texte : une
+    reponse identique consecutive n'est pas reinjectee."""
+    texte = str(texte or "")[:2000]
+    with _VERROU:
+        if _CONVERSATION and _CONVERSATION[-1].get("texte") == texte:
+            return
+        _CONVERSATION.append({"role": "jarvis", "texte": texte,
+                              "ts": time.time()})
+        del _CONVERSATION[:-_MAX_CONV]
+
+
 def conversation():
 
     """Derniers echanges, pour affichage immediat a l'ouverture de la page."""

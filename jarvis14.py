@@ -802,6 +802,16 @@ def _repondre_route_prioritaire_commune(historique):
             _hud("etat", "reflexion")
             texte = executer_controle(decision.tache)
         nom_outil = "controle_pc_astra"
+        try:
+            from core import operator
+            operator.journaliser(_categorie(nom_outil),
+                                 f"Action executee : {nom_outil}",
+                                 str(texte)[:200])
+            operator.action_vue(_categorie(nom_outil),
+                                f"Action executee : {nom_outil}",
+                                decision.tache[:200])
+        except Exception:
+            pass
 
     elif decision.type == "vision":
         from tools.ecran import analyser_ecran
@@ -813,6 +823,16 @@ def _repondre_route_prioritaire_commune(historique):
         texte = analyser_ecran(decision.tache)
         fil_vision.join()
         nom_outil = "capture_screen"
+        try:
+            from core import operator
+            operator.journaliser(_categorie(nom_outil),
+                                 f"Action executee : {nom_outil}",
+                                 decision.tache[:200])
+            operator.action_vue(_categorie(nom_outil),
+                                f"Action executee : {nom_outil}",
+                                decision.tache[:200])
+        except Exception:
+            pass
 
     elif decision.type == "hermes":
         from tools.deleguer_a_hermes import deleguer_en_fond
@@ -822,6 +842,16 @@ def _repondre_route_prioritaire_commune(historique):
             nom_thread="contenu-hermes",
         )
         nom_outil = "deleguer_a_hermes"
+        try:
+            from core import operator
+            operator.journaliser(_categorie(nom_outil),
+                                 f"Action executee : {nom_outil}",
+                                 decision.tache[:200])
+            operator.action_vue(_categorie(nom_outil),
+                                f"Action executee : {nom_outil}",
+                                decision.tache[:200])
+        except Exception:
+            pass
 
     else:
         nom_outil = decision.outil
@@ -854,6 +884,13 @@ def _repondre_route_prioritaire_commune(historique):
         texte = str(resultats[0]["content"] if resultats else "C'est fait.")
 
     historique.append({"role": "assistant", "content": texte})
+    try:
+        from core import operator
+        if not any(m.get("texte") == str(texte)[:2000]
+                   for m in operator.conversation()[-3:]):
+            operator.reponse_vue(str(texte)[:2000])
+    except Exception:
+        pass
     _hud("outil", nom_outil, question[:60])
     _hud("etat", "parole")
     if texte and not _INTERRUPTION.is_set():
@@ -1507,6 +1544,11 @@ def traiter(audio, whisper, historique, flux, reveil):
             _hud("etat", "parole")
             dire(texte)
 
+    try:
+        from core import operator
+        operator.reponse_vue(texte)
+    except Exception:
+        pass
     _hud("dire_jarvis", texte)
     _afficher_overlay(texte)
     _hud_status()
