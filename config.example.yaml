@@ -130,6 +130,13 @@ mistral:                      # Mistral AI (console.mistral.ai) ; voir docs/mist
   max_retries: 1
   # url: "https://api.mistral.ai/v1"   # API officielle ; laisse ce defaut
 
+agent_mistral:                 # Agent Mistral (Agents API, outils serveur)
+  agent_id: ""                 # vide = mode direct : modele + connecteurs ci-dessous
+  modele: "mistral-small-latest"
+  connecteurs: ["web_search"]  # outils SERVEUR : rien de local, aucun risque
+  resume_max: 500              # caracteres lus a voix haute
+  timeout: 300                 # secondes max par delegation
+
 tts:
   moteur: auto                 # auto | piper | kokoro | voxtral | os
                                # auto = voix locale (Piper/Kokoro), sinon la voix de l'OS
