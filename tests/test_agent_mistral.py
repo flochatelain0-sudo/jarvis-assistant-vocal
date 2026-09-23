@@ -162,3 +162,71 @@ def test_outil_enregistre_et_protege():
     outil = registre.get("deleguer_agent_mistral")
     assert outil is not None
     assert outil.mcp_expose is False     # jamais declenchable a distance
+
+
+def test_deleguer_en_fond_bascule_sur_mistral(monkeypatch):
+    """deleguer_en_fond (utilise partout) doit passer par l'agent Mistral
+    des qu'il est configure ; Hermes n'est plus qu'un repli."""
+    from tools import deleguer_a_hermes
+
+    appels = {"mistral": 0, "hermes": 0}
+    monkeypatch.setattr(agent_mistral, "agent_disponible", lambda: True)
+    monkeypatch.setattr(agent_mistral, "_appeler",
+                        lambda tache: appels.__setitem__(
+                            "mistral", appels["mistral"] + 1) or "Resultat Mistral.")
+    monkeypatch.setattr(deleguer_a_hermes, "_appeler_hermes",
+                        lambda tache, session="": appels.__setitem__(
+                            "hermes", appels["hermes"] + 1) or ("Hermes", 0, 0, ""))
+    monkeypatch.setattr(deleguer_a_hermes, "_ajouter_tache",
+                        lambda session, tache: {"id": "t1", "session": "s"})
+    monkeypatch.setattr(deleguer_a_hermes, "_finir_tache",
+                        lambda *a, **k: None)
+    monkeypatch.setattr(deleguer_a_hermes, "_journaliser",
+                        lambda tache, resultat: None)
+    monkeypatch.setattr(deleguer_a_hermes, "_maj_tokens", lambda: None)
+    monkeypatch.setattr(deleguer_a_hermes, "_pousser_hud", lambda: None)
+    monkeypatch.setattr(deleguer_a_hermes.voix, "parler", lambda texte: None)
+    monkeypatch.setattr("core.confidentialite.filtrer",
+                        lambda texte, max_car=500: str(texte))
+
+    accuse = deleguer_a_hermes.deleguer_en_fond("veille concurrentielle")
+    assert "agent Mistral" in accuse
+    limite = time.time() + 5
+    while time.time() < limite and appels["mistral"] == 0:
+        time.sleep(0.05)
+    assert appels["mistral"] == 1
+    assert appels["hermes"] == 0        # Hermes n'est JAMAIS appele si Mistral est la
+
+
+def test_deleguer_en_fond_repli_hermes(monkeypatch):
+    """Sans cle Mistral, la delegation redescend proprement vers Hermes."""
+    from tools import deleguer_a_hermes
+
+    appels = {"mistral": 0, "hermes": 0}
+    monkeypatch.setattr(agent_mistral, "agent_disponible", lambda: False)
+    monkeypatch.setattr(agent_mistral, "_appeler",
+                        lambda tache: appels.__setitem__(
+                            "mistral", appals := appels["mistral"] + 1) or "")
+    monkeypatch.setattr(deleguer_a_hermes, "_appeler_hermes",
+                        lambda tache, session="": appels.__setitem__(
+                            "hermes", appels["hermes"] + 1)
+                        or ("Resultat Hermes.", 0, 0, ""))
+    monkeypatch.setattr(deleguer_a_hermes, "_ajouter_tache",
+                        lambda session, tache: {"id": "t1", "session": "s"})
+    monkeypatch.setattr(deleguer_a_hermes, "_finir_tache",
+                        lambda *a, **k: None)
+    monkeypatch.setattr(deleguer_a_hermes, "_journaliser",
+                        lambda tache, resultat: None)
+    monkeypatch.setattr(deleguer_a_hermes, "_maj_tokens", lambda: None)
+    monkeypatch.setattr(deleguer_a_hermes, "_pousser_hud", lambda: None)
+    monkeypatch.setattr(deleguer_a_hermes.voix, "parler", lambda texte: None)
+    monkeypatch.setattr("core.confidentialite.filtrer",
+                        lambda texte, max_car=500: str(texte))
+
+    accuse = deleguer_a_hermes.deleguer_en_fond("analyse de fond")
+    assert "Hermes" in accuse
+    limite = time.time() + 5
+    while time.time() < limite and appels["hermes"] == 0:
+        time.sleep(0.05)
+    assert appels["hermes"] == 1
+    assert appels["mistral"] == 0

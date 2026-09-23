@@ -409,10 +409,25 @@ def deleguer_en_fond(tache: str, intro: str = "Hermes a termine. ",
     t = _ajouter_tache(session, tache)
     session_effective = t["session"]
 
+    # Mistral d'abord (outils serveur : web search, code interpreter) ;
+    # Hermes ne sert plus que de repli si l'agent Mistral est indisponible.
+    via_mistral = False
+    try:
+        from tools import agent_mistral
+        via_mistral = agent_mistral.agent_disponible()
+    except Exception:
+        via_mistral = False
+
     def worker():
         try:
-            resultat, tokens, cout, modele_utilise = _appeler_hermes(
-                tache, session_effective)
+            if via_mistral:
+                texte = agent_mistral._appeler(tache)
+                resultat, tokens, cout, modele_utilise = (
+                    texte, None, None,
+                    str(reglage("agent_mistral.modele", "mistral") or "mistral"))
+            else:
+                resultat, tokens, cout, modele_utilise = _appeler_hermes(
+                    tache, session_effective)
             _journaliser(tache, resultat)
             resume = confidentialite.filtrer(
                 _resume_vocal(resultat), max_car=int(reglage("hermes.resume_max", 500)))
@@ -430,14 +445,15 @@ def deleguer_en_fond(tache: str, intro: str = "Hermes a termine. ",
                 pass
         except Exception as e:
             _finir_tache(t, "echouee", resume=str(e)[:120])
-            voix.parler("La delegation a Hermes a echoue. "
+            voix.parler("La delegation a l'agent Mistral a echoue. "
                         + confidentialite.filtrer(str(e), 120))
         finally:
             _maj_tokens()                         # conso Hermes mise a jour apres la tache
             _pousser_hud()
     threading.Thread(target=worker, daemon=True,
                      name=f"{nom_thread}-{t['id']}").start()
-    return "Je confie ça à Hermes. Je te préviens dès que c'est prêt."
+    qui = ("l'agent Mistral" if via_mistral else "Hermes")
+    return (f"Je confie ça à {qui}. Je te préviens dès que c'est prêt.")
 
 
 @outil(
