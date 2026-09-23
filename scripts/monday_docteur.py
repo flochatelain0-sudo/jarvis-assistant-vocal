@@ -59,7 +59,7 @@ def main():
         donnees, erreurs = _requete(
             """query ($b: [ID!], $n: Int!, $c: String) { boards(ids: $b) { name
                 items_page(limit: $n, cursor: $c) { cursor items { name
-                  column_values { id title text } } } } }""",
+                  column_values { id text column { title } } } } } }""",
             variables)
     except Exception as e:
         print(f"   ECHEC reseau/HTTP : {e}")

@@ -216,7 +216,7 @@ def test_ouverture_du_site_monday_n_est_pas_une_lecture_crm():
 # ---------------------------------------------------------------- briefing
 
 def _reponse_items(nom="Acme", colonnes=None):
-    colonnes = colonnes or [{"id": "statut", "title": "Statut", "text": "En cours"}]
+    colonnes = colonnes or [{"id": "statut", "column": {"title": "Statut"}, "text": "En cours"}]
     return ({"boards": [{"name": "Clients", "items_page": {
         "cursor": None,
         "items": [{"id": "42", "name": nom,
@@ -227,8 +227,8 @@ def test_brief_client_affiche_la_fiche_et_les_questions(monkeypatch):
     from tools import monday
     _reglages(monkeypatch, token="tok", tableau="123")
     _mock_requete(monkeypatch, _reponse_items("Acme", [
-        {"id": "a", "title": "Budget", "text": "285 000 euros"},
-        {"id": "b", "title": "Statut", "text": "En cours"},
+        {"id": "a", "column": {"title": "Budget"}, "text": "285 000 euros"},
+        {"id": "b", "column": {"title": "Statut"}, "text": "En cours"},
     ]))
     cartes = []
     monkeypatch.setattr("core.operator.carte_briefing", cartes.append)
@@ -312,11 +312,11 @@ def test_etat_crm_expose_les_kpis_business(monkeypatch):
     _mock_requete(monkeypatch, ({"boards": [{"name": "CRM", "items_page": {
         "items": [
             {"name": "Acme", "column_values": [
-                {"title": "Statut", "text": "Signé"},
-                {"title": "Montant", "text": "285 000 €"}]},
+                {"column": {"title": "Statut"}, "text": "Signé"},
+                {"column": {"title": "Montant"}, "text": "285 000 €"}]},
             {"name": "Beta", "column_values": [
-                {"title": "Statut", "text": "Négociation"},
-                {"title": "Montant", "text": "150000"}]},
+                {"column": {"title": "Statut"}, "text": "Négociation"},
+                {"column": {"title": "Montant"}, "text": "150000"}]},
         ]}}]}, []))
     from tools import monday
     etat = monday.etat_crm()
@@ -330,10 +330,10 @@ def test_fiche_client_renvoie_toutes_les_colonnes(monkeypatch):
     _reglages(monkeypatch, token="tok", tableau="42")
     reponse = {"boards": [{"name": "CRM", "items_page": {"items": [
         {"name": "Acme", "id": "7", "column_values": [
-            {"title": "Statut", "text": "Negociation"},
-            {"title": "Montant", "text": "285 000 EUR"},
-            {"title": "Historique", "text": "R1 le 3 septembre"},
-            {"title": "Contact", "text": "pierre@acme.fr"},
+            {"column": {"title": "Statut"}, "text": "Negociation"},
+            {"column": {"title": "Montant"}, "text": "285 000 EUR"},
+            {"column": {"title": "Historique"}, "text": "R1 le 3 septembre"},
+            {"column": {"title": "Contact"}, "text": "pierre@acme.fr"},
         ]}]}}]}
     _mock_requete(monkeypatch, (reponse, []))
     from tools import monday
@@ -396,11 +396,11 @@ def test_etat_crm_expose_le_pipeline(monkeypatch):
     _reglages(monkeypatch, token="tok", tableau="42")
     reponse = {"boards": [{"name": "CRM", "items_page": {"items": [
         {"name": "A", "column_values": [
-            {"title": "Statut", "text": "R1 à venir"},
-            {"title": "Montant", "text": "100000"}]},
+            {"column": {"title": "Statut"}, "text": "R1 à venir"},
+            {"column": {"title": "Montant"}, "text": "100000"}]},
         {"name": "B", "column_values": [
-            {"title": "Statut", "text": "R2"},
-            {"title": "Montant", "text": "200000"}]},
+            {"column": {"title": "Statut"}, "text": "R2"},
+            {"column": {"title": "Montant"}, "text": "200000"}]},
     ]}}]}
     _mock_requete(monkeypatch, (reponse, []))
     from tools import monday
@@ -414,13 +414,13 @@ def test_a_relancer_trouve_les_statuts_d_attente(monkeypatch):
     _reglages(monkeypatch, token="tok", tableau="42")
     reponse = {"boards": [{"name": "CRM", "items_page": {"items": [
         {"name": "Lopez", "column_values": [
-            {"title": "Statut", "text": "À relancer"}]},
+            {"column": {"title": "Statut"}, "text": "À relancer"}]},
         {"name": "Martin", "column_values": [
-            {"title": "Statut", "text": "En attente de réponse"}]},
+            {"column": {"title": "Statut"}, "text": "En attente de réponse"}]},
         {"name": "Acme", "column_values": [
-            {"title": "Statut", "text": "Négociation"}]},
+            {"column": {"title": "Statut"}, "text": "Négociation"}]},
         {"name": "Vendu", "column_values": [
-            {"title": "Statut", "text": "Signé"}]},
+            {"column": {"title": "Statut"}, "text": "Signé"}]},
     ]}}]}
     _mock_requete(monkeypatch, (reponse, []))
     from tools import monday

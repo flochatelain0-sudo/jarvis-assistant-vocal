@@ -416,7 +416,7 @@ def etat_crm():
             donnees, erreurs = _requete(
                 """query ($b: [ID!], $n: Int!, $c: String) { boards(ids: $b) { name
                     items_page(limit: $n, cursor: $c) { cursor items { name
-                      column_values { id title text } } } } }""",
+                      column_values { id text column { title } } } } } }""",
                 variables,
             )
             if erreurs:
@@ -432,8 +432,8 @@ def etat_crm():
                 for cv in it.get("column_values") or []:
                     texte = cv.get("text") or ""
                     if texte and len(colonnes) < 6:
-                        colonnes.append({"titre": cv.get("title") or cv.get("id") or "",
-                                         "valeur": texte[:60]})
+                        titre = (cv.get("column") or {}).get("title") or cv.get("id") or ""
+                        colonnes.append({"titre": titre, "valeur": texte[:60]})
                 items.append({
                     "nom": it.get("name", ""),
                     "colonnes": colonnes,
@@ -466,7 +466,7 @@ def _chercher_items(nom, limite=30):
         donnees, erreurs = _requete(
             """query ($b: [ID!], $n: Int!, $c: String) { boards(ids: $b) {
                  items_page(limit: $n, cursor: $c) { cursor items { id name
-                   column_values { id title text } } } } }""",
+                   column_values { id text column { title } } } } } }""",
             variables,
         )
         if erreurs:
@@ -483,7 +483,7 @@ def _chercher_items(nom, limite=30):
             for cv in it.get("column_values") or []:
                 texte = cv.get("text") or ""
                 if texte:
-                    colonnes.append((cv.get("title") or "", texte[:80]))
+                    colonnes.append((((cv.get("column") or {}).get("title")) or "", texte[:80]))
             items.append((it.get("id"), nom_item, colonnes))
             if len(items) >= limite:
                 return items
