@@ -1,5 +1,13 @@
 """Messagerie Gmail (IMAP/SMTP) : lire, lire en detail, brouillon, envoi, corbeille.
 
+Deux authentifications possibles, choisies automatiquement :
+
+  - OAuth 2.0 (XOAUTH2) si mail.oauth vaut true. C'est LE chemin sur Google
+    Workspace, ou l'administrateur peut interdire les mots de passe
+    d'application. Consentement une fois par navigateur :
+    uv run python scripts/google_login.py mail
+  - mot de passe d'application, sinon (compte Google personnel avec 2FA).
+
 envoyer_mail et mettre_a_la_corbeille sont marques confirmation=True : le systeme
 demande l'accord vocal de l'utilisateur avant d'agir.
 """
@@ -24,15 +32,62 @@ _BROUILLON = {}
 
 # UID des mails du dernier lire_mails, pour lire_mail / corbeille par numero.
 _DERNIERS_MAILS = []
+# Etiquette de tri du dernier lire_mails (uid -> "poubelle"), pour vider_poubelle.
+_ETIQUETTES = {}
+
+
+def _oauth_actif():
+    """Vrai si on doit s'authentifier en OAuth plutot qu'en mot de passe."""
+    return bool(reglage("mail.oauth", False))
 
 
 def _mail_configure():
-    return bool(MAIL_ADRESSE and MAIL_MOT_DE_PASSE_APP)
+    if not MAIL_ADRESSE:
+        return False
+    return _oauth_actif() or bool(MAIL_MOT_DE_PASSE_APP)
 
 
 def _mail_mdp():
     """Mot de passe d'application sans espaces (Google l'affiche par groupes)."""
     return MAIL_MOT_DE_PASSE_APP.replace(" ", "")
+
+
+def _jeton_oauth():
+    """Jeton d'acces Google, rafraichi si besoin. Leve si pas encore autorise."""
+    from core import google_oauth
+    creds = google_oauth.identifiants(
+        google_oauth.SCOPES_MAIL,
+        google_oauth.chemin("mail.token", "google_token_mail.json"),
+        interactif=False)          # jamais de navigateur depuis l'assistant
+    return creds.token
+
+
+def _imap():
+    """Connexion IMAP authentifiee, quelle que soit la methode configuree."""
+    imap = imaplib.IMAP4_SSL(IMAP_SERVEUR)
+    if _oauth_actif():
+        from core.google_oauth import chaine_xoauth2
+        chaine = chaine_xoauth2(MAIL_ADRESSE, _jeton_oauth())
+        imap.authenticate("XOAUTH2", lambda _: chaine.encode())
+    else:
+        imap.login(MAIL_ADRESSE, _mail_mdp())
+    return imap
+
+
+def _smtp():
+    """Connexion SMTP authentifiee, quelle que soit la methode configuree."""
+    smtp = smtplib.SMTP_SSL(SMTP_SERVEUR, SMTP_PORT)
+    if _oauth_actif():
+        import base64
+        from core.google_oauth import chaine_xoauth2
+        chaine = chaine_xoauth2(MAIL_ADRESSE, _jeton_oauth())
+        code, reponse = smtp.docmd(
+            "AUTH", "XOAUTH2 " + base64.b64encode(chaine.encode()).decode())
+        if code != 235:
+            raise smtplib.SMTPAuthenticationError(code, reponse)
+    else:
+        smtp.login(MAIL_ADRESSE, _mail_mdp())
+    return smtp
 
 
 def _decoder_entete(valeur):
@@ -79,8 +134,7 @@ def lire_mails(nombre: int = 5) -> str:
         return "La messagerie n'est pas configuree."
     nombre = max(1, min(int(nombre), 10))
     try:
-        imap = imaplib.IMAP4_SSL(IMAP_SERVEUR)
-        imap.login(MAIL_ADRESSE, _mail_mdp())
+        imap = _imap()
         imap.select("INBOX")
         # On travaille en UID : stables meme apres une mise a la corbeille.
         _, donnees = imap.uid("search", None, "ALL")
@@ -88,6 +142,7 @@ def lire_mails(nombre: int = 5) -> str:
         derniers = ids[-nombre:][::-1]     # les plus recents d'abord
         _DERNIERS_MAILS.clear()
         _DERNIERS_MAILS.extend(derniers)
+        _ETIQUETTES.clear()
         lignes = []
         for i, num in enumerate(derniers, 1):
             # BODY.PEEK : lire sans marquer le mail comme lu.
@@ -101,13 +156,48 @@ def lire_mails(nombre: int = 5) -> str:
                 elif bas.startswith("subject:"):
                     sujet = _decoder_entete(ligne[8:].strip())
             nom, adresse = parseaddr(exp)
-            lignes.append(f"{i}. De {nom or adresse or exp} : « {sujet or 'sans objet'} »")
+            etiquette = _etiqueter_spam(adresse or exp, sujet)
+            if etiquette:
+                _ETIQUETTES[num] = etiquette
+            lignes.append(f"{i}. De {nom or adresse or exp} : "
+                          f"« {sujet or 'sans objet'} »"
+                          + (f" [{etiquette}]" if etiquette else ""))
         imap.logout()
         if not lignes:
             return "Ta boite de reception est vide."
-        return "Tes derniers mails. " + " ".join(lignes)
+        poubelle = [l.split(".")[0] for l in lignes if "[poubelle]" in l]
+        conclusion = ("Tes derniers mails. " + " ".join(lignes))
+        if poubelle:
+            conclusion += (
+                " Les mails marques [poubelle] sont des spams, pubs ou "
+                "newsletters sans valeur : propose de les mettre a la "
+                "corbeille avec vider_poubelle (une seule confirmation "
+                "pour tout le lot) ou mettre_a_la_corbeille (un par un).")
+        return conclusion
     except Exception as e:
         return f"Impossible de lire les mails : {e}"
+
+
+_MOTS_PUBLI = ("newsletter", "unsubscribe", "desabonner", "desinscription",
+               "promo", "promotion", "solde", "soldes", "-20%", "-30%",
+               "marketing", "no-reply", "noreply", "donotreply", "notification")
+
+
+def _etiqueter_spam(adresse, sujet):
+    """Etiquette heuristique d'un mail sans valeur : pub, newsletter, spam.
+    Renvoie 'poubelle' ou ''. Jamais une exception : le tri reste informatif,
+    la suppression reste une action confirmee (mettre_a_la_corbeille)."""
+    a = (adresse or "").lower()
+    s = (sujet or "").lower()
+    if any(mot in a for mot in ("noreply", "no-reply", "donotreply")):
+        if any(mot in s for mot in _MOTS_PUBLI):
+            return "poubelle"
+    if any(mot in s for mot in ("newsletter", "unsubscribe", "desabonner",
+                                "desinscription")):
+        return "poubelle"
+    if any(b in s for b in ("-20%", "-30%", "-50%", "soldes", "black friday")):
+        return "poubelle"
+    return ""
 
 
 @outil(
@@ -136,8 +226,7 @@ def lire_mail(numero: int = 1) -> str:
     if numero < 1 or numero > len(_DERNIERS_MAILS):
         return f"Je n'ai pas de mail numero {numero}."
     try:
-        imap = imaplib.IMAP4_SSL(IMAP_SERVEUR)
-        imap.login(MAIL_ADRESSE, _mail_mdp())
+        imap = _imap()
         imap.select("INBOX")
         num = _DERNIERS_MAILS[numero - 1]
         _, d = imap.uid("fetch", num, "(BODY.PEEK[])")
@@ -191,6 +280,25 @@ def _annonce_envoi(args):
     return f"Je vais envoyer le mail a {dest}."
 
 
+def brouillon():
+    """Le brouillon en cours, pour la page Operator (edition avant envoi)."""
+    return dict(_BROUILLON)
+
+
+def modifier_brouillon(destinataire=None, sujet=None, corps=None):
+    """Modifie le brouillon en cours depuis la page Operator. Renvoie False
+    s'il n'y a pas de brouillon."""
+    if not _BROUILLON:
+        return False
+    if destinataire is not None and destinataire.strip():
+        _BROUILLON["destinataire"] = destinataire.strip()
+    if sujet is not None and sujet.strip():
+        _BROUILLON["sujet"] = sujet.strip()
+    if corps is not None and corps.strip():
+        _BROUILLON["corps"] = corps.strip()
+    return True
+
+
 @outil(
     nom="envoyer_mail",
     description="Envoie le brouillon prepare. A appeler quand l'utilisateur veut "
@@ -208,8 +316,7 @@ def envoyer_mail() -> str:
         msg["To"] = _BROUILLON["destinataire"]
         msg["Subject"] = _BROUILLON["sujet"]
         msg.set_content(_BROUILLON["corps"])
-        with smtplib.SMTP_SSL(SMTP_SERVEUR, SMTP_PORT) as smtp:
-            smtp.login(MAIL_ADRESSE, _mail_mdp())
+        with _smtp() as smtp:
             smtp.send_message(msg)
         destinataire = _BROUILLON["destinataire"]
         _BROUILLON.clear()
@@ -238,6 +345,51 @@ def _annonce_corbeille(args):
     confirmation=True,
     annonce=_annonce_corbeille,
 )
+def _annonce_lot(args):
+    return ("Je vais mettre a la corbeille TOUS les mails marques [poubelle] "
+            "de la derniere liste.")
+
+
+@outil(
+    nom="vider_poubelle",
+    description="Met a la corbeille d'un coup tous les mails marques "
+                "[poubelle] de la derniere liste, avec UNE seule confirmation "
+                "pour tout le lot. Recuperable 30 jours. A utiliser quand "
+                "l'utilisateur dit 'jette tous les spams' ou 'vide les pubs'.",
+    parametres={"type": "object", "properties": {}},
+    confirmation=True,
+    annonce=_annonce_lot,
+)
+def vider_poubelle() -> str:
+    """Corbeille par lot : tous les [poubelle] de la derniere liste."""
+    if not _mail_configure():
+        return "La messagerie n'est pas configuree."
+    if not _DERNIERS_MAILS:
+        return "Demande-moi d'abord de lister tes mails."
+    cibles = [(i, u) for i, u in enumerate(_DERNIERS_MAILS, 1)
+              if _ETIQUETTES.get(u) == "poubelle"]
+    if not cibles:
+        return ("Aucun mail marque [poubelle] dans la derniere liste : "
+                "rien a jeter.")
+    deplaces, echecs = 0, 0
+    try:
+        imap = _imap()
+        imap.select("INBOX")
+        for _, uid in cibles:
+            try:
+                imap.uid("store", uid, "+X-GM-LABELS", "\\Trash")
+                deplaces += 1
+            except Exception:
+                echecs += 1
+        imap.logout()
+    except Exception as e:
+        return f"Impossible de vider la poubelle : {e}"
+    if echecs:
+        return (f"{deplaces} mail(s) mis a la corbeille, {echecs} en echec.")
+    return (f"{deplaces} mail(s) pub et spam mis a la corbeille d'un coup, "
+            "recuperables pendant trente jours.")
+
+
 def mettre_a_la_corbeille(numero: int = 1) -> str:
     """Deplace un mail vers la corbeille Gmail (recuperable 30 jours)."""
     if not _mail_configure():
@@ -248,8 +400,7 @@ def mettre_a_la_corbeille(numero: int = 1) -> str:
     if numero < 1 or numero > len(_DERNIERS_MAILS):
         return f"Je n'ai pas de mail numero {numero}."
     try:
-        imap = imaplib.IMAP4_SSL(IMAP_SERVEUR)
-        imap.login(MAIL_ADRESSE, _mail_mdp())
+        imap = _imap()
         imap.select("INBOX")
         uid = _DERNIERS_MAILS[numero - 1]
         # Gmail : ajouter le libelle \Trash deplace le message vers la corbeille.

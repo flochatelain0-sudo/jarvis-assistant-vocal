@@ -32,7 +32,16 @@ from pathlib import Path
 
 # ---------------------------------------------------------------- reglages
 
-PORT = 8770
+def _port_configure():
+    """Port du HUD (config hud.port), 8770 par defaut."""
+    try:
+        from core.config import reglage
+        return int(reglage("hud.port", 8770))
+    except Exception:
+        return 8770
+
+
+PORT = _port_configure()
 _FICHIER_HTML = Path(__file__).parent / "hud.html"
 
 # Etats possibles, envoyes tels quels a la page.
@@ -173,7 +182,8 @@ def _libelle_modele_actif():
 
     from core import cloud
     fournisseur = cloud.fournisseur()
-    marque = "OpenAI" if fournisseur == "openai" else "Claude"
+    marque = {"openai": "OpenAI", "anthropic": "Claude", "gemini": "Gemini",
+              "mistral": "Mistral"}.get(fournisseur, fournisseur.title())
     return f"{marque} · {cloud.modele(qualite=(mode == 'qualite'))}"
 
 
@@ -194,7 +204,6 @@ def _etat_controles():
     mode = mode_actuel()
     fournisseur = cloud.fournisseur()
     openai = panneau._openai_etat()
-    eleven = panneau._elevenlabs_voix()
     installes = panneau._ollama_installes()
 
     modeles_openai = list(openai.get("catalogue", []))
@@ -212,6 +221,22 @@ def _etat_controles():
         if nom and nom not in modeles_anthropic:
             modeles_anthropic.append(nom)
 
+    def _catalogue_simple(nom_cle, nom_qualite, defauts):
+        noms = []
+        for nom in (reglage(nom_cle, defauts[0]),
+                    reglage(nom_qualite, defauts[1])):
+            if nom and nom not in noms:
+                noms.append(nom)
+        return [{"nom": n, "role": "Configure dans Jarvis", "accessible": None}
+                for n in noms]
+
+    modeles_mistral = _catalogue_simple(
+        "mistral.modele", "mistral.modele_qualite",
+        ("mistral-small-latest", "mistral-large-latest"))
+    modeles_gemini = _catalogue_simple(
+        "gemini.modele", "gemini.modele_qualite",
+        ("gemini-2.5-flash", "gemini-2.5-pro"))
+
     locaux = [m.get("nom", "") for m in installes if m.get("nom")]
     local_actif = str(reglage("ollama.modele", "qwen2.5:7b"))
     if local_actif and local_actif not in locaux:
@@ -226,6 +251,8 @@ def _etat_controles():
             "configure": {
                 "openai": bool(openai.get("configure")),
                 "anthropic": bool(reglage("anthropic.cle", "")),
+                "mistral": bool(reglage("mistral.cle", "")),
+                "gemini": bool(reglage("gemini.cle", "")),
             },
             "courants": {
                 "openai": {
@@ -236,11 +263,21 @@ def _etat_controles():
                     "hybride": reglage("anthropic.modele", "claude-haiku-4-5"),
                     "qualite": reglage("anthropic.modele_qualite", "claude-sonnet-4-5"),
                 },
+                "mistral": {
+                    "hybride": reglage("mistral.modele", "mistral-small-latest"),
+                    "qualite": reglage("mistral.modele_qualite", "mistral-large-latest"),
+                },
+                "gemini": {
+                    "hybride": reglage("gemini.modele", "gemini-2.5-flash"),
+                    "qualite": reglage("gemini.modele_qualite", "gemini-2.5-pro"),
+                },
             },
             "modeles": {
                 "openai": modeles_openai,
                 "anthropic": [{"nom": n, "role": "Configure dans Jarvis",
                                 "accessible": None} for n in modeles_anthropic],
+                "mistral": modeles_mistral,
+                "gemini": modeles_gemini,
             },
             "openai_joignable": bool(openai.get("joignable")),
         },
@@ -251,11 +288,7 @@ def _etat_controles():
         },
         "voix": {
             "moteur": reglage("tts.moteur", "auto"),
-            "elevenlabs_voix": reglage("elevenlabs.voix", ""),
-            "elevenlabs_modele": reglage("elevenlabs.modele", "eleven_flash_v2_5"),
-            "elevenlabs": eleven,
-            "moteurs": ["auto", "elevenlabs", "piper", "kokoro", "windows"],
-            "modeles_elevenlabs": ["eleven_flash_v2_5", "eleven_multilingual_v2"],
+            "moteurs": ["auto", "piper", "kokoro", "windows"],
         },
         "panneau_url": f"http://127.0.0.1:{int(reglage('serveur.port', 8790))}/panneau",
     }
@@ -274,15 +307,9 @@ def _appliquer_controle(donnees):
         resultat = panneau._definir_actif(
             "cloud", str(donnees.get("modele", "")).strip(),
             profil=str(donnees.get("profil", "hybride")).strip().lower(),
-            fournisseur=str(donnees.get("fournisseur", "openai")).strip().lower())
+            fournisseur=str(donnees.get("fournisseur", "")).strip().lower())
     elif action == "moteur_voix":
         resultat = panneau._definir_reglage("tts.moteur", donnees.get("valeur", ""))
-    elif action == "voix_elevenlabs":
-        resultat = panneau._definir_reglage(
-            "elevenlabs.voix", donnees.get("valeur", ""))
-    elif action == "modele_elevenlabs":
-        resultat = panneau._definir_reglage(
-            "elevenlabs.modele", donnees.get("valeur", ""))
     elif action == "tester_voix":
         from core import voix
         threading.Thread(
@@ -369,6 +396,23 @@ class _Poignee(BaseHTTPRequestHandler):
         self.wfile.write(corps)
 
     def _page(self):
+        """Une seule page : l'Operator s'il vit, sinon le HUD de secours."""
+        cible = _page_operator()
+        if not cible:
+            self._page_hud_secours()
+            return
+        corps = ("<meta http-equiv=\"refresh\" content=\"0;url=" + cible + "\">"
+                 "<a href=\"" + cible + "\">Jarvis — ouvrir l'Operator</a>"
+                 ).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Refresh", "0;url=" + cible)
+        self.send_header("Content-Length", str(len(corps)))
+        self.end_headers()
+        self.wfile.write(corps)
+
+    def _page_hud_secours(self):
+        """Serveur web eteint : l'ancienne page HUD reste utilisable."""
         try:
             corps = _FICHIER_HTML.read_bytes()
         except OSError:
@@ -448,6 +492,31 @@ class _Serveur(ThreadingHTTPServer):
         super().handle_error(request, client_address)
 
 
+def _page_operator():
+    """URL de l'Operator s'il est JOIGNABLE, sinon None (HUD de secours).
+
+    Le HUD ne doit jamais rediriger vers une page morte : si le serveur web
+    est desactive (serveur.actif: false), on retombe sur la page HUD.
+    """
+    try:
+        from core.config import reglage
+        port = int(reglage("serveur.port", 8790) or 8790)
+    except Exception:
+        port = 8790
+    if not _port_web_ouvert(port):
+        return None
+    return f"http://127.0.0.1:{port}/operator"
+
+
+def _port_web_ouvert(port, timeout=0.3):
+    import socket
+    try:
+        socket.create_connection(("127.0.0.1", port), timeout).close()
+        return True
+    except OSError:
+        return False
+
+
 def demarrer(ouvrir=True):
     """Lance le serveur dans un thread daemon et ouvre le navigateur.
 
@@ -463,13 +532,48 @@ def demarrer(ouvrir=True):
     thread = threading.Thread(target=_SERVEUR.serve_forever, daemon=True)
     thread.start()
 
-    print(f"HUD sur http://127.0.0.1:{PORT}/")
+    # Une seule interface : l'Operator (conversation, vie, automations,
+    # cerveau, validation). Le HUD reste derriere pour le flux temps reel.
+    url = _page_operator() or f"http://127.0.0.1:{PORT}/"
+    cible = "Operator" if url.endswith("/operator") else "HUD (serveur web desactive)"
+    print(f"HUD sur http://127.0.0.1:{PORT}/ — page : {cible}")
     if ouvrir:
-        try:
-            webbrowser.open(f"http://127.0.0.1:{PORT}/")
-        except Exception:
-            pass
+        _ouvrir_page(url)
     return _SERVEUR
+
+
+def _ouvrir_page(url):
+    """Ouvre le HUD, si possible dans une FENETRE DEDIEE plein ecran.
+
+    Chrome/Edge en mode --app donnent une fenetre sans barre d'adresse ni
+    onglets : le HUD occupe tout l'ecran, comme un vrai tableau de bord. A
+    defaut, on retombe sur l'onglet classique du navigateur par defaut.
+    """
+    plein = True
+    try:
+        from core.config import reglage
+        plein = bool(reglage("hud.plein_ecran", True))
+    except Exception:
+        pass
+
+    if plein:
+        try:
+            from core import plateforme
+            exe = plateforme.chrome_exe()
+            if exe:
+                import subprocess
+                subprocess.Popen(
+                    [exe, f"--app={url}", "--start-fullscreen", "--new-window",
+                     f"--user-data-dir={plateforme.dossier_donnees('ChromeJarvisHUD')}"],
+                    **plateforme.detache())
+                return
+        except Exception:
+            pass          # pas de Chrome, ou lancement refuse : onglet classique
+
+    try:
+        webbrowser.open(url)
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------- demonstration

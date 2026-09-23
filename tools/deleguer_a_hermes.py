@@ -503,3 +503,47 @@ def taches_hermes() -> str:
     if finies and not encours and not valider:
         bouts.append("dernière terminée : " + (finies[-1]["resume"] or finies[-1]["tache"])[:120])
     return ". ".join(bouts) + "." if bouts else "Tout est traité, rien en attente."
+
+
+@outil(
+    nom="deleguer_groupe",
+    description=(
+        "Decoupe un GROS job en sous-taches executees en PARALLELE par des "
+        "workers silencieux (sessions Hermes independantes). A appeler des que "
+        "le travail est trop gros pour une seule delegation : veille sur "
+        "plusieurs sujets, analyse de plusieurs dossiers, recherche multi-"
+        "angles. Chaque sous-tache a son propre worker ; le suivi collectif est "
+        "visible dans l'Operator (Taches) et l'annonce finale resume le tout."
+    ),
+    parametres={
+        "type": "object",
+        "properties": {
+            "titre": {"type": "string",
+                      "description": "Nom du job global, ex 'Veille IA du "
+                                     "lundi'."},
+            "sous_taches": {"type": "array", "items": {"type": "string"},
+                            "description": "Les 2 a 5 sous-taches "
+                                           "independantes, formulees pour "
+                                           "etre executees telles quelles."},
+        },
+        "required": ["titre", "sous_taches"],
+    },
+)
+def deleguer_groupe(titre: str, sous_taches) -> str:
+    """Lance plusieurs workers en parallele sur un meme job global."""
+    titre = (titre or "Job").strip()[:80]
+    taches = [str(t).strip() for t in (sous_taches or [])
+              if str(t).strip()][:5]
+    if len(taches) < 2:
+        return ("Pour decouper un job, donne-moi au moins deux sous-taches "
+                "independantes.")
+    base = re.sub(r"[^a-z0-9]+", "-", sans_accents(titre).lower()).strip("-")[:24]
+    for i, tache in enumerate(taches, 1):
+        deleguer_en_fond(
+            tache,
+            intro=f"Worker {i}/{len(taches)} de « {titre} » termine. ",
+            session=f"{base}-w{i}",
+        )
+    return (f"Je lance {len(taches)} workers silencieux sur « {titre} ». "
+            f"Chacun bosse de son cote ; je te fais le resume quand tout "
+            f"revient. Suis-les dans l'Operator, onglet Taches.")

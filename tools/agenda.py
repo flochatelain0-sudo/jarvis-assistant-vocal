@@ -141,13 +141,35 @@ def _heure_fr(d):
     return f"{d.hour}h" if d.minute == 0 else f"{d.hour}h{d.minute:02d}"
 
 
-def _jour_fr(d):
+_MOIS = ("janvier", "fevrier", "mars", "avril", "mai", "juin", "juillet",
+         "aout", "septembre", "octobre", "novembre", "decembre")
+
+
+def _jour_fr(d, fenetre=None):
+    """Nom du jour, avec le MOIS des qu'il y a ambiguite.
+
+    « mardi 18 » suffit dans la semaine en cours. Mais un evenement de
+    plusieurs jours affiche sa date de DEBUT : demander « cette semaine » un
+    23 aout pouvait rendre « lundi 3 » pour des vacances commencees le 3 —
+    illisible, et pris pour une erreur. Des que la date sort de la fenetre
+    interrogee ou s'eloigne de plus d'une semaine, on precise le mois, et
+    l'appelant signale que l'evenement est en cours.
+    """
     auj = dt.datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
     j = d.replace(hour=0, minute=0, second=0, microsecond=0)
     if j == auj:
         return "aujourd'hui"
     if j == auj + dt.timedelta(days=1):
         return "demain"
+    if j == auj - dt.timedelta(days=1):
+        return "hier"
+
+    lointain = abs((j - auj).days) > 7
+    if fenetre is not None:
+        debut, fin = fenetre
+        lointain = lointain or not (debut <= j < fin)
+    if lointain:
+        return f"{_JOURS[d.weekday()]} {d.day} {_MOIS[d.month - 1]}"
     return f"{_JOURS[d.weekday()]} {d.day}"
 
 
@@ -155,8 +177,13 @@ def _est_loopstr(nom):
     return "loopstr" in sans_accents(nom)
 
 
-def _formuler(evenements, libelle):
-    """Groupe par jour, phrase naturelle en francais."""
+def _formuler(evenements, libelle, fenetre=None):
+    """Groupe par jour, phrase naturelle en francais.
+
+    `fenetre` = (debut, fin) de la periode interrogee. Elle sert a signaler les
+    evenements DEJA COMMENCES avant la periode : sans cela, leur date de debut
+    s'affiche telle quelle et donne l'impression d'un resultat errone.
+    """
     par_jour = {}
     for d, tout_jour, titre, cal in evenements:
         cle = d.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -166,11 +193,14 @@ def _formuler(evenements, libelle):
     multi = len(par_jour) > 1
     for cle in sorted(par_jour):
         items = []
+        commence_avant = fenetre is not None and cle < fenetre[0]
         for d, tout_jour, titre, cal in par_jour[cle]:
             quand = "toute la journee" if tout_jour else f"a {_heure_fr(d)}"
             marque = " (deadline)" if _est_loopstr(cal) else ""
+            if commence_avant:
+                marque += " (deja en cours)"
             items.append(f"{quand} {titre}{marque}")
-        prefixe = f"{_jour_fr(cle)} : " if multi else ""
+        prefixe = f"{_jour_fr(cle, fenetre)} : " if multi else ""
         phrases.append(prefixe + " ; ".join(items) + ".")
     tete = "" if multi else f"{libelle.capitalize()}, tu as : "
     return (tete + " ".join(phrases)).strip()
@@ -223,7 +253,7 @@ def get_events(periode: str = "aujourd'hui") -> str:
     if not evenements:
         return f"Rien de prevu {libelle}."
     evenements.sort(key=lambda x: x[0])
-    return _formuler(evenements, libelle)
+    return _formuler(evenements, libelle, fenetre=(debut, fin))
 
 
 # ---- creation
@@ -384,6 +414,83 @@ def delete_event(recherche: str, periode: str = "cette semaine") -> str:
         LOG.exception("delete_event")
         return f"Je n'ai pas pu supprimer ({ex})."
     return f"C'est supprime : {e.get('summary','')}."
+
+
+# ------------------------------------------------- planning pour la page
+def planning_du_jour():
+    """Les evenements du jour, structure simple pour le widget de la page
+    Operator. Jamais bloquant : agenda non configure -> liste vide + message."""
+    try:
+        service = _service()
+    except Exception as e:
+        return {"configure": False, "message": _msg_config(e)[:200], "evenements": []}
+    try:
+        calendriers = _calendriers(service)
+    except Exception as e:
+        LOG.exception("planning_du_jour : calendriers")
+        return {"configure": False,
+                "message": f"Agenda indisponible : {e}"[:200],
+                "evenements": []}
+    debut, fin, _ = _periode("aujourd'hui")
+    evenements = []
+    for cid, info in calendriers.items():
+        try:
+            res = service.events().list(
+                calendarId=cid, timeMin=debut.isoformat(), timeMax=fin.isoformat(),
+                singleEvents=True, orderBy="startTime", maxResults=20).execute()
+        except Exception:
+            continue
+        for e in res.get("items", []):
+            d, tout_jour = _debut_ev(e)
+            if d is None:
+                continue
+            evenements.append({
+                "titre": e.get("summary", "(sans titre)")[:80],
+                "heure": "" if tout_jour else _heure_fr(d),
+                "tout_jour": tout_jour,
+                "agenda": info["nom"][:40],
+            })
+    evenements.sort(key=lambda x: (x["tout_jour"], x["heure"]))
+    return {"configure": True, "evenements": evenements[:15]}
+
+
+def planning_mois(annee=None, mois=None):
+    """Le nombre d'evenements par jour du mois, pour le widget calendrier.
+
+    Jamais bloquant : agenda non configure -> mois vide + message.
+    annee/mois : 1-12 ; defaut = mois en cours.
+    """
+    maintenant = dt.datetime.now().astimezone()
+    annee = int(annee or maintenant.year)
+    mois = int(mois or maintenant.month)
+    if not (1 <= mois <= 12):
+        return {"configure": False, "message": "mois invalide", "jours": {}}
+    try:
+        service = _service()
+        calendriers = _calendriers(service)
+    except Exception as e:
+        return {"configure": False, "message": _msg_config(e)[:200], "jours": {}}
+    debut = maintenant.replace(year=annee, month=mois, day=1, hour=0,
+                               minute=0, second=0, microsecond=0)
+    mois_suivant = (debut.replace(day=28) + dt.timedelta(days=4)).replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0)
+    jours = {}
+    for cid, info in calendriers.items():
+        try:
+            res = service.events().list(
+                calendarId=cid, timeMin=debut.isoformat(),
+                timeMax=mois_suivant.isoformat(),
+                singleEvents=True, orderBy="startTime", maxResults=250).execute()
+        except Exception:
+            continue
+        for e in res.get("items", []):
+            d, _ = _debut_ev(e)
+            if d is None:
+                continue
+            if (d.year, d.month) != (annee, mois):
+                continue
+            jours[d.day] = jours.get(d.day, 0) + 1
+    return {"configure": True, "annee": annee, "mois": mois, "jours": jours}
 
 
 # -------------------------------------- premier lancement : lister les agendas
