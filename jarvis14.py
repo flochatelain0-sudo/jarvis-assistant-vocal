@@ -1400,8 +1400,10 @@ def _tronquer(historique):
 
 def traiter_ecrit(demande, historique):
     """Traite un message TAPE depuis la page Operator : meme pipeline que la
-    voix (routage, outils, 95/5), reponse affichee ET prononcee.
-    Renvoie le texte de reponse (jamais d'exception : la page attend une reponse).
+    voix (routage, outils, 95/5). Le pipeline (repondre) prononce deja la
+    reponse : on ne la prononce PAS une seconde fois ici, d'ou le second
+    element de retour toujours vide.
+    Renvoie (texte_affiche, a_prononcer) (jamais d'exception : la page attend).
     """
     question = nettoyer((demande or "").strip())
     if not question:
@@ -1422,16 +1424,21 @@ def traiter_ecrit(demande, historique):
             _hud_status()
             print(f"  Jarvis : {annonce}\n")
             _tronquer(historique)
-            return annonce, annonce
+            return annonce, ""
         if not texte:
+            # Reponse vide : le pipeline n'a rien prononce, on le fait ici
+            # (une seule fois).
             texte = "C'est fait."
+            if not _INTERRUPTION.is_set():
+                _hud("etat", "parole")
+                dire(texte)
         texte = nettoyer_reponse_vocale(texte)
         _hud("dire_jarvis", texte)
         _afficher_overlay(texte)
         _hud_status()
         print(f"  Jarvis : {texte}\n")
         _tronquer(historique)
-        return texte, texte
+        return texte, ""
     except Exception:
         LOG.exception("message ecrit")
         return ("Desole, une erreur est survenue en traitant ta demande.", "")
