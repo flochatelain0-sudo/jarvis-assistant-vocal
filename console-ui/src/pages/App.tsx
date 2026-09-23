@@ -6,9 +6,11 @@ import MainWorkspace from '../components/MainWorkspace'
 import type { EtatOrbe } from '../components/ParticleOrb'
 import ChatPanel from '../components/ChatPanel'
 import ConnectionModal from '../components/ConnectionModal'
+import ButModal from '../components/ButModal'
 import IntegrationsPanel from '../components/IntegrationsPanel'
 import type { ModeCentre } from '../components/WorkspaceControls'
 import type { IntegrationId } from '../lib/integrations'
+import { useTheme } from '../lib/theme'
 import {
   api,
   type EtatOperator,
@@ -19,6 +21,7 @@ import {
 } from '../lib/api'
 
 export default function App() {
+  const { theme, basculer: basculerTheme } = useTheme()
   const [consoleOuverte, setConsoleOuverte] = useState(true)
   const [chatOuvert, setChatOuvert] = useState(true)
   const [ecoute, setEcoute] = useState(true)
@@ -32,6 +35,7 @@ export default function App() {
   const [etapesFaites, setEtapesFaites] = useState<Set<number>>(new Set())
   const [recherche, setRecherche] = useState('')
   const [pageIntegrations, setPageIntegrations] = useState(false)
+  const [modalButOuverte, setModalButOuverte] = useState(false)
   const oauthResultat = useMemo(() => {
     const p = new URLSearchParams(window.location.search).get('oauth')
     return p
@@ -97,9 +101,11 @@ export default function App() {
   }
 
   const ajouterBut = () => {
-    const titre = window.prompt('New goal — describe what you want…')
-    if (!titre || !titre.trim()) return
-    api.butAjouter(titre.trim()).then((but) => {
+    setModalButOuverte(true)
+  }
+
+  const creerBut = (titre: string) => {
+    api.butAjouter(titre).then((but) => {
       if (but) setButs((p) => [...p, but])
     })
   }
@@ -134,6 +140,8 @@ export default function App() {
         onOuvrirRecherche={() => setRecherche(' ')}
         mode={modeGlobal}
         onMode={changerMode}
+        theme={theme}
+        onTheme={basculerTheme}
       />
 
       {pageIntegrations && (
@@ -146,12 +154,12 @@ export default function App() {
       {recherche !== '' && (
         <div
           className="fixed inset-0 z-50 flex items-start justify-center pt-[14vh]"
-          style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)' }}
+          style={{ background: 'var(--overlay)', backdropFilter: 'blur(6px)' }}
           onClick={() => setRecherche('')}
         >
           <div
             className="flex w-[460px] items-center gap-3 rounded-xl border px-4 py-3"
-            style={{ background: '#0d0d0d', borderColor: 'var(--border-orange)' }}
+            style={{ background: 'var(--modal)', borderColor: 'var(--border-orange)' }}
             onClick={(e) => e.stopPropagation()}
           >
             <Search size={15} className="text-orange" />
@@ -161,7 +169,7 @@ export default function App() {
               onChange={(e) => setRecherche(e.target.value)}
               onKeyDown={(e) => e.key === 'Escape' && setRecherche('')}
               placeholder="Rechercher un objectif, un client, un mail…"
-              className="flex-1 bg-transparent text-[14px] text-[#f5f5f5] outline-none placeholder:text-[#555]"
+              className="flex-1 bg-transparent text-[14px] text-[var(--text)] outline-none placeholder:text-[var(--placeholder)]"
             />
           </div>
         </div>
@@ -219,6 +227,7 @@ export default function App() {
             ouverte={chatOuvert}
             onOuvrir={() => setChatOuvert(true)}
             onFermer={() => setChatOuvert(false)}
+            onNouveauBut={() => setModalButOuverte(true)}
             journal={journal}
             enAttente={etat?.kpis?.en_attente ?? 0}
           />
@@ -228,8 +237,8 @@ export default function App() {
       {!consoleOuverte && (
         <button
           onClick={() => setConsoleOuverte(true)}
-          className="label-tech fixed left-4 z-30 rounded-full border px-3.5 py-1.5 text-[10px] text-[#c7c7c7] transition hover:border-orange/60"
-          style={{ top: 72, background: 'rgba(8,8,8,0.85)', borderColor: 'var(--border-orange)' }}
+          className="label-tech fixed left-4 z-30 rounded-full border px-3.5 py-1.5 text-[10px] text-[var(--dim)] transition hover:border-orange/60"
+          style={{ top: 72, background: 'var(--panel-glass-strong)', borderColor: 'var(--border-orange)' }}
         >
           CONSOLE
         </button>
@@ -240,6 +249,11 @@ export default function App() {
         connectes={connectes}
         onAnnuler={() => setAConnecter(null)}
         onConnecter={connecter}
+      />
+      <ButModal
+        ouverte={modalButOuverte}
+        onFermer={() => setModalButOuverte(false)}
+        onCreer={creerBut}
       />
     </div>
   )

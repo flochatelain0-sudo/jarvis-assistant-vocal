@@ -15,14 +15,14 @@ export default function ZoeyBranding({ page, nbPages, onPage }: Props) {
       >
         JARVIS
       </h1>
-      <p className="label-tech text-[8.5px] text-[#777777]">
+      <p className="label-tech text-[8.5px] text-[var(--muted)]">
         ORCHESTRATOR&nbsp;&nbsp;&nbsp;THE VOICE OF YOUR WORLD
       </p>
       <div className="mt-1.5 flex items-center gap-3">
         <button
           aria-label="Précédent"
           onClick={() => onPage((page - 1 + nbPages) % nbPages)}
-          className="flex h-6 w-6 items-center justify-center rounded-full border text-[#777777] transition hover:border-orange/50 hover:text-orange"
+          className="flex h-6 w-6 items-center justify-center rounded-full border text-[var(--muted)] transition hover:border-orange/50 hover:text-orange"
           style={{ borderColor: 'var(--border)' }}
         >
           <ChevronLeft size={12} />
@@ -45,7 +45,7 @@ export default function ZoeyBranding({ page, nbPages, onPage }: Props) {
         <button
           aria-label="Suivant"
           onClick={() => onPage((page + 1) % nbPages)}
-          className="flex h-6 w-6 items-center justify-center rounded-full border text-[#777777] transition hover:border-orange/50 hover:text-orange"
+          className="flex h-6 w-6 items-center justify-center rounded-full border text-[var(--muted)] transition hover:border-orange/50 hover:text-orange"
           style={{ borderColor: 'var(--border)' }}
         >
           <ChevronRight size={12} />

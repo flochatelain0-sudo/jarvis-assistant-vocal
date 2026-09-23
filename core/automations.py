@@ -29,6 +29,7 @@ import json
 import logging
 import threading
 import time
+import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -220,7 +221,7 @@ def ajouter(nom, moment, action, jours=None, parametres=None, modele=None):
     """Cree une automation. Renvoie le dict complet."""
     jours_norm = _normaliser_jours(jours)
     auto = {
-        "id": f"auto-{int(time.time() * 1000) % 10**10}",
+        "id": f"auto-{uuid.uuid4().hex[:12]}",
         "nom": str(nom or "Automation")[:80],
         "moment": str(moment or "08:00")[:5],
         "action": str(action or "brief")[:20],

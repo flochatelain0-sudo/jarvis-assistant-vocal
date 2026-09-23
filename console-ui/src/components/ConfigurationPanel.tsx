@@ -33,7 +33,7 @@ export default function ConfigurationPanel({ onFermer, connectes, onConnecter }:
     <div
       className="absolute inset-x-0 bottom-0 top-[100px] z-20 overflow-y-auto border-t px-6 py-6"
       style={{
-        background: 'rgba(5,5,5,0.86)',
+        background: 'var(--panel-glass-strong)',
         borderColor: 'var(--border-orange)',
         backdropFilter: 'blur(14px)',
       }}
@@ -41,7 +41,7 @@ export default function ConfigurationPanel({ onFermer, connectes, onConnecter }:
       <div className="mx-auto max-w-lg">
         <div className="mb-5 flex items-center justify-between">
           <h2 className="label-tech text-orange" style={{ fontSize: 11 }}>CONFIGURE</h2>
-          <button onClick={onFermer} aria-label="Fermer" className="text-[#777777] transition hover:text-[#f5f5f5]">
+          <button onClick={onFermer} aria-label="Fermer" className="text-[var(--muted)] transition hover:text-[var(--text)]">
             <X size={15} />
           </button>
         </div>
@@ -54,8 +54,8 @@ export default function ConfigurationPanel({ onFermer, connectes, onConnecter }:
               style={{ background: 'var(--panel)', borderColor: 'var(--border)' }}
             >
               <div className="pr-3">
-                <div className="text-[13.5px] text-[#f5f5f5]">{r.label}</div>
-                <div className="text-[11.5px] text-[#777777]">{r.description}</div>
+                <div className="text-[13.5px] text-[var(--text)]">{r.label}</div>
+                <div className="text-[11.5px] text-[var(--muted)]">{r.description}</div>
               </div>
               <button
                 role="switch"
@@ -79,7 +79,7 @@ export default function ConfigurationPanel({ onFermer, connectes, onConnecter }:
           ))}
         </div>
 
-        <h3 className="label-tech mb-3 text-[10px] text-[#777777]">CONNECTED PLATFORMS</h3>
+        <h3 className="label-tech mb-3 text-[10px] text-[var(--muted)]">CONNECTED PLATFORMS</h3>
         <div className="flex flex-col gap-2">
           {(Object.keys(INTEGRATIONS) as IntegrationId[]).map((id) => {
             const integ = INTEGRATIONS[id]
@@ -94,9 +94,9 @@ export default function ConfigurationPanel({ onFermer, connectes, onConnecter }:
                   borderColor: deja ? 'rgba(32,232,120,0.3)' : 'var(--border)',
                 }}
               >
-                <Ic size={15} className={deja ? 'text-green' : 'text-[#777777]'} />
+                <Ic size={15} className={deja ? 'text-green' : 'text-[var(--muted)]'} />
                 <div className="flex-1">
-                  <div className="label-tech text-[10px] text-[#c7c7c7]">{integ.nom}</div>
+                  <div className="label-tech text-[10px] text-[var(--dim)]">{integ.nom}</div>
                 </div>
                 {deja ? (
                   <span className="label-tech flex items-center gap-1 text-[9px] text-green">
@@ -105,7 +105,7 @@ export default function ConfigurationPanel({ onFermer, connectes, onConnecter }:
                 ) : (
                   <button
                     onClick={() => onConnecter(id)}
-                    className="label-tech rounded border px-2.5 py-1 text-[9px] text-[#FF8500] transition hover:bg-orange/10"
+                    className="label-tech rounded border px-2.5 py-1 text-[9px] text-[var(--accent-bright)] transition hover:bg-orange/10"
                     style={{ borderColor: 'var(--border-orange)' }}
                   >
                     CONNECT

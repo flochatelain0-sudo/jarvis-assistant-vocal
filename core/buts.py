@@ -13,6 +13,7 @@ integrations requises ; il ne declenche rien tout seul.
 import json
 import threading
 import time
+import uuid
 from pathlib import Path
 
 _RACINE = Path(__file__).resolve().parent.parent
@@ -89,7 +90,7 @@ def ajouter(titre, requis=None):
         from core import integrations
         valides = set(integrations.etat().keys())
         but = {
-            "id": f"but-{int(time.time() * 1000) % 10**10}",
+            "id": f"but-{uuid.uuid4().hex[:12]}",
             "titre": titre,
             "requis": [r for r in (requis or []) if r in valides][:8],
             "cree": time.time(),

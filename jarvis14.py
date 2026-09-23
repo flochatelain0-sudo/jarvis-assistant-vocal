@@ -728,16 +728,22 @@ def _executer_outils(blocs):
             resultat = registre.mettre_en_attente(outil, arguments)
             operator.journaliser("validation", f"Action préparée : {nom}",
                                  resultat="en_attente")
+            operator.action_vue("validation", f"Action préparée : {nom}",
+                               str(arguments)[:200], resultat="en_attente")
         else:
             try:
                 resultat = outil.fonction(**arguments)
                 operator.journaliser(_categorie(nom), f"Action exécutée : {nom}",
                                      str(resultat)[:200])
+                operator.action_vue(_categorie(nom), f"Action exécutée : {nom}",
+                                    str(resultat)[:200])
             except Exception:
                 LOG.exception("outil %s a plante", nom)
                 resultat = "Desole, je n'ai pas reussi a faire ca."
                 operator.journaliser("systeme", f"Action échouée : {nom}",
                                      resultat="erreur")
+                operator.action_vue("systeme", f"Action échouée : {nom}",
+                                   resultat="erreur")
 
         LOG.info("outil %s termine en %.3fs (type=%s)", nom,
                  time.monotonic() - debut_outil, type(resultat).__name__)
@@ -1510,12 +1516,15 @@ def traiter(audio, whisper, historique, flux, reveil):
 
 
 def _feedback_geste(geste):
-    """Feedback discret quand un geste est reconnu : petit bip + flash HUD. Non bloquant."""
+    """Feedback discret quand un geste est reconnu : petit bip + flash HUD.
+    Non bloquant, et SANS bip si Jarvis parle — sounddevice ne mixe pas :
+    un sd.play() concurrent ecraserait la voix en cours de lecture."""
     freq = 1200 if geste == "armement" or geste.startswith("mode_") else 900
-    try:
-        threading.Thread(target=lambda: bip(freq, 0.05), daemon=True).start()
-    except Exception:
-        pass
+    if not _PARLE.is_set():
+        try:
+            threading.Thread(target=lambda: bip(freq, 0.05), daemon=True).start()
+        except Exception:
+            pass
     _hud("outil", "geste", geste)
 
 

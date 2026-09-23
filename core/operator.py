@@ -419,6 +419,23 @@ def carte_mails(donnees):
         del _CONVERSATION[:-_MAX_CONV]
 
 
+def action_vue(categorie, titre, detail="", resultat="ok"):
+    """Injecte une action executee dans la conversation de la page : chaque
+    outil appele par Jarvis apparait comme une carte compacte dans le fil,
+    en meme temps qu'il est journalise (« Pendant que tu dormais »).
+    resultat : ok | en_attente | erreur."""
+    with _VERROU:
+        _CONVERSATION.append({
+            "role": "jarvis", "type": "action",
+            "texte": str(titre)[:160],
+            "categorie": str(categorie)[:24] or "autre",
+            "detail": str(detail)[:400],
+            "resultat": str(resultat)[:16] or "ok",
+            "ts": time.time(),
+        })
+        del _CONVERSATION[:-_MAX_CONV]
+
+
 def carte_briefing(donnees):
     """Injecte une carte de briefing client dans la conversation de la page
     (meme mecanisme que les validations). Affiche la fiche CRM, le RDV et les
@@ -668,14 +685,15 @@ def monter_routes(app):
             corps = await request.json()
         except Exception:
             corps = {}
-        from tools.mail import modifier_brouillon
+        from tools.mail import brouillon, modifier_brouillon
         ok = modifier_brouillon((corps or {}).get("destinataire"),
                                 (corps or {}).get("sujet"),
                                 (corps or {}).get("corps"))
         if ok:
             journaliser("mail", "Brouillon modifie depuis la page",
                         str(corps)[:200])
-        return {"ok": bool(ok), "brouillon": brouillon()} if ok else {"ok": False}
+            return {"ok": True, "brouillon": brouillon()}
+        return {"ok": False}
 
     @app.post("/api/operator/valider/{ident}")
     def api_valider_id(ident: int, request: Request):

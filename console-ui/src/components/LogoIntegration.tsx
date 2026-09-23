@@ -70,7 +70,7 @@ export default function LogoIntegration({ id, nom }: Props) {
   const logo = LOGOS[id]
   if (!logo) {
     return (
-      <span className="text-[15px] font-semibold text-[#c7c7c7]">{nom[0]}</span>
+      <span className="text-[15px] font-semibold text-[var(--dim)]">{nom[0]}</span>
     )
   }
   return logo

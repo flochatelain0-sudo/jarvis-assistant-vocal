@@ -141,6 +141,12 @@ export const api = {
           icone: string
           mails: { expediteur: string; objet: string; detail: string; action: string }[]
         }[]
+        categorie?: string
+        detail?: string
+        resultat?: string
+        client?: string
+        rdv?: string
+        champs?: { titre: string; valeur: string }[]
       }[]
     }>('/api/operator/conversation'),
 

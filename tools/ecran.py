@@ -64,6 +64,7 @@ def _zone_fenetre_active(moniteur_global):
                       "description": "Zone à capturer. Par défaut : écran complet."},
         },
     },
+    confirmation=True,
     lent=True,
     phrase_attente="Je regarde ton ecran.",
 )

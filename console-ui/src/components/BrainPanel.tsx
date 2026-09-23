@@ -42,7 +42,7 @@ export default function BrainPanel({ onFermer }: Props) {
     <div
       className="absolute inset-x-0 bottom-0 top-[100px] z-20 overflow-y-auto border-t px-6 py-6"
       style={{
-        background: 'rgba(5,5,5,0.86)',
+        background: 'var(--panel-glass-strong)',
         borderColor: 'var(--border-orange)',
         backdropFilter: 'blur(14px)',
       }}
@@ -52,11 +52,11 @@ export default function BrainPanel({ onFermer }: Props) {
           <div className="flex items-center gap-2">
             <BrainIcon size={14} className="text-orange" />
             <h2 className="label-tech text-orange" style={{ fontSize: 11 }}>BRAIN</h2>
-            <span className="text-[11.5px] text-[#777777]">
+            <span className="text-[11.5px] text-[var(--muted)]">
               Documents, memories and previous conversations — everything you and Jarvis work on together.
             </span>
           </div>
-          <button onClick={onFermer} aria-label="Fermer" className="text-[#777777] transition hover:text-[#f5f5f5]">
+          <button onClick={onFermer} aria-label="Fermer" className="text-[var(--muted)] transition hover:text-[var(--text)]">
             <X size={15} />
           </button>
         </div>
@@ -72,10 +72,10 @@ export default function BrainPanel({ onFermer }: Props) {
               >
                 <div className="label-tech mb-2 text-[9px] text-orange">{z.titre}</div>
                 {lignes.length === 0 ? (
-                  <div className="text-[11.5px] text-[#555]">Nothing learned yet.</div>
+                  <div className="text-[11.5px] text-[var(--placeholder)]">Nothing learned yet.</div>
                 ) : (
                   lignes.slice(0, 6).map((l, i) => (
-                    <div key={i} className="truncate py-0.5 text-[12px] text-[#c7c7c7]">
+                    <div key={i} className="truncate py-0.5 text-[12px] text-[var(--dim)]">
                       {'contenu' in l ? l.contenu : ''}
                     </div>
                   ))
@@ -85,10 +85,10 @@ export default function BrainPanel({ onFermer }: Props) {
           })}
         </div>
 
-        <h3 className="label-tech mb-3 text-[10px] text-[#777777]">DOCUMENTS</h3>
+        <h3 className="label-tech mb-3 text-[10px] text-[var(--muted)]">DOCUMENTS</h3>
         <div className="mb-3 flex flex-col gap-2">
           {documents.length === 0 && (
-            <div className="text-[11.5px] text-[#555]">
+            <div className="text-[11.5px] text-[var(--placeholder)]">
               No documents yet — upload your own files to give Jarvis context.
             </div>
           )}
@@ -98,9 +98,9 @@ export default function BrainPanel({ onFermer }: Props) {
               className="flex items-center gap-2 rounded-lg border px-3 py-2"
               style={{ background: 'var(--panel)', borderColor: 'var(--border)' }}
             >
-              <FileText size={13} className="shrink-0 text-[#777777]" />
-              <span className="flex-1 truncate text-[12.5px] text-[#c7c7c7]">{d.titre}</span>
-              <span className="label-tech text-[8.5px] text-[#555]">
+              <FileText size={13} className="shrink-0 text-[var(--muted)]" />
+              <span className="flex-1 truncate text-[12.5px] text-[var(--dim)]">{d.titre}</span>
+              <span className="label-tech text-[8.5px] text-[var(--placeholder)]">
                 {Math.max(1, Math.round(d.taille / 1000))}k
               </span>
             </div>
@@ -110,13 +110,13 @@ export default function BrainPanel({ onFermer }: Props) {
         <div className="rounded-lg border p-4" style={{ background: 'var(--panel)', borderColor: 'var(--border)' }}>
           <div className="mb-2 flex items-center gap-2">
             <Upload size={12} className="text-orange" />
-            <span className="label-tech text-[9px] text-[#c7c7c7]">ADD CONTEXT</span>
+            <span className="label-tech text-[9px] text-[var(--dim)]">ADD CONTEXT</span>
           </div>
           <input
             value={titre}
             onChange={(e) => setTitre(e.target.value)}
             placeholder="Title (optional)"
-            className="mb-2 w-full rounded-md border bg-transparent px-3 py-2 text-[13px] text-[#f5f5f5] outline-none placeholder:text-[#555]"
+            className="mb-2 w-full rounded-md border bg-transparent px-3 py-2 text-[13px] text-[var(--text)] outline-none placeholder:text-[var(--placeholder)]"
             style={{ borderColor: 'var(--border)' }}
           />
           <textarea
@@ -124,14 +124,14 @@ export default function BrainPanel({ onFermer }: Props) {
             onChange={(e) => setContenu(e.target.value)}
             placeholder="Paste the content Jarvis should remember…"
             rows={3}
-            className="mb-2 w-full resize-none rounded-md border bg-transparent px-3 py-2 text-[13px] text-[#f5f5f5] outline-none placeholder:text-[#555]"
+            className="mb-2 w-full resize-none rounded-md border bg-transparent px-3 py-2 text-[13px] text-[var(--text)] outline-none placeholder:text-[var(--placeholder)]"
             style={{ borderColor: 'var(--border)' }}
           />
           <div className="flex justify-end">
             <button
               onClick={ajouter}
               disabled={!contenu.trim() || envoi}
-              className="label-tech rounded-lg px-4 py-1.5 text-[10px] text-black transition enabled:hover:brightness-110 disabled:opacity-40"
+              className="label-tech rounded-lg px-4 py-1.5 text-[10px] text-[var(--bg2)] transition enabled:hover:brightness-110 disabled:opacity-40"
               style={{ background: '#FF6A00' }}
             >
               {envoi ? 'SAVING…' : 'ADD TO BRAIN'}
