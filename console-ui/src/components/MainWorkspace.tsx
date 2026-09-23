@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import ParticleOrb from './ParticleOrb'
+import ParticleOrb, { type EtatOrbe } from './ParticleOrb'
 import ListeningIndicator from './ListeningIndicator'
 import WorkspaceControls, { type ModeCentre } from './WorkspaceControls'
 import ZoeyBranding from './ZoeyBranding'
@@ -21,6 +21,7 @@ interface Props {
   actions24h: number
   enAttente: number
   vie: { etat: string; modele: string; routage: string }
+  etatOrbe: EtatOrbe
   connectes: Set<IntegrationId>
   onConnecter: (id: IntegrationId) => void
   orbMobile: boolean
@@ -33,13 +34,13 @@ const CARTES = [
 ]
 
 export default function MainWorkspace(props: Props) {
-  const { mode, onMode, ecoute, onEcoute, niveau, page, onPage, orbMobile } = props
+  const { mode, onMode, ecoute, onEcoute, niveau, page, onPage, orbMobile, etatOrbe } = props
   const tailleOrbe = useMemo(() => (orbMobile ? 300 : 430), [orbMobile])
 
   return (
     <main className="relative flex flex-1 flex-col items-center justify-center overflow-hidden">
       {/* orbe seul au fond */}
-      <ParticleOrb actif={ecoute} niveau={niveau} taille={tailleOrbe} />
+      <ParticleOrb etat={etatOrbe} niveau={niveau} taille={tailleOrbe} />
 
       {/* controles par-dessus l'orbe, TOUJOURS cliquables */}
       <div

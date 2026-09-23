@@ -3,6 +3,7 @@ import { Search } from 'lucide-react'
 import TopBar from '../components/TopBar'
 import ConsoleSidebar from '../components/ConsoleSidebar'
 import MainWorkspace from '../components/MainWorkspace'
+import type { EtatOrbe } from '../components/ParticleOrb'
 import ChatPanel from '../components/ChatPanel'
 import ConnectionModal from '../components/ConnectionModal'
 import IntegrationsPanel from '../components/IntegrationsPanel'
@@ -203,6 +204,7 @@ export default function App() {
           actions24h={etat?.kpis?.actions_24h ?? 0}
           enAttente={etat?.kpis?.en_attente ?? 0}
           vie={vie}
+          etatOrbe={vie.etat as EtatOrbe}
           connectes={connectes}
           onConnecter={setAConnecter}
           orbMobile={false}
