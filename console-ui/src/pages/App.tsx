@@ -223,6 +223,7 @@ export default function App() {
             ouverte={chatOuvert}
             onOuvrir={() => setChatOuvert(true)}
             onFermer={() => setChatOuvert(false)}
+            onNouveauBut={() => setModalButOuverte(true)}
             journal={journal}
             enAttente={etat?.kpis?.en_attente ?? 0}
           />

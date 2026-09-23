@@ -685,14 +685,15 @@ def monter_routes(app):
             corps = await request.json()
         except Exception:
             corps = {}
-        from tools.mail import modifier_brouillon
+        from tools.mail import brouillon, modifier_brouillon
         ok = modifier_brouillon((corps or {}).get("destinataire"),
                                 (corps or {}).get("sujet"),
                                 (corps or {}).get("corps"))
         if ok:
             journaliser("mail", "Brouillon modifie depuis la page",
                         str(corps)[:200])
-        return {"ok": bool(ok), "brouillon": brouillon()} if ok else {"ok": False}
+            return {"ok": True, "brouillon": brouillon()}
+        return {"ok": False}
 
     @app.post("/api/operator/valider/{ident}")
     def api_valider_id(ident: int, request: Request):

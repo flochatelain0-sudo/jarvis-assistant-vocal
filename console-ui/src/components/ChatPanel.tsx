@@ -26,6 +26,7 @@ export interface MessageChat {
   role: 'vous' | 'zoey'
   texte: string
   ts: number
+  tsServeur?: number
   carteMails?: CategorieMails[]
   action?: ActionVue
 }
@@ -34,6 +35,7 @@ interface Props {
   ouverte: boolean
   onOuvrir: () => void
   onFermer: () => void
+  onNouveauBut: () => void
   journal: { ts: number; categorie: string; titre: string }[]
   enAttente: number
 }
@@ -56,6 +58,9 @@ const MESSAGE_ACCUEIL: MessageChat[] = [
 ]
 
 let compteur = 100
+
+const messageAccueil = (): MessageChat[] =>
+  MESSAGE_ACCUEIL.map((m) => ({ ...m, ts: Date.now() / 1000 - 90 }))
 const maintenant = () => Date.now() / 1000
 
 async function attendreReponse(texte: string): Promise<string> {
@@ -80,8 +85,8 @@ async function attendreReponse(texte: string): Promise<string> {
   return reponses[Math.floor(Math.random() * reponses.length)]
 }
 
-export default function ChatPanel({ ouverte, onOuvrir, onFermer, journal, enAttente }: Props) {
-  const [messages, setMessages] = useState<MessageChat[]>(MESSAGE_ACCUEIL)
+export default function ChatPanel({ ouverte, onOuvrir, onFermer, onNouveauBut, journal, enAttente }: Props) {
+  const [messages, setMessages] = useState<MessageChat[]>(messageAccueil())
   const [saisie, setSaisie] = useState('')
   const [reflechir, setReflechir] = useState(false)
   const basRef = useRef<HTMLDivElement>(null)
@@ -96,22 +101,23 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, journal, enAtte
       api.conversation().then((c) => {
         if (!vivant || !c || !c.messages || !c.messages.length) return
         setMessages((prec) => {
-          // Deduplication sur le texte COMPLET + role : un message deja affiche
-          // (poll direct ou precedent) ne doit jamais etre re-ajoute par le
-          // rejeu de l'historique, sinon la reponse apparait deux fois.
-          const vus = new Set(prec.map((m) => `${m.role}:${m.texte}`))
+          // Deduplication sur le ts SERVEUR : chaque message du backend est
+          // affiche une seule fois, meme si deux messages identiques se
+          // suivent (« oui » deux fois de suite, par exemple).
+          const vus = new Set(prec.map((m) => m.tsServeur).filter(Boolean))
           const ajoutes: MessageChat[] = []
           for (const m of c.messages!) {
             if (m.role !== 'vous' && m.role !== 'jarvis') continue
             const role = (m.role === 'vous' ? 'vous' : 'zoey') as 'vous' | 'zoey'
-            const cle = `${role}:${m.texte}`
-            if (vus.has(cle)) continue
-            vus.add(cle)
+            const tsServeur = m.ts || 0
+            if (tsServeur && vus.has(tsServeur)) continue
+            if (tsServeur) vus.add(tsServeur)
             ajoutes.push({
               id: ++compteur,
               role,
               texte: m.texte,
               ts: m.ts || maintenant(),
+              tsServeur: tsServeur || undefined,
               carteMails: m.type === 'mails' ? m.categories : undefined,
               action:
                 m.type === 'action'
@@ -179,9 +185,10 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, journal, enAtte
           )}
         </div>
         <div className="flex items-center gap-3 text-[#777777]">
-          <button aria-label="Réinitialiser" onClick={() => setMessages(MESSAGE_ACCUEIL)}
+          <button aria-label="Réinitialiser" onClick={() => setMessages(messageAccueil())}
             className="transition hover:text-[#f5f5f5]"><RotateCcw size={13} /></button>
-          <button aria-label="Ouvrir" className="transition hover:text-[#f5f5f5]"><ExternalLink size={13} /></button>
+          <button aria-label="Ouvrir dans un onglet" onClick={() => window.open('/console', '_blank')}
+            className="transition hover:text-[#f5f5f5]"><ExternalLink size={13} /></button>
           <span className="h-2 w-2 rounded-full bg-orange" style={{ boxShadow: '0 0 8px rgba(255,106,0,0.7)' }} />
           <button aria-label="Fermer" onClick={onFermer} className="transition hover:text-[#f5f5f5]"><X size={13} /></button>
         </div>
@@ -318,7 +325,9 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, journal, enAtte
           style={{ background: 'rgba(13,13,13,0.9)', borderColor: 'var(--border-orange)' }}
         >
           <button
-            aria-label="Joindre"
+            aria-label="Nouveau but"
+            title="Nouveau but"
+            onClick={onNouveauBut}
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange text-black transition hover:brightness-110"
           >
             <Plus size={14} />

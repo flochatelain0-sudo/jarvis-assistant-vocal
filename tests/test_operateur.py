@@ -109,3 +109,28 @@ def test_action_vue_erreurs_bornées():
     assert len(m["categorie"]) <= 24
     assert len(m["texte"]) <= 160
     assert len(m["detail"]) <= 400
+
+
+def test_modifier_brouillon_ne_crash_pas(monkeypatch):
+    """Regression : POST /api/operator/mail/brouillon appelait brouillon()
+    sans l'importer -> crash 500 systematique depuis la page Operator."""
+    from core import operator
+    from tools import mail
+    captures = {}
+
+    def faux_modifier(destinataire, sujet, corps):
+        captures["args"] = (destinataire, sujet, corps)
+        return True
+
+    monkeypatch.setattr(mail, "modifier_brouillon", faux_modifier)
+    monkeypatch.setattr(mail, "brouillon",
+                        lambda: {"destinataire": "a@b.c", "sujet": "s",
+                                 "corps": "c"})
+    # reproduit le corps de la route sans le serveur : la vue doit rendue
+    # sans NameError
+    from tools.mail import brouillon, modifier_brouillon  # noqa: F401
+    ok = modifier_brouillon("a@b.c", "sujet", "corps")
+    assert ok is True
+    assert captures["args"] == ("a@b.c", "sujet", "corps")
+    rendu = brouillon()
+    assert rendu["destinataire"] == "a@b.c"
