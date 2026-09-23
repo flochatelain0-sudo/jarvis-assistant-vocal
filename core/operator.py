@@ -149,9 +149,11 @@ def _vie():
             "modele": hud._ETAT.get("modele", ""),
             "routage": hud._ETAT.get("routage", ""),
             "micro": hud._ETAT.get("micro", False),
+            "niveau": round(float(hud._ETAT.get("niveau", 0.0) or 0.0), 3),
         }
     except Exception:
-        return {"etat": "veille", "modele": "", "routage": "", "micro": False}
+        return {"etat": "veille", "modele": "", "routage": "",
+                "micro": False, "niveau": 0.0}
 
 
 def _fil_vocal():
@@ -409,8 +411,10 @@ def monter_routes(app):
         return None
 
     html = _RACINE / "web" / "operator.html"
+    html_console = _RACINE / "web" / "console.html"
 
     _PAGE_CACHE = {"contenu": None}
+    _PAGE_CACHE_CONSOLE = {"contenu": None}
 
     @app.get("/operator")
     def operator_page(request: Request):
@@ -423,6 +427,20 @@ def monter_routes(app):
         if _PAGE_CACHE["contenu"] is None:
             _PAGE_CACHE["contenu"] = html.read_text(encoding="utf-8")
         return HTMLResponse(_PAGE_CACHE["contenu"])
+
+    @app.get("/console")
+    def console_page(request: Request):
+        """La console ZOEY OS : orbe vivant + conversation, meme moteur que
+        l'Operator (chat ecrit, fil vocal, validations) — local uniquement."""
+        refus = garde(request)
+        if refus:
+            return refus
+        if not html_console.exists():
+            return HTMLResponse("<h1>Console</h1><p>web/console.html manquant.</p>",
+                                status_code=500)
+        if _PAGE_CACHE_CONSOLE["contenu"] is None:
+            _PAGE_CACHE_CONSOLE["contenu"] = html_console.read_text(encoding="utf-8")
+        return HTMLResponse(_PAGE_CACHE_CONSOLE["contenu"])
 
     @app.get("/api/operator/etat")
     def api_etat(request: Request):

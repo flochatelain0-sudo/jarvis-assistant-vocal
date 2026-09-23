@@ -171,6 +171,32 @@ def test_page_operator_refuse_le_tunnel():
     assert reponse.status_code == 403
 
 
+def test_page_console_refuse_le_tunnel():
+    app = _app_routes()
+    page = dict(app.routes)["/console"]
+    assert page(_Req(forwarded=True)).status_code == 403
+
+
+def test_page_console_refuse_le_lan():
+    app = _app_routes()
+    page = dict(app.routes)["/console"]
+    assert page(_Req(host="192.168.1.5")).status_code == 403
+    assert page(_Req()).status_code == 200
+    assert b"ZOEY OS" in page(_Req()).body
+
+
+def test_page_console_servie_depuis_web_console(tmp_path):
+    """La page vient bien de web/console.html, pas d'une page morte."""
+    assert (operator._RACINE / "web" / "console.html").exists()
+    app = _app_routes()
+    page = dict(app.routes)["/console"]
+    reponse = page(_Req())
+    assert reponse.status_code == 200
+    assert b"ZOEY OS" in reponse.body
+    assert b"envoyerDemande" in reponse.body          # chat branche aux vrais endpoints
+    assert b"/api/operator/message" in reponse.body
+
+
 def test_api_refuse_le_lan():
     app = _app_routes()
     etat = dict(app.routes)["/api/operator/etat"]
@@ -285,8 +311,22 @@ def test_etat_expose_la_vie_de_l_assistant():
     etat = operator.etat()
     assert "vie" in etat
     assert etat["vie"]["etat"] in {"veille", "ecoute", "reflexion", "parole"}
+    assert "niveau" in etat["vie"]                      # pour l'orbe de la console
+    assert 0.0 <= float(etat["vie"]["niveau"]) <= 1.0
     assert "fil_vocal" in etat
     assert isinstance(etat["fil_vocal"], list)
+
+
+def test_vie_reprend_le_niveau_micro_du_hud(monkeypatch):
+    """L'orbe de particules de la console est micro-reactif : il faut le
+    niveau instantane du micro (hud.niveau), pas seulement l'etat."""
+    import types
+    class _Hud(types.SimpleNamespace):
+        _ETAT = {"etat": "ecoute", "modele": "mistral", "routage": "hybride",
+                 "micro": False, "niveau": 0.62}
+    monkeypatch.setitem(sys.modules, "hud", _Hud)
+    vie = operator._vie()
+    assert vie["niveau"] == 0.62
 
 
 def test_fil_vocal_rejoue_les_transcriptions_du_hud(monkeypatch):
