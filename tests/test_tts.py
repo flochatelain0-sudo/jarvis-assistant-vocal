@@ -323,3 +323,52 @@ def test_voxtral_sans_voix_est_indisponible_et_le_dit(monkeypatch):
     assert provider.disponible() is False
     with pytest.raises(RuntimeError, match="voix_voxtral"):
         provider.synthetiser("Bonjour")
+
+
+# ---------------------------------------------------------------- Gemini TTS
+def test_gemini_choisi_par_la_fabrique(monkeypatch):
+    reglages = {"tts.moteur": "gemini", "gemini.cle": "cle-test"}
+    monkeypatch.setattr("core.routage.mode_actuel", lambda: "hybride")
+    monkeypatch.setattr(tts, "reglage",
+                        lambda chemin, defaut=None: reglages.get(chemin, defaut))
+    assert tts.tts().nom == "Gemini"
+
+
+def test_mode_local_ignore_gemini_et_garde_piper(monkeypatch):
+    assert _fabrique(monkeypatch, "local", True, moteur="gemini").nom == "Piper"
+
+
+def test_gemini_indisponible_sans_cle(monkeypatch):
+    monkeypatch.setattr(tts, "reglage", lambda chemin, defaut=None: defaut)
+    assert tts.GeminiTTSProvider().disponible() is False
+
+
+def test_gemini_decode_le_pcm_en_int16_24khz(monkeypatch):
+    np = _numpy()
+    trames = bytes(range(0, 256)) * 20
+    audio_b64 = base64.b64encode(trames).decode()
+    reglages = {"gemini.cle": "cle-test", "gemini.voix_tts": "Kore"}
+    appels = []
+
+    def _fausse_urlopen(requete, timeout=None):
+        appels.append(requete)
+        corps = {"candidates": [{"content": {"parts": [{
+            "inlineData": {"mimeType": "audio/L16;rate=24000",
+                           "data": audio_b64}}]}}]}
+        return _ReponseHTTP(_json.dumps(corps).encode())
+
+    monkeypatch.setattr(tts, "reglage",
+                        lambda chemin, defaut=None: reglages.get(chemin, defaut))
+    monkeypatch.setattr("urllib.request.urlopen", _fausse_urlopen)
+    provider = tts.GeminiTTSProvider()
+    assert provider.voix == "Kore"
+    resultat = provider.synthetiser("Bonjour, je suis Jarvis.")
+    assert resultat is not None
+    audio, freq = resultat
+    assert audio.dtype == np.int16 and freq == 24000
+    assert len(audio) == len(trames) // 2
+    requete = appels[0]
+    assert "gemini-2.5-flash-tts:generateContent" in requete.full_url
+    corps = _json.loads(requete.data.decode())
+    assert corps["generationConfig"]["speechConfig"]["voiceConfig"][
+        "prebuiltVoiceConfig"]["voiceName"] == "Kore"
