@@ -11,7 +11,7 @@ import type { IntegrationId } from '../lib/integrations'
 
 interface Props {
   mode: ModeCentre
-  onMode: (m: Exclude<ModeCentre, null>) => void
+  onMode: (mode: Exclude<ModeCentre, null>) => void
   ecoute: boolean
   onEcoute: () => void
   niveau: number
@@ -27,12 +27,6 @@ interface Props {
   orbMobile: boolean
 }
 
-const CARTES = [
-  { titre: 'ORCHESTRATOR', texte: 'Jarvis runs your inbox, calendar and projects.' },
-  { titre: 'ON AUTOPILOT', texte: 'Routine work happens while you sleep.' },
-  { titre: '95 / 5', texte: '95% automatisé, 5% confirmé par toi.' },
-]
-
 export default function MainWorkspace(props: Props) {
   const { mode, onMode, ecoute, onEcoute, niveau, page, onPage, orbMobile, etatOrbe } = props
   const tailleOrbe = useMemo(() => (orbMobile ? 300 : 430), [orbMobile])
@@ -42,29 +36,22 @@ export default function MainWorkspace(props: Props) {
       {/* orbe seul au fond */}
       <ParticleOrb etat={etatOrbe} niveau={niveau} taille={tailleOrbe} />
 
-      {/* controles par-dessus l'orbe, TOUJOURS cliquables */}
-      <div
-        className="absolute inset-x-0 top-6 z-30 flex flex-col items-center gap-2"
-      >
+      {/* micro discret en haut, cliquable meme panneau ouvert */}
+      <div className="absolute inset-x-0 top-6 z-30 flex justify-center">
         <ListeningIndicator actif={ecoute} onBasculer={onEcoute} />
-        <div className="mt-2">
-          <WorkspaceControls
-            mode={mode}
-            onChoisir={(m) => onMode(mode === m ? 'chat' : m)}
-          />
-        </div>
       </div>
 
-      {/* branding + carrousel en bas — cliquables meme panneau ouvert */}
-      <div className="absolute inset-x-0 bottom-8 z-30 flex flex-col items-center gap-3">
-        <ZoeyBranding page={page} nbPages={CARTES.length} onPage={onPage} />
-        <div
-          className="rounded-lg border px-6 py-3 text-center"
-          style={{ background: 'rgba(13,13,13,0.75)', borderColor: 'var(--border)' }}
-        >
-          <div className="label-tech mb-1 text-[9px] text-orange">{CARTES[page].titre}</div>
-          <div className="text-[12.5px] text-[var(--dim)]">{CARTES[page].texte}</div>
-        </div>
+      {/* branding sobre en bas */}
+      <div className="absolute inset-x-0 bottom-8 z-30 flex justify-center">
+        <ZoeyBranding page={page} nbPages={1} onPage={onPage} />
+      </div>
+
+      {/* controles en icones, flottants discrets en bas a droite */}
+      <div className="absolute bottom-5 right-5 z-30">
+        <WorkspaceControls
+          mode={mode}
+          onChoisir={(m) => onMode(mode === m ? 'chat' : m)}
+        />
       </div>
 
       {mode === 'console' && (
