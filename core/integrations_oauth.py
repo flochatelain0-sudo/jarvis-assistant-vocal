@@ -165,6 +165,16 @@ CATALOGUE = [
         "integrations.hubspot.client_id", "integrations.hubspot.client_secret",
         doc_url="https://developers.hubspot.com",
     ),
+    _def_provider(
+        "linkedin", "LinkedIn", "CRM & SALES",
+        "Share posts and manage your professional network.",
+        ["Share posts", "Read profile", "Manage connections"],
+        "https://www.linkedin.com/oauth/v2/authorization",
+        "https://www.linkedin.com/oauth/v2/accessToken",
+        ["r_liteprofile", "w_member_social"],
+        "integrations.linkedin.client_id", "integrations.linkedin.client_secret",
+        doc_url="https://learn.microsoft.com/linkedin",
+    ),
 ]
 
 _CATEGORIES = ["DOCS & DATA", "DEV TOOLS", "PROJECT MGMT",
@@ -513,8 +523,11 @@ def deconnecter(provider_id):
 
 
 def _base_url_locale():
-    """Base des URLs de callback : serveur local de Jarvis, jamais expose."""
-    port = int(reglage("serveur.port", 8765) or 8765)
+    """Base des URLs de callback : serveur local de Jarvis, jamais expose.
+    Meme logique de resolution du port que core/serveur._port() : le port
+    REEL du serveur web, pas celui du transport MCP (8765)."""
+    port = int(reglage("serveur.port",
+                       reglage("pont_iphone.port", 8790)) or 8790)
     return f"http://127.0.0.1:{port}"
 
 

@@ -282,3 +282,29 @@ def test_route_connect_sans_config_repond_409(monkeypatch):
     reponse = route("github", _Req())
     assert reponse.status_code == 409
     assert b"setup" in reponse.body.lower()
+
+
+def test_linkedin_dans_le_catalogue():
+    """LinkedIn est un provider OAuth reel du catalogue."""
+    from core import integrations_oauth as io
+    p = io.provider("linkedin")
+    assert p is not None
+    assert p["oauthAuthorizationUrl"] == \
+        "https://www.linkedin.com/oauth/v2/authorization"
+    ids = [x["id"] for x in io.vue_catalogue()]
+    assert "linkedin" in ids
+
+
+def test_base_url_locale_suivit_le_port_du_serveur(monkeypatch):
+    """Le callback OAuth vise le port REEL du serveur web (8790 par defaut),
+    pas le port du transport MCP (8765) — regression du bug GitHub."""
+    from core import integrations_oauth as io
+    monkeypatch.setattr(io, "reglage",
+                        lambda chemin, defaut=None: (
+                            8790 if chemin == "serveur.port" else defaut))
+    assert io._base_url_locale() == "http://127.0.0.1:8790"
+    monkeypatch.setattr(io, "reglage",
+                        lambda chemin, defaut=None: (
+                            None if chemin == "serveur.port" else defaut))
+    # repli : pont_iphone.port puis 8790, jamais 8765
+    assert io._base_url_locale() in ("http://127.0.0.1:8790",)

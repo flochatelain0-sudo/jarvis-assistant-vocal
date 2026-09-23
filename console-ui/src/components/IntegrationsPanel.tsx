@@ -5,6 +5,7 @@ import {
   type IntegrationDef,
   type ConnexionIntegration,
 } from '../lib/api'
+import LogoIntegration from './LogoIntegration'
 
 interface Props {
   onFermer: () => void
@@ -13,16 +14,18 @@ interface Props {
 
 type Onglet = 'browse' | 'connected'
 
-const LOGOS: Record<string, string> = {
-  gmail: 'M',
-  gcal: '📅',
-  gdrive: '△',
-  github: '',
-  slack: '#',
-  notion: 'N',
-  linear: 'L',
-  outlook: 'O',
-  hubspot: 'H',
+// Ou creer l'application OAuth chez chaque provider (guide setup reel).
+const SETUP_URLS: Record<string, string> = {
+  gmail: 'https://console.cloud.google.com/apis/credentials',
+  gcal: 'https://console.cloud.google.com/apis/credentials',
+  gdrive: 'https://console.cloud.google.com/apis/credentials',
+  github: 'https://github.com/settings/developers',
+  linkedin: 'https://www.linkedin.com/developers/apps',
+  slack: 'https://api.slack.com/apps',
+  notion: 'https://www.notion.so/my-integrations',
+  linear: 'https://linear.app/settings/api',
+  outlook: 'https://portal.azure.com',
+  hubspot: 'https://developers.hubspot.com',
 }
 
 const ERREURS_OAUTH: Record<string, string> = {
@@ -147,10 +150,10 @@ export default function IntegrationsPanel({ onFermer, oauthResultat }: Props) {
       >
         <div className="flex items-start justify-between">
           <div
-            className="flex h-9 w-9 items-center justify-center rounded-lg border text-[15px]"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border"
             style={{ borderColor: 'rgba(255,255,255,0.10)', background: '#111113' }}
           >
-            {LOGOS[integ.id] || integ.name[0]}
+            <LogoIntegration id={integ.id} nom={integ.name} />
           </div>
           {deja ? (
             <div className="relative">
@@ -366,10 +369,10 @@ export default function IntegrationsPanel({ onFermer, oauthResultat }: Props) {
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div
-                  className="flex h-9 w-9 items-center justify-center rounded-lg border text-[16px]"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border"
                   style={{ borderColor: 'rgba(255,255,255,0.10)', background: '#111113' }}
                 >
-                  {LOGOS[detail.id] || detail.name[0]}
+                  <LogoIntegration id={detail.id} nom={detail.name} />
                 </div>
                 <h2 className="label-tech text-[11px] text-[#f5f5f5]">{detail.name.toUpperCase()}</h2>
               </div>
@@ -436,11 +439,29 @@ export default function IntegrationsPanel({ onFermer, oauthResultat }: Props) {
               </button>
             ) : (
               <div className="flex flex-col gap-2">
-                <div className="rounded-lg border px-4 py-2.5 text-[12px] text-[#777777]"
+                <div className="rounded-lg border px-4 py-2.5 text-[12px] leading-relaxed text-[#777777]"
                   style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
-                  Available — setup required. Add the client ID and secret to
-                  config.yaml, then restart.
+                  Available — setup required. Create the OAuth app at the provider
+                  (button below), add the redirect URI
+                  {' '}
+                  <code className="text-[10.5px] text-[#c7c7c7]">
+                    http://127.0.0.1:8790/api/integrations/{detail.id}/callback
+                  </code>
+                  , then paste the client ID and secret into the
+                  {' '}<span className="text-[#c7c7c7]">integrations.{detail.id}</span>{' '}
+                  section of config.yaml and restart.
                 </div>
+                {SETUP_URLS[detail.id] && (
+                  <a
+                    href={SETUP_URLS[detail.id]}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="label-tech flex items-center justify-center gap-1.5 rounded-lg border py-2 text-[9.5px] text-[#c7c7c7] transition hover:text-orange"
+                    style={{ borderColor: 'rgba(255,255,255,0.10)' }}
+                  >
+                    <ExternalLink size={10} /> CREATE OAUTH APP AT {detail.name.toUpperCase()}
+                  </a>
+                )}
                 {detail.documentationUrl && (
                   <a
                     href={detail.documentationUrl}
