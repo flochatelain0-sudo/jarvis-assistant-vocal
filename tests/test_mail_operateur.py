@@ -71,6 +71,49 @@ def test_enregistre():
     assert registre.niveau("operateur_mails") == "N1"
     assert registre.niveau("operateur_mail_suivant") == "N1"
     assert registre.niveau("ajuster_brouillon_mail") == "N1"
+    assert registre.niveau("compte_rendu_mails") == "N1"
+
+
+def test_compte_rendu_carte_console(bac, monkeypatch):
+    """Le compte rendu categorise, injecte la carte dans la console et
+    resume a voix haute ; la pub est ecartee du rendu."""
+    cartes = []
+    monkeypatch.setattr("core.operator.carte_mails", lambda d: cartes.append(d))
+    reponse = mo.compte_rendu_mails()
+    assert "Compte rendu de tes mails" in reponse
+    assert "attendent ta reponse" in reponse
+    assert cartes, "la carte doit etre injectee dans la console"
+    titres = " | ".join(c["titre"] for c in cartes[0]["categories"])
+    assert "En attente de ta reponse" in titres
+    # la newsletter (spam) ne doit pas apparaitre dans les mails comptes
+    total_mails = sum(len(c["mails"]) for c in cartes[0]["categories"])
+    assert total_mails == 2
+
+
+def test_compte_rendu_categorisation(monkeypatch):
+    """Categorisation pure : securite prioritaire, systeme en notifs,
+    interne par domaine, le reste en attente."""
+    monkeypatch.setattr("core.config.reglage",
+                        lambda cle, defaut="": "florian@gophonebox.com"
+                        if cle == "mail.adresse" else defaut)
+    entetes = [
+        {"numero": 1, "uid": b"1", "nom": "Google", "adresse": "no-reply@accounts.google.com",
+         "sujet": "Security alert", "spam": False},
+        {"numero": 2, "uid": b"2", "nom": "Zoey", "adresse": "no-reply@ops.zoeyos.com",
+         "sujet": "Confirmation code", "spam": False},
+        {"numero": 3, "uid": b"3", "nom": "Sondage", "adresse": "no-reply@winloss.com",
+         "sujet": "impact.com wants your buying experience survey", "spam": False},
+        {"numero": 4, "uid": b"4", "nom": "Collegue", "adresse": "team@gophonebox.com",
+         "sujet": "Closing du jour", "spam": False},
+        {"numero": 5, "uid": b"5", "nom": "Client", "adresse": "client@ces-schools.com",
+         "sujet": "Top up", "spam": False},
+    ]
+    familles = mo._categoriser_rendu(entetes)
+    assert [e["nom"] for e in familles["securite"]] == ["Google", "Zoey"]
+    assert [e["nom"] for e in familles["notifs"]] == ["Sondage"]
+    assert [e["nom"] for e in familles["interne"]] == ["Collegue"]
+    assert [e["nom"] for e in familles["attente"]] == ["Client"]
+
 
 
 def test_rapport_chiffre_et_categories(bac):

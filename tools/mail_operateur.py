@@ -198,6 +198,160 @@ def _traiter_suivant() -> str:
             f"(« {sujet} »). Traite-le manuellement ou relance-moi.")
 
 
+# Sujets de mails d'alerte securite : a verifier en priorite.
+_MOTS_SECURITE = ("security alert", "reset your password", "password reset",
+                  "confirmation code", "verification code", "sign-in",
+                  "new sign in", "security warning", "suspicious")
+
+# Expediteurs systemes : notification sans action attendue.
+_EXPEDITEURS_SYSTEME = ("no-reply", "noreply", "donotreply", "notification",
+                        "postmaster", "mailer-daemon")
+
+
+def _est_securite(entete: dict) -> bool:
+    sujet = _sans_accent(entete.get("sujet"))
+    return any(mot in sujet for mot in _MOTS_SECURITE)
+
+
+def _est_systeme(entete: dict) -> bool:
+    adresse = _sans_accent(entete.get("adresse") or "")
+    sujet = _sans_accent(entete.get("sujet"))
+    if any(mot in adresse for mot in _EXPEDITEURS_SYSTEME):
+        return not _est_securite(entete)
+    return any(mot in sujet for mot in ("survey", "sondage"))
+
+
+def _categoriser_rendu(entetes: list) -> dict:
+    """Quatre familles pour le compte rendu affiche : securite, reponse
+    attendue, interne, notifications. Les pubs/spams deja etiquetees sont
+    ecartees du rendu (elles restent gerables via vider_poubelle)."""
+    familles = {"securite": [], "attente": [], "interne": [], "notifs": []}
+    try:
+        from core.config import reglage
+        domaine = str(reglage("mail.adresse", "") or "").split("@")[-1].lower()
+    except Exception:
+        domaine = ""
+    for e in entetes:
+        if e.get("spam"):
+            continue
+        if _est_securite(e):
+            familles["securite"].append(e)
+            continue
+        if _est_systeme(e):
+            familles["notifs"].append(e)
+            continue
+        adresse = _sans_accent(e.get("adresse") or "")
+        if domaine and adresse.endswith("@" + domaine):
+            familles["interne"].append(e)
+        else:
+            familles["attente"].append(e)
+    return familles
+
+
+def _carte_compte_rendu(familles: dict) -> None:
+    """Injecte la carte du compte rendu dans la console (core.operator),
+    sans jamais faire echouer le compte rendu vocal si la page est fermee."""
+    try:
+        from core import operator
+        correspondances = {
+            "securite": ("A verifier en priorite - securite", "\U0001F512"),
+            "attente": ("En attente de ta reponse", "\U0001F465"),
+            "interne": ("Interne - " + domaine_entreprise(), "\U0001F3E2"),
+            "notifs": ("Notifications", "\U0001F4E9"),
+        }
+        categories = []
+        for cle, (titre, icone) in correspondances.items():
+            mails = familles.get(cle) or []
+            if not mails:
+                continue
+            categories.append({
+                "titre": titre,
+                "icone": icone,
+                "mails": [{
+                    "expediteur": m.get("nom") or "un contact",
+                    "objet": m.get("sujet") or "sans objet",
+                    "detail": "",
+                    "action": "Verification conseillee" if cle == "securite"
+                              else "Reponse attendue" if cle == "attente"
+                              else "Information" if cle == "interne"
+                              else "Sans action",
+                } for m in mails],
+            })
+        operator.carte_mails({
+            "titre": "Compte rendu de tes mails",
+            "categories": categories,
+        })
+    except Exception:
+        LOG.exception("mail_operateur : injection carte mails impossible")
+
+
+def domaine_entreprise() -> str:
+    try:
+        from core.config import reglage
+        return str(reglage("mail.adresse", "") or "").split("@")[-1] or "entreprise"
+    except Exception:
+        return "entreprise"
+
+
+@outil(
+    nom="compte_rendu_mails",
+    description=(
+        "Compte rendu des derniers mails recus, categorie par categorie "
+        "(securite, reponse attendue, interne, notifications), AFFICHE dans "
+        "la console en carte detaillee ET resume a voix haute. Pour \u00ab compte "
+        "rendu de mes mails \u00bb, \u00ab quels mails j'ai recu \u00bb, \u00ab resume mes mails "
+        "\u00bb, \u00ab recap de mes mails \u00bb."
+    ),
+    parametres={
+        "type": "object",
+        "properties": {
+            "nombre": {"type": "integer",
+                       "description": "Combien de mails scanner (20 par defaut)."}
+        },
+    },
+    lent=True,
+    phrase_attente="Je fais le compte rendu de tes mails, un instant.",
+)
+def compte_rendu_mails(nombre: int = 20) -> str:
+    """Compte rendu des mails : carte dans la console + resume vocal."""
+    entetes = _entetes(max(1, min(int(nombre or 20), 50)))
+    if entetes is None:
+        return ("La messagerie n'est pas configuree ou injoignable. "
+                "Renseigne la section mail de config.yaml.")
+    if not entetes:
+        return "Ta boite de reception est vide. Rien a signaler."
+    familles = _categoriser_rendu(entetes)
+    _carte_compte_rendu(familles)
+
+    morceaux = []
+    total = sum(len(v) for v in familles.values())
+    if not total:
+        return ("Rien a signaler : uniquement de la pub ou du spam, ecartes "
+                "du compte rendu. Dis \u00ab vide la poubelle \u00bb pour les jeter.")
+    morceaux.append(f"Compte rendu de tes mails : {total} mail(s) a signaler.")
+    if familles["securite"]:
+        noms = ", ".join(
+            (e.get("nom") or "un contact") for e in familles["securite"][:3])
+        morceaux.append(
+            f"{len(familles['securite'])} alerte(s) de securite a verifier en "
+            f"priorite ({noms}).")
+    if familles["attente"]:
+        noms = ", ".join(
+            (e.get("nom") or "un contact") for e in familles["attente"][:4])
+        morceaux.append(
+            f"{len(familles['attente'])} mail(s) attendent ta reponse : {noms}.")
+    if familles["interne"]:
+        noms = ", ".join(
+            (e.get("nom") or "un contact") for e in familles["interne"][:4])
+        morceaux.append(
+            f"{len(familles['interne'])} message(s) interne(s) : {noms}.")
+    if familles["notifs"]:
+        morceaux.append(
+            f"Et {len(familles['notifs'])} notification(s) sans action attendue.")
+    morceaux.append("Le detail complet est affiche dans la console.")
+    return " ".join(morceaux)
+
+
 @outil(
     nom="operateur_mails",
     description=(
