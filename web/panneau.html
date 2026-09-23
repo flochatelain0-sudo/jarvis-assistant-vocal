@@ -129,8 +129,14 @@
           <button data-v="auto">Auto</button>
           <button data-v="piper">Piper</button>
           <button data-v="kokoro">Kokoro</button>
-          <button data-v="windows">Windows</button>
+          <button data-v="gemini">Gemini</button>
+          <button data-v="voxtral">Voxtral</button>
+          <button data-v="os">OS</button>
         </div>
+      </div>
+      <div class="fld"><div class="lab"><b>Voix Voxtral (Mistral)</b>
+        <small>Si moteur = Voxtral : les voix de ton compte Mistral, listées automatiquement.</small></div>
+        <select class="txt" id="sel-voix-voxtral" onchange="setReglage('voxtral.voix',this.value,this)"></select>
       </div>
       <div class="row"><button class="act" onclick="testerVoix()">Tester la voix</button></div>
       <div id="tts-msg" class="msg"></div>
@@ -288,8 +294,8 @@ async function chargerModeles(){
       <td><div class="row">${act}</div><div class="prog"><i></i></div><div class="msg"></div></td></tr>`;
   }).join('');
   // installes hors catalogue
-  const cat=new Set(d.ollama.catalogue.map(c=>c.nom));
-  const autres=d.ollama.installes.filter(m2=>!cat.has(m2.nom));
+  const nomsCatalogue=new Set(d.ollama.catalogue.map(c=>c.nom));
+  const autres=d.ollama.installes.filter(m2=>!nomsCatalogue.has(m2.nom));
   $('#llm-autres').innerHTML = autres.length? `<div style="margin-top:10px" class="muted">Autres modèles installés : `
     + autres.map(m2=>`<span class="badge">${m2.nom} · ${m2.taille_go} Go
       <a href="#" onclick="activer('local','${m2.nom}');return false" style="color:var(--acc)">activer</a></span>`).join(' ')+'</div>':'';
@@ -412,7 +418,7 @@ async function chargerActivite(){
 }
 
 /* ---------- REGLAGES ---------- */
-const PERSO_LABEL={jarvis_sarcastique:'Jarvis (sarcastique)',neutre:'Neutre',concis:'Concis'};
+const PERSO_LABEL={jarvis_mc:'J.A.R.V.I.S. (monsieur)',jarvis_sarcastique:'Jarvis (sarcastique)',neutre:'Neutre',concis:'Concis',builder:'Builder',counsel:'Counsel',marketer:'Marketer'};
 async function chargerReglages(){
   const d=await api('/api/panneau/reglages');
   // mode
@@ -435,6 +441,14 @@ async function chargerReglages(){
   });
   // personnalite
   $('#sel-perso').innerHTML=(d.personnalites||[]).map(p=>opt(p,PERSO_LABEL[p]||p,p===d.personnalite)).join('');
+  // voix voxtral (compte Mistral)
+  const vv=$('#sel-voix-voxtral');
+  if(vv){
+    const items=(d.voxtral_voix||[]);
+    vv.innerHTML=items.length
+      ? items.map(v=>opt(v.id,`${v.nom}${v.langues?' · '+v.langues:''}`,v.id===d.voxtral_voix_active)).join('')
+      : opt('', 'Aucune voix listée — vérifie mistral.cle dans config.yaml', true);
+  }
   // sliders
   $('#rng-suite').value=d.duree_suite; $('#val-suite').textContent=d.duree_suite+' s';
   $('#rng-seuil').value=d.seuil_reveil; $('#val-seuil').textContent=(+d.seuil_reveil).toFixed(2);
@@ -446,6 +460,7 @@ async function setReglage(cle,valeur,cibleOuBtn){
   if(cle==='tts.moteur') $$('#seg-tts button').forEach(x=>x.classList.toggle('on',x.dataset.v===valeur));
   const zone={'mode':'#audio-msg','audio.micro':'#audio-msg','audio.haut_parleur':'#audio-msg',
     'assistant.personnalite':'#voix-msg','assistant.duree_suite':'#voix-msg',
+    'gemini.voix_tts':'#tts-msg','tts.voix_systeme':'#tts-msg','voxtral.voix':'#tts-msg',
     'assistant.seuil_reveil':'#wake-msg','tts.moteur':'#tts-msg',
     'cloud.fournisseur':'#cloud-etat'}[cle];
   const el=zone?$(zone):null;

@@ -480,6 +480,7 @@ _CLES_REGLABLES = {
     "mode": "str", "audio.micro": "int", "audio.haut_parleur": "nint",
     "assistant.personnalite": "str", "assistant.duree_suite": "int",
     "assistant.seuil_reveil": "float", "tts.moteur": "str",
+    "tts.voix_systeme": "str", "voxtral.voix": "str",
     "cloud.fournisseur": "str",
 }
 
@@ -498,6 +499,20 @@ def _audio_devices():
         return [], []
 
 
+def _voix_voxtral():
+    """Les voix du compte Mistral pour le select du panneau. Jamais bloquant :
+    sans cle ou erreur reseau -> liste vide (le select affiche l'aide)."""
+    try:
+        from core.tts import lister_voix_voxtral
+        reponse = lister_voix_voxtral()
+        items = (reponse or {}).get("items") or []
+        return [{"id": it.get("id", ""), "nom": it.get("name", ""),
+                 "langues": ",".join(it.get("languages") or [])[:20]}
+                for it in items if it.get("id")]
+    except Exception:
+        return []
+
+
 def _reglages():
     entrees, sorties = _audio_devices()
     return {
@@ -509,7 +524,10 @@ def _reglages():
         "seuil_reveil": reglage("assistant.seuil_reveil", 0.5),
         "tts_moteur": reglage("tts.moteur", "auto"),
         "entrees": entrees, "sorties": sorties,
-        "personnalites": ["jarvis_sarcastique", "neutre", "concis"],
+        "personnalites": ["jarvis_mc", "jarvis_sarcastique", "neutre",
+                          "concis", "builder", "counsel", "marketer"],
+        "voxtral_voix": _voix_voxtral(),
+        "voxtral_voix_active": reglage("voxtral.voix", ""),
     }
 
 
