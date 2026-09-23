@@ -53,6 +53,27 @@ def main():
         print(f"\n   ATTENTION : monday.tableau = {tableau} n'est pas dans la "
               "liste ci-dessus. Corrige l'ID dans config.yaml.")
         return 1
+    print("\n4. Requete exacte du widget CRM (etat_crm, avec pagination)...")
+    variables = {"b": [str(tableau)], "n": 25}
+    try:
+        donnees, erreurs = _requete(
+            """query ($b: [ID!], $n: Int!, $c: String) { boards(ids: $b) { name
+                items_page(limit: $n, cursor: $c) { cursor items { name
+                  column_values { id title text } } } } }""",
+            variables)
+    except Exception as e:
+        print(f"   ECHEC reseau/HTTP : {e}")
+        return 1
+    if erreurs:
+        print(f"   ERREUR API : {erreurs}")
+        print("   -> c'est cette requete que la page Operator fait echouer ; "
+              "copie ce message exact pour le faire corriger.")
+        return 1
+    boards = donnees.get("boards") or []
+    nb = len(((boards[0].get("items_page") or {}).get("items")) or []) if boards else 0
+    nom = (boards[0].get("name") or "?") if boards else "?"
+    print(f"   OK — tableau « {nom} » : {nb} item(s) sur la premiere page.")
+
     print("\nTout est bon cote monday. Si la page Operator affiche encore "
           "« erreur API », relance Jarvis — le cache se vide au redemarrage.")
     return 0
