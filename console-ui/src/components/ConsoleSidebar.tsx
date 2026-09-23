@@ -1,15 +1,16 @@
-import { useState } from 'react'
-import { Activity, Target, Plus, Minus, X, ChevronRight } from 'lucide-react'
-import type { But } from '../data/etat-initial'
-import { ETAPES_DEMARRAGE } from '../data/etat-initial'
-import { INTEGRATIONS, type IntegrationId } from '../lib/integrations'
+import { Activity, Target, Zap, Monitor, Plus, X } from 'lucide-react'
+import type { But, Automation, IntegrationEtat } from '../lib/api'
+import { INTEGRATIONS } from '../lib/integrations'
 import GettingStarted from './GettingStarted'
 
 interface Props {
   buts: But[]
-  connectes: Set<IntegrationId>
-  onConnecter: (id: IntegrationId) => void
+  automations: Automation[]
+  integrations: Record<string, IntegrationEtat>
+  connectes: Set<string>
+  onConnecter: (id: string) => void
   onAjouterBut: () => void
+  onSupprimerBut: (id: string) => void
   onOuvrirEtape: (i: number) => void
   etapesFaites: Set<number>
   ouverte: boolean
@@ -18,17 +19,20 @@ interface Props {
 
 export default function ConsoleSidebar({
   buts,
+  automations,
+  integrations,
   connectes,
   onConnecter,
   onAjouterBut,
+  onSupprimerBut,
   onOuvrirEtape,
   etapesFaites,
   ouverte,
   onFermer,
 }: Props) {
-  const [repliee, setRepliee] = useState(false)
-
   if (!ouverte) return null
+
+  const actives = automations.filter((a) => a.active).length
 
   return (
     <aside
@@ -53,7 +57,7 @@ export default function ConsoleSidebar({
         </button>
       </div>
 
-      {/* ACTIVITY */}
+      {/* ACTIVITY : journal reel */}
       <section className="px-4 pb-4">
         <div className="mb-3 flex items-center gap-2">
           <Activity size={11} className="text-orange" />
@@ -70,8 +74,46 @@ export default function ConsoleSidebar({
         </div>
       </section>
 
-      {/* GOALS */}
-      <section className="px-4">
+      {/* AUTOMATIONS : le vrai planificateur */}
+      <section className="px-4 pb-4">
+        <div className="mb-3 flex items-center gap-2">
+          <Zap size={11} className="text-orange" />
+          <span className="label-tech text-orange">AUTOMATIONS</span>
+        </div>
+        {actives === 0 ? (
+          <div className="text-[12px] text-[#777777]">
+            Nothing runs on its own yet.
+          </div>
+        ) : (
+          automations.filter((a) => a.active).map((a) => (
+            <div key={a.id} className="mb-1.5 flex items-center gap-2">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-green" />
+              <span className="flex-1 truncate text-[12.5px] text-[#c7c7c7]">{a.nom}</span>
+              <span className="label-tech text-[8.5px] text-[#555]">{a.moment}</span>
+            </div>
+          ))
+        )}
+      </section>
+
+      {/* LOCAL MACHINE : acces reel */}
+      <section className="px-4 pb-4">
+        <div className="mb-3 flex items-center gap-2">
+          <Monitor size={11} className="text-orange" />
+          <span className="label-tech text-orange">LOCAL MACHINE</span>
+        </div>
+        {connectes.has('pc') ? (
+          <div className="text-[12px] text-[#c7c7c7]">
+            Astra PC control approved.
+          </div>
+        ) : (
+          <div className="text-[12px] text-[#777777]">
+            No apps approved yet — the first request arrives in chat.
+          </div>
+        )}
+      </section>
+
+      {/* GOALS : buts persistes */}
+      <section className="px-4 pb-4">
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Target size={11} className="text-orange" />
@@ -98,25 +140,41 @@ export default function ConsoleSidebar({
                 <span className="text-[13px] leading-snug text-[#f5f5f5]">
                   {but.titre}
                 </span>
-                <span className="label-tech shrink-0 text-[9px] text-[#777777]">
-                  {but.statut}
-                </span>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <span className="label-tech text-[9px] text-[#777777]">
+                    {but.statut}
+                  </span>
+                  <button
+                    onClick={() => onSupprimerBut(but.id)}
+                    aria-label="Supprimer l'objectif"
+                    className="text-[#555] transition hover:text-[#f5f5f5]"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
               </div>
               <p className="mb-2 text-[11px] text-[#777777]">What this goal needs</p>
               <div className="flex flex-col gap-1.5">
                 {but.requis.map((req) => {
-                  const integ = INTEGRATIONS[req.id]
-                  const Ic = integ.icone
-                  const deja = connectes.has(req.id)
+                  const integ = INTEGRATIONS[req.id as keyof typeof INTEGRATIONS]
+                  const etatInteg = integrations[req.id]
+                  const deja = req.connecte || (etatInteg && etatInteg.connecte)
+                  const Ic = integ ? integ.icone : undefined
                   return (
                     <div key={req.id} className="flex items-center gap-2">
-                      <Ic size={13} className="shrink-0 text-[#777777]" />
+                      {Ic ? (
+                        <Ic size={13} className="shrink-0 text-[#777777]" />
+                      ) : (
+                        <span className="h-3.5 w-3.5 shrink-0 rounded-full border" style={{ borderColor: 'var(--border)' }} />
+                      )}
                       <span className="flex-1 truncate text-[12px] text-[#c7c7c7]">
-                        {req.texte}
+                        {etatInteg
+                          ? `${deja ? 'Connected — ' : ''}${etatInteg.nom}`
+                          : req.id}
                       </span>
                       <button
                         onClick={() => !deja && onConnecter(req.id)}
-                        disabled={deja}
+                        disabled={Boolean(deja)}
                         className="label-tech shrink-0 rounded border px-2 py-0.5 text-[9px] transition"
                         style={{
                           borderColor: deja
@@ -139,33 +197,12 @@ export default function ConsoleSidebar({
 
       {/* GETTING STARTED : carte flottante */}
       <div className="mt-auto p-4">
-        {!repliee && (
-          <GettingStarted
-            etapesFaites={etapesFaites}
-            onOuvrirEtape={onOuvrirEtape}
-            onReplier={() => setRepliee(true)}
-          />
-        )}
-        {repliee && (
-          <button
-            onClick={() => setRepliee(false)}
-            className="label-tech flex w-full items-center justify-between rounded-lg border px-3 py-2.5 text-[10px] transition hover:border-orange/40"
-            style={{
-              background: 'rgba(255,106,0,0.04)',
-              borderColor: 'var(--border-orange)',
-              boxShadow: '0 0 22px rgba(255,106,0,0.10)',
-            }}
-          >
-            <span className="text-orange">GETTING STARTED</span>
-            <span className="flex items-center gap-1.5 text-[#777777]">
-              {etapesFaites.size}/4 <ChevronRight size={11} />
-            </span>
-          </button>
-        )}
+        <GettingStarted
+          etapesFaites={etapesFaites}
+          onOuvrirEtape={onOuvrirEtape}
+          onReplier={() => {}}
+        />
       </div>
-      <span className="hidden"><Minus size={0} /></span>
     </aside>
   )
 }
-
-export { ETAPES_DEMARRAGE }

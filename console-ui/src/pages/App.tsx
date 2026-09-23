@@ -1,15 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
 import TopBar from '../components/TopBar'
 import ConsoleSidebar from '../components/ConsoleSidebar'
 import MainWorkspace from '../components/MainWorkspace'
 import ChatPanel from '../components/ChatPanel'
 import ConnectionModal from '../components/ConnectionModal'
+import IntegrationsPanel from '../components/IntegrationsPanel'
 import type { ModeCentre } from '../components/WorkspaceControls'
-import type { But } from '../data/etat-initial'
-import { BUTS_INITIAUX } from '../data/etat-initial'
 import type { IntegrationId } from '../lib/integrations'
-import { api, type EtatOperator, type ModeGlobal } from '../lib/api'
+import {
+  api,
+  type EtatOperator,
+  type ModeGlobal,
+  type But,
+  type Automation,
+  type IntegrationEtat,
+} from '../lib/api'
 
 export default function App() {
   const [consoleOuverte, setConsoleOuverte] = useState(true)
@@ -17,15 +23,23 @@ export default function App() {
   const [ecoute, setEcoute] = useState(true)
   const [mode, setMode] = useState<ModeCentre>('chat')
   const [page, setPage] = useState(0)
-  const [buts, setButs] = useState<But[]>(BUTS_INITIAUX)
+  const [buts, setButs] = useState<But[]>([])
+  const [automations, setAutomations] = useState<Automation[]>([])
+  const [integrations, setIntegrations] = useState<Record<string, IntegrationEtat>>({})
   const [connectes, setConnectes] = useState<Set<IntegrationId>>(new Set())
   const [aConnecter, setAConnecter] = useState<IntegrationId | null>(null)
   const [etapesFaites, setEtapesFaites] = useState<Set<number>>(new Set())
   const [recherche, setRecherche] = useState('')
+  const [pageIntegrations, setPageIntegrations] = useState(false)
+  const oauthResultat = useMemo(() => {
+    const p = new URLSearchParams(window.location.search).get('oauth')
+    return p
+  }, [])
   const [etat, setEtat] = useState<EtatOperator | null>(null)
   const [modeGlobal, setModeGlobal] = useState<ModeGlobal>('manual')
 
-  // le vrai pouls de Jarvis : etat de vie + journal, poll toutes les 5 s
+  // le vrai pouls de Jarvis : etat de vie + journal + buts + integrations,
+  // poll toutes les 5 s — TOUT vient de l'API, rien n'est simule.
   useEffect(() => {
     let vivant = true
     const maj = async () => {
@@ -33,7 +47,33 @@ export default function App() {
       if (vivant && e && e.vie) {
         setEtat(e)
         if (e.mode) setModeGlobal(e.mode)
+        if (e.integrations) {
+          setIntegrations(e.integrations)
+          setConnectes(
+            new Set(
+              Object.values(e.integrations)
+                .filter((i) => i.connecte)
+                .map((i) => i.id as IntegrationId),
+            ),
+          )
+        }
+        if (e.buts) setButs(e.buts)
       }
+    }
+    maj()
+    const t = setInterval(maj, 5000)
+    return () => {
+      vivant = false
+      clearInterval(t)
+    }
+  }, [])
+
+  // automations : le vrai planificateur (data/automations.json)
+  useEffect(() => {
+    let vivant = true
+    const maj = async () => {
+      const a = await api.automations()
+      if (vivant && a) setAutomations(a.automations)
     }
     maj()
     const t = setInterval(maj, 5000)
@@ -56,15 +96,17 @@ export default function App() {
   }
 
   const ajouterBut = () => {
-    setButs((p) => [
-      ...p,
-      {
-        id: `b${p.length + 1}`,
-        titre: 'New goal — describe what you want…',
-        statut: 'JUST SET',
-        requis: [],
-      },
-    ])
+    const titre = window.prompt('New goal — describe what you want…')
+    if (!titre || !titre.trim()) return
+    api.butAjouter(titre.trim()).then((but) => {
+      if (but) setButs((p) => [...p, but])
+    })
+  }
+
+  const supprimerBut = (id: string) => {
+    api.butSupprimer(id).then((ok) => {
+      if (ok) setButs((p) => p.filter((b) => b.id !== id))
+    })
   }
 
   const ouvrirEtape = (i: number) => {
@@ -92,6 +134,13 @@ export default function App() {
         mode={modeGlobal}
         onMode={changerMode}
       />
+
+      {pageIntegrations && (
+        <IntegrationsPanel
+          onFermer={() => setPageIntegrations(false)}
+          oauthResultat={oauthResultat}
+        />
+      )}
 
       {recherche !== '' && (
         <div
@@ -128,9 +177,12 @@ export default function App() {
         >
           <ConsoleSidebar
             buts={buts}
+            automations={automations}
+            integrations={integrations}
             connectes={connectes}
-            onConnecter={setAConnecter}
+            onConnecter={(id) => setAConnecter(id as IntegrationId)}
             onAjouterBut={ajouterBut}
+            onSupprimerBut={supprimerBut}
             onOuvrirEtape={ouvrirEtape}
             etapesFaites={etapesFaites}
             ouverte={consoleOuverte}
