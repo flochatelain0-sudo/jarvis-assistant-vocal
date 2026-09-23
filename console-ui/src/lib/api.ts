@@ -10,6 +10,8 @@ export interface EtatVie {
   niveau: number
 }
 
+export type ModeGlobal = 'manual' | 'auto'
+
 export interface EtatOperator {
   kpis: {
     actions_24h: number
@@ -25,6 +27,7 @@ export interface EtatOperator {
   }[]
   journal: { ts: number; categorie: string; titre: string }[]
   vie: EtatVie
+  mode?: ModeGlobal
 }
 
 async function json<T>(chemin: string, init?: RequestInit): Promise<T | null> {
@@ -41,6 +44,16 @@ async function json<T>(chemin: string, init?: RequestInit): Promise<T | null> {
 
 export const api = {
   etat: () => json<EtatOperator>('/api/operator/etat'),
+
+  mode: () => json<{ mode: ModeGlobal }>('/api/operator/mode'),
+
+  changerMode: async (mode: ModeGlobal): Promise<ModeGlobal | null> => {
+    const r = await json<{ ok: boolean; mode: ModeGlobal }>('/api/operator/mode', {
+      method: 'POST',
+      body: JSON.stringify({ mode }),
+    })
+    return r && r.ok ? r.mode : null
+  },
 
   conversation: () =>
     json<{ messages: { role: 'vous' | 'jarvis'; texte: string; ts: number }[] }>(

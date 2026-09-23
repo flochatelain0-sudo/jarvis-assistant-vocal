@@ -721,9 +721,10 @@ def _executer_outils(blocs):
 
         if outil is None:
             resultat = f"Outil inconnu : {nom}"
-        elif outil.confirmation and not registre.est_autorise(nom):
-            # N2 memorise "toujours autoriser" -> on n'attend pas (est_autorise True).
-            # Un N3 n'est jamais autorise d'avance : il repasse toujours par ici.
+        elif outil.confirmation and registre.demande_confirmation(nom):
+            # MANUAL : on attend le feu vert. AUTO : un N2 agit seul ; un N3
+            # (suppressions, envois, argent, PC) attend TOUJOURS, quel que soit
+            # le mode. Un N2 memorise "toujours autoriser" n'attend jamais.
             resultat = registre.mettre_en_attente(outil, arguments)
             operator.journaliser("validation", f"Action préparée : {nom}",
                                  resultat="en_attente")
@@ -821,7 +822,7 @@ def _repondre_route_prioritaire_commune(historique):
         outil = registre.get(nom_outil)
         if outil is None:
             return None
-        confirmation = outil.confirmation and not registre.est_autorise(nom_outil)
+        confirmation = outil.confirmation and registre.demande_confirmation(nom_outil)
         fil_accuse = None
         if outil.lent and outil.phrase_attente and not confirmation:
             _hud("etat", "parole")

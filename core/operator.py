@@ -173,12 +173,14 @@ def _fil_vocal():
 
 def etat():
     """L'etat complet servi a la page Operator (API GET)."""
+    from core import registre
     return {
         "kpis": _kpis(),
         "a_valider": _file_validation(),
         "journal": _charger()[:60],
         "taches": _taches(),
         "vie": _vie(),
+        "mode": registre.mode(),
         "fil_vocal": _fil_vocal(),
     }
 
@@ -187,6 +189,27 @@ def profil():
     """Nom de l'utilisateur pour la top bar (config utilisateur.nom)."""
     nom = (reglage("utilisateur.nom", "") or "Moi").strip()
     return {"nom": nom[:40] or "Moi"}
+
+
+def mode():
+    """Mode global MANUAL / AUTO (core.registre)."""
+    from core import registre
+    return {"mode": registre.mode()}
+
+
+def changer_mode(valeur):
+    """Bascule MANUAL / AUTO depuis la console. Un N3 (suppressions, envois,
+    argent) reste a confirmation dans les deux modes."""
+    from core import registre
+    v = str(valeur or "").strip().lower()
+    if v not in ("manual", "auto"):
+        return {"ok": False, "mode": registre.mode()}
+    avant = registre.mode()
+    apres = registre.definir_mode(v)
+    if apres != avant:
+        journaliser("systeme", f"Mode global : {apres.upper()}",
+                    "bascule depuis la console ZOEY OS")
+    return {"ok": True, "mode": apres}
 
 
 def valider():
@@ -445,7 +468,31 @@ def monter_routes(app):
 
     @app.get("/api/operator/profil")
     def api_profil(request: Request):
-        return garde(request) or profil()
+        refus = garde(request)
+        if refus:
+            return refus
+        return profil()
+
+    @app.get("/api/operator/mode")
+    def api_mode(request: Request):
+        """Mode global MANUAL / AUTO affiche par la console."""
+        refus = garde(request)
+        if refus:
+            return refus
+        return mode()
+
+    @app.post("/api/operator/mode")
+    async def api_mode_changer(request: Request):
+        """Bascule MANUAL / AUTO. Les N3 demandent dans les deux modes."""
+        refus = garde(request)
+        if refus:
+            return refus
+        corps = {}
+        try:
+            corps = await request.json() or {}
+        except Exception:
+            corps = {}
+        return changer_mode((corps or {}).get("mode", ""))
 
     @app.post("/api/operator/valider")
     def api_valider(request: Request):

@@ -1,10 +1,31 @@
 import { Search, Bell, Globe } from 'lucide-react'
+import type { ModeGlobal } from '../lib/api'
 
 interface Props {
   onOuvrirRecherche: () => void
+  mode: ModeGlobal
+  onMode: (m: ModeGlobal) => void
 }
 
-export default function TopBar({ onOuvrirRecherche }: Props) {
+const MANUEL_DESC = 'MANUAL — companions ask before acting.'
+const AUTO_DESC = 'AUTO — companions act on their own. Deletes, sends and anything involving money always ask.'
+
+export default function TopBar({ onOuvrirRecherche, mode, onMode }: Props) {
+  const bouton = (v: ModeGlobal, label: string) => (
+    <button
+      onClick={() => onMode(v)}
+      title={v === 'auto' ? AUTO_DESC : MANUEL_DESC}
+      className="label-tech rounded-md px-2.5 py-1 text-[9.5px] transition"
+      style={{
+        color: mode === v ? '#FF8500' : '#777777',
+        background: mode === v ? 'rgba(255,106,0,0.10)' : 'transparent',
+        boxShadow: mode === v ? 'inset 0 0 0 1px rgba(255,110,0,0.35)' : 'none',
+      }}
+    >
+      {label}
+    </button>
+  )
+
   return (
     <header
       className="fixed inset-x-0 top-0 z-40 flex h-[60px] items-center justify-between border-b px-5"
@@ -14,6 +35,18 @@ export default function TopBar({ onOuvrirRecherche }: Props) {
         JARVIS_OS<span className="align-super text-[8px]">™</span>
       </div>
       <div className="flex items-center gap-4 text-[#777777]">
+        <div
+          className="flex items-center gap-1 rounded-lg border px-2 py-1"
+          title="MANUAL — companions ask before acting.&#10;AUTO — companions act on their own.&#10;Deletes, sends and anything involving money always ask."
+          style={{
+            background: 'rgba(13,13,13,0.9)',
+            borderColor: mode === 'auto' ? 'rgba(32,232,120,0.45)' : 'var(--border-orange)',
+            boxShadow: mode === 'auto' ? '0 0 20px rgba(32,232,120,0.16)' : 'none',
+          }}
+        >
+          {bouton('manual', 'MANUAL')}
+          {bouton('auto', 'AUTO')}
+        </div>
         <button
           aria-label="Rechercher"
           onClick={onOuvrirRecherche}
