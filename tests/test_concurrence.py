@@ -42,12 +42,18 @@ def test_resume_prix():
     assert "3 prix" in resume and "min 10.00" in resume and "max 30.00" in resume
 
 
-def test_sujet_vide():
+def test_sujet_vide(monkeypatch):
+    monkeypatch.setattr("tools.web.chercher_web", lambda r: "resultats")
     reponse = concurrence.veille_marche("")
     assert "Précise" in reponse
+    reponse2 = concurrence.veille_marche("SEA")
+    assert "resultats" in reponse2
 
 
-def test_sans_chrome():
+def test_sans_chrome(monkeypatch):
+    # sans navigateur pilote : message clair, et surtout on ne lance JAMAIS
+    # la machinerie Playwright/CDP dans les tests (elle laisse une boucle
+    # d'evenements active qui casse les tests async suivants).
+    monkeypatch.setattr("tools.navigateur._connexion", lambda auto=True: None)
     reponse = concurrence.surveiller_concurrent()
-    # pas de navigateur pilote dans la sandbox : message clair, pas de crash
-    assert ("Chrome" in reponse) or ("page" in reponse)
+    assert "Chrome" in reponse

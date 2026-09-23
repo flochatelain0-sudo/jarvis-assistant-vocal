@@ -54,8 +54,14 @@ def test_url_invalide(bac):
     assert "http://" in reponse
 
 
-def test_vrai_upload_multipart(bac):
-    """Vraie requete : petit serveur HTTP local, reponse verifiee."""
+def test_vrai_upload_multipart(bac, monkeypatch):
+    """Vraie requete : petit serveur HTTP local, reponse verifiee.
+
+    La suite complete stubbe parfois sys.modules['requests'] (tests OAuth).
+    On rebind explicitement le vrai module pour que l'upload reste reel ici.
+    """
+    import requests as vrai_requests
+    monkeypatch.setattr(upload, "requests", vrai_requests)
     recu: dict = {}
 
     class Gestionnaire(BaseHTTPRequestHandler):

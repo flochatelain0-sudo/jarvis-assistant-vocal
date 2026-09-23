@@ -14,6 +14,8 @@ que tools/fichiers.py) ; les secrets ne partent jamais.
 import mimetypes
 from pathlib import Path
 
+import requests
+
 from core import plateforme
 from core.config import reglage
 from core.registre import outil
@@ -67,8 +69,6 @@ def envoyer_fichier(chemin: str, url: str, champ: str = "file", champs: str = ""
             return f"Champ additionnel invalide (attendu cle=valeur) : {paire}"
         cle, valeur = paire.split("=", 1)
         donnees[cle.strip()] = valeur.strip()
-
-    import requests
 
     mime = mimetypes.guess_type(str(cible))[0] or "application/octet-stream"
     try:
