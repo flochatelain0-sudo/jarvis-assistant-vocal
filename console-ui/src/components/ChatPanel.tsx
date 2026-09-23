@@ -70,16 +70,17 @@ const messageAccueil = (): MessageChat[] =>
   MESSAGE_ACCUEIL.map((m) => ({ ...m, ts: Date.now() / 1000 - 90 }))
 const maintenant = () => Date.now() / 1000
 
-async function attendreReponse(texte: string): Promise<string> {
-  // 1) le vrai pipeline Jarvis, si l'Operator repond
+async function attendreReponse(texte: string): Promise<string | null> {
+  // le vrai pipeline Jarvis depose la reponse dans la conversation serveur ;
+  // le poll l'affichera. On ne l'ajoute PAS ici : plus de double affichage.
   const id = await api.envoyer(texte)
   if (id !== null) {
-    for (let i = 0; i < 360; i++) {
+    for (let i = 0; i < 240; i++) {
       await new Promise((r) => setTimeout(r, 500))
       const rep = await api.reponse(id)
       if (rep !== null) return rep
     }
-    return "Pas de réponse en 3 min — Jarvis est peut-être occupé à parler."
+    return null
   }
   // 2) repli simule (npm run dev hors Jarvis)
   await new Promise((r) => setTimeout(r, 900 + Math.random() * 900))
@@ -155,11 +156,12 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, onNouveauBut, j
     const texte = saisie.trim()
     if (!texte || reflechir) return
     setSaisie('')
-    setMessages((p) => [...p, { id: ++compteur, role: 'vous', texte, ts: maintenant() }])
     setReflechir(true)
     const reponse = await attendreReponse(texte)
     setReflechir(false)
-    setMessages((p) => [...p, { id: ++compteur, role: 'zoey', texte: reponse, ts: maintenant() }])
+    if (reponse !== null) {
+      setMessages((p) => [...p, { id: ++compteur, role: 'zoey', texte: reponse, ts: maintenant() }])
+    }
   }
 
   if (!ouverte) {

@@ -106,6 +106,9 @@ def main() -> int:
         config.definir("piper.modele", "voix/fr_FR-siwis-medium.onnx")
         print("\n  [ok] config.yaml mis a jour : piper.modele = "
               "voix/fr_FR-siwis-medium.onnx")
+        config.definir("tts.moteur", "piper")
+        print("  [ok] config.yaml mis a jour : tts.moteur = piper "
+              "(Jarvis utilisera la voix francaise au prochain demarrage)")
     except Exception as e:
         print(f"\n  [!] configuration automatique impossible ({e}).")
         print("      Ajoute dans config.yaml :")
