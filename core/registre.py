@@ -151,6 +151,7 @@ _N3 = frozenset({
     "controle_pc_astra",
     "supprimer_fichier",
     "executer_commande",
+    "envoyer_message_linkedin",
 })
 
 
