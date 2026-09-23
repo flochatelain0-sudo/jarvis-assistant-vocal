@@ -76,7 +76,9 @@ def test_enregistre():
 
 def test_compte_rendu_carte_console(bac, monkeypatch):
     """Le compte rendu categorise, injecte la carte dans la console et
-    resume a voix haute ; la pub est ecartee du rendu."""
+    resume a voix haute ; la pub est ecartee du rendu. Repli sans LLM :
+    le devis (a valider) finit en « A te repondre », la confirmation en
+    « Pour info »."""
     cartes = []
     monkeypatch.setattr("core.operator.carte_mails", lambda d: cartes.append(d))
     reponse = mo.compte_rendu_mails()
@@ -84,7 +86,15 @@ def test_compte_rendu_carte_console(bac, monkeypatch):
     assert "attendent ta reponse" in reponse
     assert cartes, "la carte doit etre injectee dans la console"
     titres = " | ".join(c["titre"] for c in cartes[0]["categories"])
-    assert "En attente de ta reponse" in titres
+    assert "A te repondre" in titres
+    # chaque mail porte un resume fonde sur son corps reel (repli : extrait)
+    pour_reponse = next(c for c in cartes[0]["categories"]
+                        if c["titre"] == "A te repondre")
+    assert pour_reponse["mails"][0]["detail"]
+    # les groupes du compte rendu sont ceux de l'agent email
+    assert all(c["titre"] in ("A te repondre", "A verifier en priorite",
+                              "Pour info - sans action")
+               for c in cartes[0]["categories"])
     # la newsletter (spam) ne doit pas apparaitre dans les mails comptes
     total_mails = sum(len(c["mails"]) for c in cartes[0]["categories"])
     assert total_mails == 2

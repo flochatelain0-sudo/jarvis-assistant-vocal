@@ -139,7 +139,13 @@ export const api = {
         categories?: {
           titre: string
           icone: string
-          mails: { expediteur: string; objet: string; detail: string; action: string }[]
+          mails: {
+            expediteur: string
+            objet: string
+            detail: string
+            action: string
+            brouillon?: string
+          }[]
         }[]
         categorie?: string
         detail?: string

@@ -41,7 +41,11 @@ def faire_brief() -> str:
     except Exception:
         pass
     if _mail_configure():
-        morceaux.append(lire_mails(5))
+        try:
+            from tools.mail_operateur import compte_rendu_mails
+            morceaux.append(compte_rendu_mails(10))
+        except Exception:
+            morceaux.append(lire_mails(5))
     planning = _planning_bref()
     if planning:
         morceaux.append(planning)

@@ -72,9 +72,36 @@ def factures_statut() -> str:
     if len(texte) < 40:
         return "Le tableau de bord facture.net semble vide ou n'a pas chargé — réessaie."
 
-    # On renvoie le contenu du tableau de bord pour que Jarvis le RÉSUME à voix haute.
-    # NB : contenu financier sensible -> volontairement PAS loggé ici.
-    return ("Voici le tableau de bord facture.net. Résume à voix haute, en une ou "
-            "deux phrases : le nombre de factures IMPAYÉES, le montant total dû, et "
-            "les relances à faire. Ignore le reste (menus, pied de page).\n\n"
-            + texte[:3500])
+    # Rapport type Work : analyse LLM du contenu REEL, carte groupee dans la
+    # console et resume vocal fidele (nombres et montants exacts).
+    # NB : contenu financier sensible -> volontairement PAS logge ici.
+    from core import rapport_work
+    elements = [{"titre": "Tableau de bord facture.net",
+                 "contenu": texte[:3500]}]
+    consigne = rapport_work.consigne_analyse(
+        "Statut facturation", elements,
+        "A TRAITER = facture impayee a relancer par Florian ; ATTENTION = "
+        "echeance depassee, montant important ou anomalie ; INFO = le reste "
+        "(factures payees, brouillons, menus). Ignore les menus et le pied "
+        "de page.",
+        demande_brouillon=False)
+    analyses = rapport_work.groupes_analyses(consigne, elements,
+                                              replis={0: "attention"})
+    a = analyses.get(0) or {}
+    resume = a.get("resume") or texte[:300]
+    action = a.get("action") or ""
+    groupes = {"reponse": [], "attention": [], "info": []}
+    groupe = (a.get("repli") or
+              rapport_work.normaliser_groupe(a.get("groupe", ""), "attention"))
+    groupes[groupe].append({
+        "expediteur": "facture.net", "objet": "Statut facturation",
+        "resume": resume, "action": action, "brouillon": ""})
+    rapport_work.carte(
+        "Statut de tes factures",
+        (("reponse", "Relances a faire", "\U0001F4E9"),
+         ("attention", "A verifier", "\U0001F512"),
+         ("info", "Pour info", "\U0001F4CA")),
+        groupes)
+    total = (resume + " " + action).strip()
+    return (total + " Le detail est affiche dans la console.") if total \
+        else "Voici le tableau de bord facture.net."
