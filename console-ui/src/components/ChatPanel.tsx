@@ -156,10 +156,10 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, onNouveauBut, j
       <button
         onClick={onOuvrir}
         className="fixed right-4 z-30 flex h-9 items-center gap-2 rounded-full border px-3.5 transition hover:border-orange/60"
-        style={{ top: 72, background: 'rgba(8,8,8,0.85)', borderColor: 'var(--border-orange)' }}
+        style={{ top: 72, background: 'var(--panel-glass-strong)', borderColor: 'var(--border-orange)' }}
       >
         <AudioLines size={13} className="text-orange" />
-        <span className="label-tech text-[10px] text-[#c7c7c7]">JARVIS</span>
+        <span className="label-tech text-[10px] text-[var(--dim)]">JARVIS</span>
       </button>
     )
   }
@@ -167,7 +167,7 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, onNouveauBut, j
   return (
     <aside
       className="flex flex-col border-l"
-      style={{ background: 'rgba(8,8,8,0.8)', borderColor: 'var(--border)' }}
+      style={{ background: 'var(--panel-glass)', borderColor: 'var(--border)' }}
     >
       {/* entete */}
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
@@ -176,7 +176,7 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, onNouveauBut, j
             className="h-2 w-2 rounded-full bg-orange"
             style={{ boxShadow: '0 0 10px rgba(255,106,0,0.7)' }}
           />
-          <span className="label-tech text-[#c7c7c7]">JARVIS</span>
+          <span className="label-tech text-[var(--dim)]">JARVIS</span>
           {enAttente > 0 && (
             <span className="label-tech rounded-full border px-2 text-[8.5px] text-orange"
               style={{ borderColor: 'var(--border-orange)' }}>
@@ -184,13 +184,13 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, onNouveauBut, j
             </span>
           )}
         </div>
-        <div className="flex items-center gap-3 text-[#777777]">
+        <div className="flex items-center gap-3 text-[var(--muted)]">
           <button aria-label="Réinitialiser" onClick={() => setMessages(messageAccueil())}
-            className="transition hover:text-[#f5f5f5]"><RotateCcw size={13} /></button>
+            className="transition hover:text-[var(--text)]"><RotateCcw size={13} /></button>
           <button aria-label="Ouvrir dans un onglet" onClick={() => window.open('/console', '_blank')}
-            className="transition hover:text-[#f5f5f5]"><ExternalLink size={13} /></button>
+            className="transition hover:text-[var(--text)]"><ExternalLink size={13} /></button>
           <span className="h-2 w-2 rounded-full bg-orange" style={{ boxShadow: '0 0 8px rgba(255,106,0,0.7)' }} />
-          <button aria-label="Fermer" onClick={onFermer} className="transition hover:text-[#f5f5f5]"><X size={13} /></button>
+          <button aria-label="Fermer" onClick={onFermer} className="transition hover:text-[var(--text)]"><X size={13} /></button>
         </div>
       </div>
 
@@ -208,7 +208,7 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, onNouveauBut, j
                       : m.action.resultat === 'en_attente'
                         ? 'rgba(255,133,0,0.4)'
                         : 'var(--border)',
-                  background: 'rgba(13,13,13,0.9)',
+                  background: 'var(--panel-glass)',
                 }}
               >
                 <span className="label-tech shrink-0 rounded px-1.5 py-0.5 text-[8px] text-orange/90"
@@ -216,9 +216,9 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, onNouveauBut, j
                   {m.action.categorie.toUpperCase()}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[12px] text-[#c7c7c7]">{m.texte}</div>
+                  <div className="truncate text-[12px] text-[var(--dim)]">{m.texte}</div>
                   {m.action.detail && (
-                    <div className="truncate text-[10px] text-[#777777]">{m.action.detail}</div>
+                    <div className="truncate text-[10px] text-[var(--muted)]">{m.action.detail}</div>
                   )}
                 </div>
                 <span
@@ -249,10 +249,10 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, onNouveauBut, j
                 </div>
                 {m.carteMails.map((cat, i) => (
                   <div key={i} className="mb-2 last:mb-0">
-                    <div className="label-tech mb-1 flex items-center gap-1.5 text-[9px] text-[#f5f5f5]">
+                    <div className="label-tech mb-1 flex items-center gap-1.5 text-[9px] text-[var(--text)]">
                       <span>{cat.icone}</span>
                       <span>{cat.titre}</span>
-                      <span className="text-[#777777]">({cat.mails.length})</span>
+                      <span className="text-[var(--muted)]">({cat.mails.length})</span>
                     </div>
                     <div className="overflow-hidden rounded-lg border" style={{ borderColor: 'var(--border)' }}>
                       {cat.mails.map((mail, j) => (
@@ -262,7 +262,7 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, onNouveauBut, j
                           style={{ background: j % 2 ? 'rgba(20,20,20,0.6)' : 'rgba(8,8,8,0.6)' }}
                         >
                           <div className="flex items-baseline justify-between gap-2">
-                            <span className="truncate text-[12px] font-medium text-[#f5f5f5]">
+                            <span className="truncate text-[12px] font-medium text-[var(--text)]">
                               {mail.expediteur}
                             </span>
                             <span className="label-tech shrink-0 text-[8px] text-orange/80">
@@ -270,10 +270,10 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, onNouveauBut, j
                             </span>
                           </div>
                           {mail.objet && (
-                            <div className="truncate text-[11px] text-[#999999]">{mail.objet}</div>
+                            <div className="truncate text-[11px] text-[var(--muted)]">{mail.objet}</div>
                           )}
                           {mail.detail && (
-                            <div className="text-[11px] text-[#777777]">{mail.detail}</div>
+                            <div className="text-[11px] text-[var(--muted)]">{mail.detail}</div>
                           )}
                         </div>
                       ))}
@@ -289,7 +289,7 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, onNouveauBut, j
                 {m.texte}
               </div>
             )}
-            <div className="label-tech mt-1 text-[8.5px] text-[#555]">
+            <div className="label-tech mt-1 text-[8.5px] text-[var(--placeholder)]">
               {m.role === 'zoey' ? 'JARVIS' : 'YOU'} ·{' '}
               {new Date(m.ts * 1000).toLocaleTimeString('fr-FR', {
                 hour: '2-digit',
@@ -299,7 +299,7 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, onNouveauBut, j
           </div>
         ))}
         {reflechir && (
-          <div className="mb-4 flex items-center gap-2 text-[#777777]">
+          <div className="mb-4 flex items-center gap-2 text-[var(--muted)]">
             <span className="point-vert h-1.5 w-1.5 rounded-full bg-green" />
             <span className="label-tech text-[9px]">LISTENING / THINKING…</span>
           </div>
@@ -311,7 +311,7 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, onNouveauBut, j
       {journal.length > 0 && (
         <div className="border-t px-4 py-2" style={{ borderColor: 'var(--border)' }}>
           {journal.slice(0, 2).map((j, i) => (
-            <div key={i} className="truncate py-0.5 text-[11px] text-[#777777]">
+            <div key={i} className="truncate py-0.5 text-[11px] text-[var(--muted)]">
               <span className="text-orange/80">•</span> {j.titre}
             </div>
           ))}
@@ -322,13 +322,13 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, onNouveauBut, j
       <div className="p-3">
         <div
           className="flex items-center gap-2 rounded-xl border px-2 py-1.5"
-          style={{ background: 'rgba(13,13,13,0.9)', borderColor: 'var(--border-orange)' }}
+          style={{ background: 'var(--panel-glass)', borderColor: 'var(--border-orange)' }}
         >
           <button
             aria-label="Nouveau but"
             title="Nouveau but"
             onClick={onNouveauBut}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange text-black transition hover:brightness-110"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange text-[var(--bg2)] transition hover:brightness-110"
           >
             <Plus size={14} />
           </button>
@@ -337,7 +337,7 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, onNouveauBut, j
             onChange={(e) => setSaisie(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && envoyer()}
             placeholder="Message Jarvis..."
-            className="flex-1 bg-transparent text-[14px] text-[#f5f5f5] outline-none placeholder:text-[#555]"
+            className="flex-1 bg-transparent text-[14px] text-[var(--text)] outline-none placeholder:text-[var(--placeholder)]"
           />
           <button
             aria-label="Envoyer"

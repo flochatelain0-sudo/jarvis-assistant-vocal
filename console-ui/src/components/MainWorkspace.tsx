@@ -63,7 +63,7 @@ export default function MainWorkspace(props: Props) {
           style={{ background: 'rgba(13,13,13,0.75)', borderColor: 'var(--border)' }}
         >
           <div className="label-tech mb-1 text-[9px] text-orange">{CARTES[page].titre}</div>
-          <div className="text-[12.5px] text-[#c7c7c7]">{CARTES[page].texte}</div>
+          <div className="text-[12.5px] text-[var(--dim)]">{CARTES[page].texte}</div>
         </div>
       </div>
 

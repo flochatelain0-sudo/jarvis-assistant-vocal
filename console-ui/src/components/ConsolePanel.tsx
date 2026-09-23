@@ -13,42 +13,42 @@ export default function ConsolePanel({ onFermer, journal, actions24h, enAttente,
     <div
       className="absolute inset-x-0 bottom-0 top-[100px] z-20 overflow-y-auto px-6 py-6"
       style={{
-        background: 'rgba(5,5,5,0.86)',
+        background: 'var(--panel-glass-strong)',
         backdropFilter: 'blur(14px)',
       }}
     >
       <div className="mx-auto max-w-lg">
         <div className="mb-5 flex items-center justify-between">
           <h2 className="label-tech text-orange" style={{ fontSize: 11 }}>CONSOLE</h2>
-          <button onClick={onFermer} aria-label="Fermer" className="text-[#777777] transition hover:text-[#f5f5f5]">
+          <button onClick={onFermer} aria-label="Fermer" className="text-[var(--muted)] transition hover:text-[var(--text)]">
             <X size={15} />
           </button>
         </div>
 
         <div className="mb-6 grid grid-cols-3 gap-2">
           <div className="rounded-lg border px-3 py-2.5" style={{ background: 'var(--panel)', borderColor: 'var(--border)' }}>
-            <div className="text-[19px] font-semibold text-[#f5f5f5]">{actions24h}</div>
-            <div className="label-tech text-[8px] text-[#777777]">ACTIONS · 24H</div>
+            <div className="text-[19px] font-semibold text-[var(--text)]">{actions24h}</div>
+            <div className="label-tech text-[8px] text-[var(--muted)]">ACTIONS · 24H</div>
           </div>
           <div className="rounded-lg border px-3 py-2.5" style={{ background: 'var(--panel)', borderColor: 'var(--border)' }}>
-            <div className="text-[19px] font-semibold text-[#FF8500]">{enAttente}</div>
-            <div className="label-tech text-[8px] text-[#777777]">TO CONFIRM</div>
+            <div className="text-[19px] font-semibold text-[var(--accent-bright)]">{enAttente}</div>
+            <div className="label-tech text-[8px] text-[var(--muted)]">TO CONFIRM</div>
           </div>
           <div className="rounded-lg border px-3 py-2.5" style={{ background: 'var(--panel)', borderColor: 'var(--border)' }}>
             <div className="label-tech text-[11px] text-green" style={{ paddingTop: 4 }}>{vie.etat || 'veille'}</div>
-            <div className="label-tech text-[8px] text-[#777777]">LIVE STATE</div>
+            <div className="label-tech text-[8px] text-[var(--muted)]">LIVE STATE</div>
           </div>
         </div>
 
-        <h3 className="label-tech mb-3 text-[10px] text-[#777777]">WORKERS / ACTIVITY</h3>
+        <h3 className="label-tech mb-3 text-[10px] text-[var(--muted)]">WORKERS / ACTIVITY</h3>
         <div className="mb-6 rounded-lg border p-4" style={{ background: 'var(--panel)', borderColor: 'var(--border)' }}>
-          <span className="text-[13px] text-[#777777]">No workers out right now.</span>
+          <span className="text-[13px] text-[var(--muted)]">No workers out right now.</span>
         </div>
 
-        <h3 className="label-tech mb-3 text-[10px] text-[#777777]">JOURNAL</h3>
+        <h3 className="label-tech mb-3 text-[10px] text-[var(--muted)]">JOURNAL</h3>
         <div className="flex flex-col gap-1.5">
           {journal.length === 0 && (
-            <div className="text-[12.5px] text-[#777777]">Rien pour l'instant.</div>
+            <div className="text-[12.5px] text-[var(--muted)]">Rien pour l'instant.</div>
           )}
           {journal.slice(0, 12).map((j, i) => (
             <div
@@ -57,15 +57,15 @@ export default function ConsolePanel({ onFermer, journal, actions24h, enAttente,
               style={{ background: 'var(--panel)', borderColor: 'var(--border)' }}
             >
               <span className="label-tech shrink-0 text-[8.5px] text-orange/80">{j.categorie}</span>
-              <span className="flex-1 truncate text-[12.5px] text-[#c7c7c7]">{j.titre}</span>
-              <span className="label-tech shrink-0 text-[8.5px] text-[#555]">
+              <span className="flex-1 truncate text-[12.5px] text-[var(--dim)]">{j.titre}</span>
+              <span className="label-tech shrink-0 text-[8.5px] text-[var(--placeholder)]">
                 {new Date(j.ts * 1000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
           ))}
         </div>
         {(vie.modele || vie.routage) && (
-          <p className="label-tech mt-5 text-[8.5px] text-[#555]">
+          <p className="label-tech mt-5 text-[8.5px] text-[var(--placeholder)]">
             {vie.modele} {vie.routage ? `· MODE ${vie.routage}` : ''}
           </p>
         )}

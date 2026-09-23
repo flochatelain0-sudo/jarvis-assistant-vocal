@@ -15,7 +15,7 @@ export default function WorkspaceControls({ mode, onChoisir }: Props) {
       style={{
         color: mode === id ? '#FF8500' : '#c7c7c7',
         background: mode === id ? 'rgba(255,106,0,0.10)' : 'transparent',
-        boxShadow: mode === id ? 'inset 0 0 0 1px rgba(255,110,0,0.35)' : 'none',
+        boxShadow: mode === id ? 'inset 0 0 0 1px var(--accent-ring)' : 'none',
       }}
     >
       <Ic size={11} />
@@ -28,7 +28,7 @@ export default function WorkspaceControls({ mode, onChoisir }: Props) {
       <div
         className="flex items-center gap-1 rounded-lg border px-2.5 py-1.5"
         style={{
-          background: 'rgba(8,8,8,0.8)',
+          background: 'var(--panel-glass)',
           borderColor: 'var(--border-orange)',
           boxShadow: '0 0 26px rgba(255,106,0,0.14)',
         }}
@@ -39,7 +39,7 @@ export default function WorkspaceControls({ mode, onChoisir }: Props) {
         {onglet('integrations', Unplug, 'Integrations')}
         {onglet('configurer', Settings, 'Configure')}
       </div>
-      <p className="label-tech text-[8.5px] text-[#555]">
+      <p className="label-tech text-[8.5px] text-[var(--placeholder)]">
         Chat · Console · Brain · Integrations · Configure · tap an item to open or close it
       </p>
     </div>

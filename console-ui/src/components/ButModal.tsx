@@ -30,13 +30,13 @@ export default function ButModal({ ouverte, onFermer, onCreer }: Props) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)' }}
+      style={{ background: 'var(--overlay)', backdropFilter: 'blur(6px)' }}
       onClick={onFermer}
     >
       <div
         className="w-[380px] rounded-xl border p-6"
         style={{
-          background: '#0d0d0d',
+          background: 'var(--modal)',
           borderColor: 'var(--border-orange)',
           boxShadow: '0 0 44px rgba(255,106,0,0.16), 0 20px 60px rgba(0,0,0,0.6)',
         }}
@@ -45,17 +45,17 @@ export default function ButModal({ ouverte, onFermer, onCreer }: Props) {
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Plus size={15} className="text-orange" />
-            <h2 className="label-tech text-[11px] text-[#f5f5f5]">NEW GOAL</h2>
+            <h2 className="label-tech text-[11px] text-[var(--text)]">NEW GOAL</h2>
           </div>
           <button
             aria-label="Fermer"
             onClick={onFermer}
-            className="text-[#555] transition hover:text-[#f5f5f5]"
+            className="text-[var(--placeholder)] transition hover:text-[var(--text)]"
           >
             <X size={14} />
           </button>
         </div>
-        <p className="mb-4 text-[12.5px] leading-relaxed text-[#777777]">
+        <p className="mb-4 text-[12.5px] leading-relaxed text-[var(--muted)]">
           Decris ce que Jarvis doit garder sous controle pour toi.
         </p>
         <input
@@ -67,13 +67,13 @@ export default function ButModal({ ouverte, onFermer, onCreer }: Props) {
             if (e.key === 'Escape') onFermer()
           }}
           placeholder="Ex. Garder ma boite mail a zero chaque soir…"
-          className="mb-5 w-full rounded-lg border px-3 py-2.5 text-[13.5px] text-[#f5f5f5] outline-none placeholder:text-[#555]"
+          className="mb-5 w-full rounded-lg border px-3 py-2.5 text-[13.5px] text-[var(--text)] outline-none placeholder:text-[var(--placeholder)]"
           style={{ background: 'rgba(5,5,5,0.8)', borderColor: 'var(--border)' }}
         />
         <div className="flex justify-end gap-2">
           <button
             onClick={onFermer}
-            className="label-tech rounded-lg border px-4 py-2 text-[9.5px] text-[#777777] transition hover:text-[#f5f5f5]"
+            className="label-tech rounded-lg border px-4 py-2 text-[9.5px] text-[var(--muted)] transition hover:text-[var(--text)]"
             style={{ borderColor: 'var(--border)' }}
           >
             ANNULER
@@ -81,7 +81,7 @@ export default function ButModal({ ouverte, onFermer, onCreer }: Props) {
           <button
             onClick={valider}
             disabled={!titre.trim()}
-            className="label-tech rounded-lg bg-orange px-4 py-2 text-[9.5px] text-black transition enabled:hover:brightness-110 disabled:opacity-30"
+            className="label-tech rounded-lg bg-orange px-4 py-2 text-[9.5px] text-[var(--bg2)] transition enabled:hover:brightness-110 disabled:opacity-30"
           >
             CREER
           </button>

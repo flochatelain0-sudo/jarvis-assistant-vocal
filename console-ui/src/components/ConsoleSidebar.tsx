@@ -37,7 +37,7 @@ export default function ConsoleSidebar({
   return (
     <aside
       className="flex flex-col overflow-y-auto border-r"
-      style={{ background: 'rgba(8,8,8,0.75)', borderColor: 'var(--border)' }}
+      style={{ background: 'var(--panel-glass)', borderColor: 'var(--border)' }}
     >
       {/* entete CONSOLE */}
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
@@ -46,12 +46,12 @@ export default function ConsoleSidebar({
             className="h-2 w-2 rounded-full bg-orange"
             style={{ boxShadow: '0 0 10px rgba(255,106,0,0.7)' }}
           />
-          <span className="label-tech text-[#c7c7c7]">CONSOLE</span>
+          <span className="label-tech text-[var(--dim)]">CONSOLE</span>
         </div>
         <button
           onClick={onFermer}
           aria-label="Fermer la console"
-          className="rounded p-1 text-[#777777] transition hover:text-[#f5f5f5]"
+          className="rounded p-1 text-[var(--muted)] transition hover:text-[var(--text)]"
         >
           <X size={13} />
         </button>
@@ -63,12 +63,12 @@ export default function ConsoleSidebar({
           <Activity size={11} className="text-orange" />
           <span className="label-tech text-orange">ACTIVITY</span>
         </div>
-        <div className="flex items-center gap-2.5 text-[#777777]">
+        <div className="flex items-center gap-2.5 text-[var(--muted)]">
           <span
             className="flex h-7 w-7 items-center justify-center rounded-full border"
             style={{ borderColor: 'var(--border)' }}
           >
-            <span className="h-1.5 w-1.5 rounded-full bg-[#333]" />
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--panel-up)]" />
           </span>
           <span className="text-[13px]">No workers out right now.</span>
         </div>
@@ -81,15 +81,15 @@ export default function ConsoleSidebar({
           <span className="label-tech text-orange">AUTOMATIONS</span>
         </div>
         {actives === 0 ? (
-          <div className="text-[12px] text-[#777777]">
+          <div className="text-[12px] text-[var(--muted)]">
             Nothing runs on its own yet.
           </div>
         ) : (
           automations.filter((a) => a.active).map((a) => (
             <div key={a.id} className="mb-1.5 flex items-center gap-2">
               <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-green" />
-              <span className="flex-1 truncate text-[12.5px] text-[#c7c7c7]">{a.nom}</span>
-              <span className="label-tech text-[8.5px] text-[#555]">{a.moment}</span>
+              <span className="flex-1 truncate text-[12.5px] text-[var(--dim)]">{a.nom}</span>
+              <span className="label-tech text-[8.5px] text-[var(--placeholder)]">{a.moment}</span>
             </div>
           ))
         )}
@@ -102,11 +102,11 @@ export default function ConsoleSidebar({
           <span className="label-tech text-orange">LOCAL MACHINE</span>
         </div>
         {connectes.has('pc') ? (
-          <div className="text-[12px] text-[#c7c7c7]">
+          <div className="text-[12px] text-[var(--dim)]">
             Astra PC control approved.
           </div>
         ) : (
-          <div className="text-[12px] text-[#777777]">
+          <div className="text-[12px] text-[var(--muted)]">
             No apps approved yet — the first request arrives in chat.
           </div>
         )}
@@ -137,23 +137,23 @@ export default function ConsoleSidebar({
               style={{ background: 'var(--panel)', borderColor: 'var(--border)' }}
             >
               <div className="mb-2 flex items-start justify-between gap-2">
-                <span className="text-[13px] leading-snug text-[#f5f5f5]">
+                <span className="text-[13px] leading-snug text-[var(--text)]">
                   {but.titre}
                 </span>
                 <div className="flex shrink-0 items-center gap-1.5">
-                  <span className="label-tech text-[9px] text-[#777777]">
+                  <span className="label-tech text-[9px] text-[var(--muted)]">
                     {but.statut}
                   </span>
                   <button
                     onClick={() => onSupprimerBut(but.id)}
                     aria-label="Supprimer l'objectif"
-                    className="text-[#555] transition hover:text-[#f5f5f5]"
+                    className="text-[var(--placeholder)] transition hover:text-[var(--text)]"
                   >
                     <X size={11} />
                   </button>
                 </div>
               </div>
-              <p className="mb-2 text-[11px] text-[#777777]">What this goal needs</p>
+              <p className="mb-2 text-[11px] text-[var(--muted)]">What this goal needs</p>
               <div className="flex flex-col gap-1.5">
                 {but.requis.map((req) => {
                   const integ = INTEGRATIONS[req.id as keyof typeof INTEGRATIONS]
@@ -163,11 +163,11 @@ export default function ConsoleSidebar({
                   return (
                     <div key={req.id} className="flex items-center gap-2">
                       {Ic ? (
-                        <Ic size={13} className="shrink-0 text-[#777777]" />
+                        <Ic size={13} className="shrink-0 text-[var(--muted)]" />
                       ) : (
                         <span className="h-3.5 w-3.5 shrink-0 rounded-full border" style={{ borderColor: 'var(--border)' }} />
                       )}
-                      <span className="flex-1 truncate text-[12px] text-[#c7c7c7]">
+                      <span className="flex-1 truncate text-[12px] text-[var(--dim)]">
                         {etatInteg
                           ? `${deja ? 'Connected — ' : ''}${etatInteg.nom}`
                           : req.id}

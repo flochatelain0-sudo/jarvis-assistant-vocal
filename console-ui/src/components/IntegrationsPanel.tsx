@@ -151,7 +151,7 @@ export default function IntegrationsPanel({ onFermer, oauthResultat }: Props) {
         <div className="flex items-start justify-between">
           <div
             className="flex h-9 w-9 items-center justify-center rounded-lg border"
-            style={{ borderColor: 'rgba(255,255,255,0.10)', background: '#111113' }}
+            style={{ borderColor: 'var(--border)', background: 'var(--panel-light)' }}
           >
             <LogoIntegration id={integ.id} nom={integ.name} />
           </div>
@@ -163,25 +163,25 @@ export default function IntegrationsPanel({ onFermer, oauthResultat }: Props) {
                   setMenuOuvert(menuOuvert === integ.id ? null : integ.id)
                 }}
                 aria-label="Manage connection"
-                className="rounded-md p-1 text-[#777777] transition hover:bg-white/5 hover:text-[#f5f5f5]"
+                className="rounded-md p-1 text-[var(--muted)] transition hover:bg-white/5 hover:text-[var(--text)]"
               >
                 <MoreHorizontal size={14} />
               </button>
               {menuOuvert === integ.id && (
                 <div
                   className="absolute right-0 top-7 z-30 w-32 rounded-lg border py-1"
-                  style={{ background: '#0d0d0d', borderColor: 'rgba(255,255,255,0.12)' }}
+                  style={{ background: 'var(--modal)', borderColor: 'var(--border)' }}
                   onClick={(e) => e.stopPropagation()}
                 >
                   <button
                     onClick={() => setMenuOuvert(null)}
-                    className="block w-full px-3 py-1.5 text-left text-[11.5px] text-[#c7c7c7] transition hover:bg-white/5"
+                    className="block w-full px-3 py-1.5 text-left text-[11.5px] text-[var(--dim)] transition hover:bg-white/5"
                   >
                     Manage
                   </button>
                   <button
                     onClick={() => deconnecter(integ.id)}
-                    className="block w-full px-3 py-1.5 text-left text-[11.5px] text-[#ff6b6b] transition hover:bg-white/5"
+                    className="block w-full px-3 py-1.5 text-left text-[11.5px] text-[var(--red)] transition hover:bg-white/5"
                   >
                     Disconnect
                   </button>
@@ -208,16 +208,16 @@ export default function IntegrationsPanel({ onFermer, oauthResultat }: Props) {
               ) : integ.enabled ? (
                 <Plus size={12} className="text-orange" />
               ) : (
-                <span className="label-tech text-[7px] text-[#555]">SETUP</span>
+                <span className="label-tech text-[7px] text-[var(--placeholder)]">SETUP</span>
               )}
             </button>
           )}
         </div>
         <div className="mt-3 flex items-center gap-1.5">
-          <span className="text-[13.5px] font-medium text-[#f5f5f5]">{integ.name}</span>
+          <span className="text-[13.5px] font-medium text-[var(--text)]">{integ.name}</span>
           {deja && <Check size={11} className="text-green" />}
         </div>
-        <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-[#777777]">
+        <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-[var(--muted)]">
           {integ.status === 'setup_required'
             ? 'Available — setup required'
             : integ.description}
@@ -228,7 +228,7 @@ export default function IntegrationsPanel({ onFermer, oauthResultat }: Props) {
 
   return (
     <div className="absolute inset-x-0 bottom-0 top-0 z-20 flex flex-col overflow-hidden"
-      style={{ background: '#050505' }}>
+      style={{ background: 'var(--bg)' }}>
       {/* header */}
       <div className="px-8 pt-8" style={{ marginTop: 60 }}>
         <div className="flex items-start justify-between">
@@ -236,11 +236,11 @@ export default function IntegrationsPanel({ onFermer, oauthResultat }: Props) {
             <h1 className="label-tech text-orange" style={{ fontSize: 22, letterSpacing: '0.22em' }}>
               INTEGRATIONS
             </h1>
-            <p className="mt-1.5 text-[13.5px] text-[#777777]">
+            <p className="mt-1.5 text-[13.5px] text-[var(--muted)]">
               Connect your platforms — Zoey will handle the rest.
             </p>
           </div>
-          <button onClick={onFermer} aria-label="Fermer" className="mt-2 text-[#777777] transition hover:text-[#f5f5f5]">
+          <button onClick={onFermer} aria-label="Fermer" className="mt-2 text-[var(--muted)] transition hover:text-[var(--text)]">
             <X size={16} />
           </button>
         </div>
@@ -249,15 +249,15 @@ export default function IntegrationsPanel({ onFermer, oauthResultat }: Props) {
         <div className="mt-6 flex items-center gap-4">
           <div
             className="flex flex-1 items-center gap-2.5 rounded-xl border px-4 py-3"
-            style={{ background: 'rgba(11,11,13,0.9)', borderColor: 'rgba(255,255,255,0.08)' }}
+            style={{ background: 'var(--panel-glass)', borderColor: 'var(--border)' }}
           >
-            <Search size={15} className="shrink-0 text-[#777777]" />
+            <Search size={15} className="shrink-0 text-[var(--muted)]" />
             <input
               ref={rechercheRef}
               value={recherche}
               onChange={(e) => setRecherche(e.target.value)}
               placeholder="Search integrations..."
-              className="flex-1 bg-transparent text-[14px] text-[#f5f5f5] outline-none placeholder:text-[#555]"
+              className="flex-1 bg-transparent text-[14px] text-[var(--text)] outline-none placeholder:text-[var(--placeholder)]"
             />
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
@@ -267,7 +267,7 @@ export default function IntegrationsPanel({ onFermer, oauthResultat }: Props) {
               style={{
                 color: onglet === 'browse' ? '#FF8500' : '#777777',
                 background: onglet === 'browse' ? 'rgba(255,106,0,0.10)' : 'transparent',
-                boxShadow: onglet === 'browse' ? 'inset 0 0 0 1px rgba(255,110,0,0.35)' : 'inset 0 0 0 1px rgba(255,255,255,0.06)',
+                boxShadow: onglet === 'browse' ? 'inset 0 0 0 1px var(--accent-ring)' : 'inset 0 0 0 1px var(--border)',
               }}
             >
               BROWSE
@@ -278,7 +278,7 @@ export default function IntegrationsPanel({ onFermer, oauthResultat }: Props) {
               style={{
                 color: onglet === 'connected' ? '#FF8500' : '#777777',
                 background: onglet === 'connected' ? 'rgba(255,106,0,0.10)' : 'transparent',
-                boxShadow: onglet === 'connected' ? 'inset 0 0 0 1px rgba(255,110,0,0.35)' : 'inset 0 0 0 1px rgba(255,255,255,0.06)',
+                boxShadow: onglet === 'connected' ? 'inset 0 0 0 1px var(--accent-ring)' : 'inset 0 0 0 1px var(--border)',
               }}
             >
               CONNECTED ({connectes.size})
@@ -315,9 +315,9 @@ export default function IntegrationsPanel({ onFermer, oauthResultat }: Props) {
           style={{
             borderColor: message.includes('success') || message.includes('Connected')
               ? 'rgba(32,232,120,0.35)' : 'rgba(255,106,0,0.35)',
-            background: 'rgba(13,13,13,0.9)',
+            background: 'var(--panel-glass)',
           }}>
-          <span className="text-[12.5px] text-[#c7c7c7]">{message}</span>
+          <span className="text-[12.5px] text-[var(--dim)]">{message}</span>
         </div>
       )}
 
@@ -327,17 +327,17 @@ export default function IntegrationsPanel({ onFermer, oauthResultat }: Props) {
           <div className="grid grid-cols-5 gap-4 max-xl:grid-cols-4 max-lg:grid-cols-3 max-md:grid-cols-2 max-sm:grid-cols-1">
             {Array.from({ length: 10 }).map((_, i) => (
               <div key={i} className="h-[118px] animate-pulse rounded-xl border"
-                style={{ background: '#0B0B0D', borderColor: 'rgba(255,255,255,0.06)' }} />
+                style={{ background: 'var(--panel)', borderColor: 'var(--border)' }} />
             ))}
           </div>
         ) : visibles.length === 0 ? (
           <div className="flex h-64 flex-col items-center justify-center gap-2">
-            <span className="text-[14px] text-[#777777]">
+            <span className="text-[14px] text-[var(--muted)]">
               {onglet === 'connected'
                 ? 'No integrations connected yet.'
                 : 'No integration matches your search.'}
             </span>
-            <span className="text-[12px] text-[#555]">
+            <span className="text-[12px] text-[var(--placeholder)]">
               {onglet === 'connected'
                 ? 'Connect a platform to get started.'
                 : 'Try a different keyword or category.'}
@@ -354,13 +354,13 @@ export default function IntegrationsPanel({ onFermer, oauthResultat }: Props) {
       {detail && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)' }}
+          style={{ background: 'var(--overlay)', backdropFilter: 'blur(6px)' }}
           onClick={() => setDetail(null)}
         >
           <div
             className="w-[420px] rounded-xl border p-6"
             style={{
-              background: '#0d0d0d',
+              background: 'var(--modal)',
               borderColor: 'var(--border-orange)',
               boxShadow: '0 0 44px rgba(255,106,0,0.16), 0 20px 60px rgba(0,0,0,0.6)',
             }}
@@ -370,43 +370,43 @@ export default function IntegrationsPanel({ onFermer, oauthResultat }: Props) {
               <div className="flex items-center gap-2.5">
                 <div
                   className="flex h-9 w-9 items-center justify-center rounded-lg border"
-                  style={{ borderColor: 'rgba(255,255,255,0.10)', background: '#111113' }}
+                  style={{ borderColor: 'var(--border)', background: 'var(--panel-light)' }}
                 >
                   <LogoIntegration id={detail.id} nom={detail.name} />
                 </div>
-                <h2 className="label-tech text-[11px] text-[#f5f5f5]">{detail.name.toUpperCase()}</h2>
+                <h2 className="label-tech text-[11px] text-[var(--text)]">{detail.name.toUpperCase()}</h2>
               </div>
-              <button onClick={() => setDetail(null)} aria-label="Fermer" className="text-[#777777] transition hover:text-[#f5f5f5]">
+              <button onClick={() => setDetail(null)} aria-label="Fermer" className="text-[var(--muted)] transition hover:text-[var(--text)]">
                 <X size={15} />
               </button>
             </div>
-            <p className="mb-4 text-[13.5px] leading-relaxed text-[#c7c7c7]">{detail.description}</p>
-            <h3 className="label-tech mb-2 text-[9px] text-[#777777]">CAPABILITIES</h3>
+            <p className="mb-4 text-[13.5px] leading-relaxed text-[var(--dim)]">{detail.description}</p>
+            <h3 className="label-tech mb-2 text-[9px] text-[var(--muted)]">CAPABILITIES</h3>
             <div className="mb-4 flex flex-col gap-1.5">
               {detail.capabilities.map((c) => (
-                <div key={c} className="flex items-center gap-2 text-[12.5px] text-[#c7c7c7]">
+                <div key={c} className="flex items-center gap-2 text-[12.5px] text-[var(--dim)]">
                   <Check size={11} className="text-green" /> {c}
                 </div>
               ))}
             </div>
-            <h3 className="label-tech mb-2 text-[9px] text-[#777777]">PERMISSIONS</h3>
+            <h3 className="label-tech mb-2 text-[9px] text-[var(--muted)]">PERMISSIONS</h3>
             <div className="mb-5 flex flex-col gap-1">
               {detail.scopes.map((s) => (
-                <span key={s} className="text-[11px] text-[#777777]">• {s}</span>
+                <span key={s} className="text-[11px] text-[var(--muted)]">• {s}</span>
               ))}
             </div>
             {detail.connected ? (
               <div className="flex flex-col gap-2">
                 {connexionDetail && (
-                  <div className="mb-1 text-[11.5px] text-[#777777]">
-                    Account: <span className="text-[#c7c7c7]">{connexionDetail.providerAccountId || '—'}</span>
+                  <div className="mb-1 text-[11.5px] text-[var(--muted)]">
+                    Account: <span className="text-[var(--dim)]">{connexionDetail.providerAccountId || '—'}</span>
                   </div>
                 )}
                 <div className="flex gap-2">
                   <button
                     onClick={() => setDetail(null)}
-                    className="label-tech flex-1 rounded-lg border py-2.5 text-[10px] text-[#c7c7c7] transition hover:border-orange/40"
-                    style={{ borderColor: 'rgba(255,255,255,0.10)' }}
+                    className="label-tech flex-1 rounded-lg border py-2.5 text-[10px] text-[var(--dim)] transition hover:border-orange/40"
+                    style={{ borderColor: 'var(--border)' }}
                   >
                     MANAGE CONNECTION
                   </button>
@@ -415,8 +415,8 @@ export default function IntegrationsPanel({ onFermer, oauthResultat }: Props) {
                       deconnecter(detail.id)
                       setDetail(null)
                     }}
-                    className="label-tech flex-1 rounded-lg border py-2.5 text-[10px] text-[#ff6b6b] transition hover:bg-white/5"
-                    style={{ borderColor: 'rgba(255,107,107,0.30)' }}
+                    className="label-tech flex-1 rounded-lg border py-2.5 text-[10px] text-[var(--red)] transition hover:bg-white/5"
+                    style={{ borderColor: 'var(--border)' }}
                   >
                     DISCONNECT
                   </button>
@@ -426,7 +426,7 @@ export default function IntegrationsPanel({ onFermer, oauthResultat }: Props) {
               <button
                 onClick={() => connecter(detail.id)}
                 disabled={enCours === detail.id}
-                className="label-tech flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-[10px] text-black transition enabled:hover:brightness-110 disabled:opacity-50"
+                className="label-tech flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-[10px] text-[var(--bg2)] transition enabled:hover:brightness-110 disabled:opacity-50"
                 style={{ background: '#FF6A00', boxShadow: '0 0 16px rgba(255,106,0,0.35)' }}
               >
                 {enCours === detail.id ? (
@@ -439,16 +439,16 @@ export default function IntegrationsPanel({ onFermer, oauthResultat }: Props) {
               </button>
             ) : (
               <div className="flex flex-col gap-2">
-                <div className="rounded-lg border px-4 py-2.5 text-[12px] leading-relaxed text-[#777777]"
-                  style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+                <div className="rounded-lg border px-4 py-2.5 text-[12px] leading-relaxed text-[var(--muted)]"
+                  style={{ borderColor: 'var(--border)' }}>
                   Available — setup required. Create the OAuth app at the provider
                   (button below), add the redirect URI
                   {' '}
-                  <code className="text-[10.5px] text-[#c7c7c7]">
+                  <code className="text-[10.5px] text-[var(--dim)]">
                     http://127.0.0.1:8790/api/integrations/{detail.id}/callback
                   </code>
                   , then paste the client ID and secret into the
-                  {' '}<span className="text-[#c7c7c7]">integrations.{detail.id}</span>{' '}
+                  {' '}<span className="text-[var(--dim)]">integrations.{detail.id}</span>{' '}
                   section of config.yaml and restart.
                 </div>
                 {SETUP_URLS[detail.id] && (
@@ -456,8 +456,8 @@ export default function IntegrationsPanel({ onFermer, oauthResultat }: Props) {
                     href={SETUP_URLS[detail.id]}
                     target="_blank"
                     rel="noreferrer"
-                    className="label-tech flex items-center justify-center gap-1.5 rounded-lg border py-2 text-[9.5px] text-[#c7c7c7] transition hover:text-orange"
-                    style={{ borderColor: 'rgba(255,255,255,0.10)' }}
+                    className="label-tech flex items-center justify-center gap-1.5 rounded-lg border py-2 text-[9.5px] text-[var(--dim)] transition hover:text-orange"
+                    style={{ borderColor: 'var(--border)' }}
                   >
                     <ExternalLink size={10} /> CREATE OAUTH APP AT {detail.name.toUpperCase()}
                   </a>
@@ -467,7 +467,7 @@ export default function IntegrationsPanel({ onFermer, oauthResultat }: Props) {
                     href={detail.documentationUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="label-tech flex items-center justify-center gap-1.5 text-[9.5px] text-[#777777] transition hover:text-orange"
+                    className="label-tech flex items-center justify-center gap-1.5 text-[9.5px] text-[var(--muted)] transition hover:text-orange"
                   >
                     <ExternalLink size={10} /> PROVIDER DOCUMENTATION
                   </a>
