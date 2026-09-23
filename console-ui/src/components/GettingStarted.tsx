@@ -10,7 +10,7 @@ const ETAPES = [
   'Take the tour',
   'Connect your platforms and tools',
   'Put something on autopilot',
-  'Watch Zoey work',
+  'Watch Jarvis work',
 ]
 
 export default function GettingStarted({ etapesFaites, onOuvrirEtape, onReplier }: Props) {

@@ -123,7 +123,7 @@ export default function ParticleOrb({ actif, niveau, taille = 420 }: Props) {
     <canvas
       ref={refCanvas}
       style={{ width: taille, height: taille }}
-      aria-label="Orbe de particules — visualisation de Zoey"
+      aria-label="Orbe de particules — visualisation de Jarvis"
     />
   )
 }

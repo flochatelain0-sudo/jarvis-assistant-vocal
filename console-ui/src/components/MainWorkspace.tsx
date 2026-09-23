@@ -22,11 +22,10 @@ interface Props {
   connectes: Set<IntegrationId>
   onConnecter: (id: IntegrationId) => void
   orbMobile: boolean
-  credits: number
 }
 
 const CARTES = [
-  { titre: 'ORCHESTRATOR', texte: 'Zoey runs your inbox, calendar and projects.' },
+  { titre: 'ORCHESTRATOR', texte: 'Jarvis runs your inbox, calendar and projects.' },
   { titre: 'ON AUTOPILOT', texte: 'Routine work happens while you sleep.' },
   { titre: '95 / 5', texte: '95% automatisé, 5% confirmé par toi.' },
 ]
@@ -49,7 +48,6 @@ export default function MainWorkspace(props: Props) {
           <WorkspaceControls
             mode={mode}
             onChoisir={(m) => onMode(mode === m ? 'chat' : m)}
-            credits={props.credits}
           />
         </div>
       </div>

@@ -15,7 +15,7 @@ interface Reglage {
 }
 
 const REGLAGES: Reglage[] = [
-  { cle: 'voix', label: 'Voice', description: 'Zoey répond à voix haute via le moteur TTS de Jarvis.' },
+  { cle: 'voix', label: 'Voice', description: 'Jarvis répond à voix haute via le moteur TTS de Jarvis.' },
   { cle: 'notifications', label: 'Notifications', description: 'Préviens-moi quand une action me concerne.' },
   { cle: 'autopilote', label: 'Autopilot', description: 'Exécute les actions sans risque (95/5 : lectures N1) sans confirmer.' },
   { cle: 'style', label: 'Response style', description: 'Concis par défaut, développé si tu préfères.' },

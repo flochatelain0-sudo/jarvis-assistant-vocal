@@ -13,7 +13,7 @@ export default function ZoeyBranding({ page, nbPages, onPage }: Props) {
         className="label-tech text-orange"
         style={{ fontSize: 15, letterSpacing: '0.85em', textIndent: '0.85em' }}
       >
-        ZOEY
+        JARVIS
       </h1>
       <p className="label-tech text-[8.5px] text-[#777777]">
         ORCHESTRATOR&nbsp;&nbsp;&nbsp;THE VOICE OF YOUR WORLD
