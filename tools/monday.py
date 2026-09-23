@@ -39,6 +39,8 @@ def _journal_echec(contexte, detail):
     avec cinquante fois la meme ligne. Un meme echec n'est journalise
     qu'une fois par quart d'heure.
     """
+    if isinstance(detail, dict):
+        detail = detail.get("message") or str(detail)
     quoi = f"{contexte}: {detail}"[:120]
     maintenant = time.time()
     if (quoi == _DERNIER_ECHEC["quoi"]
@@ -48,7 +50,8 @@ def _journal_echec(contexte, detail):
     _DERNIER_ECHEC["quand"] = maintenant
     try:
         from core import operator
-        operator.journaliser("crm", f"monday : {contexte}", str(detail)[:200])
+        operator.journaliser("crm", f"monday : {contexte} — {str(detail)[:80]}",
+                             str(detail)[:200])
     except Exception:
         pass
 
