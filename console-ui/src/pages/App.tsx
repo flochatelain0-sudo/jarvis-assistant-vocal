@@ -6,6 +6,7 @@ import MainWorkspace from '../components/MainWorkspace'
 import type { EtatOrbe } from '../components/ParticleOrb'
 import ChatPanel from '../components/ChatPanel'
 import ConnectionModal from '../components/ConnectionModal'
+import ButModal from '../components/ButModal'
 import IntegrationsPanel from '../components/IntegrationsPanel'
 import type { ModeCentre } from '../components/WorkspaceControls'
 import type { IntegrationId } from '../lib/integrations'
@@ -32,6 +33,7 @@ export default function App() {
   const [etapesFaites, setEtapesFaites] = useState<Set<number>>(new Set())
   const [recherche, setRecherche] = useState('')
   const [pageIntegrations, setPageIntegrations] = useState(false)
+  const [modalButOuverte, setModalButOuverte] = useState(false)
   const oauthResultat = useMemo(() => {
     const p = new URLSearchParams(window.location.search).get('oauth')
     return p
@@ -97,9 +99,11 @@ export default function App() {
   }
 
   const ajouterBut = () => {
-    const titre = window.prompt('New goal — describe what you want…')
-    if (!titre || !titre.trim()) return
-    api.butAjouter(titre.trim()).then((but) => {
+    setModalButOuverte(true)
+  }
+
+  const creerBut = (titre: string) => {
+    api.butAjouter(titre).then((but) => {
       if (but) setButs((p) => [...p, but])
     })
   }
@@ -240,6 +244,11 @@ export default function App() {
         connectes={connectes}
         onAnnuler={() => setAConnecter(null)}
         onConnecter={connecter}
+      />
+      <ButModal
+        ouverte={modalButOuverte}
+        onFermer={() => setModalButOuverte(false)}
+        onCreer={creerBut}
       />
     </div>
   )

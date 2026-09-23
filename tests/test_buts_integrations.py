@@ -110,3 +110,32 @@ def test_etat_operator_expose_buts_et_integrations(sans_config, tmp_path, monkey
     etat = operator.etat()
     assert "buts" in etat and len(etat["buts"]) == 6
     assert "integrations" in etat and "gmail" in etat["integrations"]
+
+
+def test_ids_uniques_meme_creation_rapide():
+    """Regression : les buts crees dans la meme milliseconde ne doivent
+    JAMAIS partager le meme id (sinon le X de la console supprime
+    plusieurs buts d'un coup, ou semble ne rien faire)."""
+    buts.initialiser_modele()
+    ids_modele = [b["id"] for b in buts.lister()]
+    assert len(set(ids_modele)) == len(ids_modele), "ids partages dans le modele"
+    crees = [buts.ajouter(f"But rapide {i}") for i in range(5)]
+    ids_crees = [b["id"] for b in crees]
+    assert len(set(ids_crees)) == len(ids_crees), "ids partages a la creation"
+    assert len(set(ids_modele) & set(ids_crees)) == 0
+
+
+def test_supprimer_ne_touche_que_le_but_vise():
+    """Regression : supprimer un but ne doit retirer QUE lui."""
+    buts.initialiser_modele()
+    liste = buts.lister()
+    cible = liste[2]["id"]
+    assert buts.supprimer(cible) is True
+    apres = buts.lister()
+    assert len(apres) == len(liste) - 1
+    assert all(b["id"] != cible for b in apres)
+    # les autres ids sont intacts
+    restants = {b["id"] for b in apres}
+    for b in liste:
+        if b["id"] != cible:
+            assert b["id"] in restants
