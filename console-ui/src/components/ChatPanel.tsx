@@ -15,12 +15,19 @@ export interface CategorieMails {
   mails: MailRendu[]
 }
 
+export interface ActionVue {
+  categorie: string
+  detail: string
+  resultat: string
+}
+
 export interface MessageChat {
   id: number
   role: 'vous' | 'zoey'
   texte: string
   ts: number
   carteMails?: CategorieMails[]
+  action?: ActionVue
 }
 
 interface Props {
@@ -79,34 +86,48 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, journal, enAtte
   const [reflechir, setReflechir] = useState(false)
   const basRef = useRef<HTMLDivElement>(null)
 
-  // rejoue la conversation existante du vrai Jarvis a l'ouverture
+  // rejoue la conversation existante du vrai Jarvis, puis la suit en direct :
+  // actions executees, cartes de compte rendu et reponses arrivent sans
+  // recharger, meme panneau ouvert (poll toutes les 3 s, meme dedup).
   useEffect(() => {
     if (!ouverte) return
-    api.conversation().then((c) => {
-      if (!c || !c.messages || !c.messages.length) return
-      setMessages((prec) => {
-        // Deduplication sur le texte COMPLET + role : un message deja affiche
-        // (poll direct ou precedent) ne doit jamais etre re-ajoute par le
-        // rejeu de l'historique, sinon la reponse apparait deux fois.
-        const vus = new Set(prec.map((m) => `${m.role}:${m.texte}`))
-        const ajoutes: MessageChat[] = []
-        for (const m of c.messages!) {
-          if (m.role !== 'vous' && m.role !== 'jarvis') continue
-          const role = (m.role === 'vous' ? 'vous' : 'zoey') as 'vous' | 'zoey'
-          const cle = `${role}:${m.texte}`
-          if (vus.has(cle)) continue
-          vus.add(cle)
-          ajoutes.push({
-            id: ++compteur,
-            role,
-            texte: m.texte,
-            ts: m.ts || maintenant(),
-            carteMails: m.type === 'mails' ? m.categories : undefined,
-          })
-        }
-        return ajoutes.length ? [...prec, ...ajoutes] : prec
+    let vivant = true
+    const maj = () =>
+      api.conversation().then((c) => {
+        if (!vivant || !c || !c.messages || !c.messages.length) return
+        setMessages((prec) => {
+          // Deduplication sur le texte COMPLET + role : un message deja affiche
+          // (poll direct ou precedent) ne doit jamais etre re-ajoute par le
+          // rejeu de l'historique, sinon la reponse apparait deux fois.
+          const vus = new Set(prec.map((m) => `${m.role}:${m.texte}`))
+          const ajoutes: MessageChat[] = []
+          for (const m of c.messages!) {
+            if (m.role !== 'vous' && m.role !== 'jarvis') continue
+            const role = (m.role === 'vous' ? 'vous' : 'zoey') as 'vous' | 'zoey'
+            const cle = `${role}:${m.texte}`
+            if (vus.has(cle)) continue
+            vus.add(cle)
+            ajoutes.push({
+              id: ++compteur,
+              role,
+              texte: m.texte,
+              ts: m.ts || maintenant(),
+              carteMails: m.type === 'mails' ? m.categories : undefined,
+              action:
+                m.type === 'action'
+                  ? { categorie: m.categorie || 'autre', detail: m.detail || '', resultat: m.resultat || 'ok' }
+                  : undefined,
+            })
+          }
+          return ajoutes.length ? [...prec, ...ajoutes] : prec
+        })
       })
-    })
+    maj()
+    const t = setInterval(maj, 3000)
+    return () => {
+      vivant = false
+      clearInterval(t)
+    }
   }, [ouverte])
 
   useEffect(() => {
@@ -170,7 +191,48 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, journal, enAtte
       <div className="flex-1 overflow-y-auto px-4 pb-3">
         {messages.map((m) => (
           <div key={m.id} className="mb-4">
-            {m.carteMails ? (
+            {m.action ? (
+              <div
+                className="flex max-w-[95%] items-center gap-2.5 rounded-lg border px-3 py-2"
+                style={{
+                  borderColor:
+                    m.action.resultat === 'erreur'
+                      ? 'rgba(255,80,80,0.4)'
+                      : m.action.resultat === 'en_attente'
+                        ? 'rgba(255,133,0,0.4)'
+                        : 'var(--border)',
+                  background: 'rgba(13,13,13,0.9)',
+                }}
+              >
+                <span className="label-tech shrink-0 rounded px-1.5 py-0.5 text-[8px] text-orange/90"
+                  style={{ border: '1px solid rgba(255,106,0,0.35)' }}>
+                  {m.action.categorie.toUpperCase()}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[12px] text-[#c7c7c7]">{m.texte}</div>
+                  {m.action.detail && (
+                    <div className="truncate text-[10px] text-[#777777]">{m.action.detail}</div>
+                  )}
+                </div>
+                <span
+                  className="label-tech shrink-0 text-[8px]"
+                  style={{
+                    color:
+                      m.action.resultat === 'erreur'
+                        ? '#ff5050'
+                        : m.action.resultat === 'en_attente'
+                          ? '#ff8500'
+                          : '#4ade80',
+                  }}
+                >
+                  {m.action.resultat === 'erreur'
+                    ? 'ERREUR'
+                    : m.action.resultat === 'en_attente'
+                      ? 'A CONFIRMER'
+                      : 'OK'}
+                </span>
+              </div>
+            ) : m.carteMails ? (
               <div
                 className="mb-1 max-w-[95%] rounded-xl border p-3"
                 style={{ borderColor: 'var(--border-orange)', background: 'rgba(14,14,14,0.9)' }}

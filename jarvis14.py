@@ -728,16 +728,22 @@ def _executer_outils(blocs):
             resultat = registre.mettre_en_attente(outil, arguments)
             operator.journaliser("validation", f"Action préparée : {nom}",
                                  resultat="en_attente")
+            operator.action_vue("validation", f"Action préparée : {nom}",
+                               str(arguments)[:200], resultat="en_attente")
         else:
             try:
                 resultat = outil.fonction(**arguments)
                 operator.journaliser(_categorie(nom), f"Action exécutée : {nom}",
                                      str(resultat)[:200])
+                operator.action_vue(_categorie(nom), f"Action exécutée : {nom}",
+                                    str(resultat)[:200])
             except Exception:
                 LOG.exception("outil %s a plante", nom)
                 resultat = "Desole, je n'ai pas reussi a faire ca."
                 operator.journaliser("systeme", f"Action échouée : {nom}",
                                      resultat="erreur")
+                operator.action_vue("systeme", f"Action échouée : {nom}",
+                                   resultat="erreur")
 
         LOG.info("outil %s termine en %.3fs (type=%s)", nom,
                  time.monotonic() - debut_outil, type(resultat).__name__)

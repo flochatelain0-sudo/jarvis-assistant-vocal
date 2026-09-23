@@ -83,3 +83,29 @@ def test_doctrine_leads_etats_hors_relance_ignores(bac):
     _sources_crm(relances=[])
     reponse = operateur.operateur_journee()
     assert "Gagne Corp" not in reponse
+
+
+def test_action_vue_dans_conversation():
+    """Chaque action executee apparaît comme carte dans la conversation
+    de la console (type action, categorie, statut)."""
+    from core import operator
+    avant = len(operator.conversation())
+    operator.action_vue("mail", "Action exécutée : lire_mails",
+                       "3 mails non lus", "ok")
+    msgs = operator.conversation()
+    assert len(msgs) == avant + 1
+    m = msgs[-1]
+    assert m["type"] == "action"
+    assert m["categorie"] == "mail"
+    assert m["resultat"] == "ok"
+    assert "lire_mails" in m["texte"]
+
+
+def test_action_vue_erreurs_bornées():
+    """Les champs longs sont tronqués : la conversation reste légère."""
+    from core import operator
+    operator.action_vue("x" * 100, "t" * 300, "d" * 600, "ok")
+    m = operator.conversation()[-1]
+    assert len(m["categorie"]) <= 24
+    assert len(m["texte"]) <= 160
+    assert len(m["detail"]) <= 400
