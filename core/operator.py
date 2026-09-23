@@ -173,7 +173,9 @@ def _fil_vocal():
 
 def etat():
     """L'etat complet servi a la page Operator (API GET)."""
-    from core import registre
+    from core import registre, integrations
+    from core import buts
+    buts.initialiser_modele()
     return {
         "kpis": _kpis(),
         "a_valider": _file_validation(),
@@ -182,6 +184,8 @@ def etat():
         "vie": _vie(),
         "mode": registre.mode(),
         "fil_vocal": _fil_vocal(),
+        "integrations": integrations.etat(),
+        "buts": buts.lister(),
     }
 
 
@@ -480,6 +484,51 @@ def monter_routes(app):
         if refus:
             return refus
         return mode()
+
+    @app.get("/api/operator/integrations")
+    def api_integrations(request: Request):
+        """Etat REEL de connexion de chaque plateforme (config + jetons)."""
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import integrations
+        return {"integrations": integrations.etat()}
+
+    @app.get("/api/operator/buts")
+    def api_buts(request: Request):
+        """Les buts persistes, statut deduit des integrations connectees."""
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import buts
+        buts.initialiser_modele()
+        return {"buts": buts.lister()}
+
+    @app.post("/api/operator/buts")
+    async def api_but_creer(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        corps = {}
+        try:
+            corps = await request.json() or {}
+        except Exception:
+            corps = {}
+        from core import buts
+        but = buts.ajouter((corps or {}).get("titre", ""),
+                           (corps or {}).get("requis"))
+        if but:
+            journaliser("systeme", f"But créé : {but['titre'][:60]}",
+                        "depuis la console ZOEY OS")
+        return {"ok": but is not None, "but": but}
+
+    @app.delete("/api/operator/buts/{ident}")
+    def api_but_supprimer(ident: str, request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import buts
+        return {"ok": buts.supprimer(ident)}
 
     @app.post("/api/operator/mode")
     async def api_mode_changer(request: Request):

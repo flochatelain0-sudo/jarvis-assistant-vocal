@@ -12,6 +12,46 @@ export interface EtatVie {
 
 export type ModeGlobal = 'manual' | 'auto'
 
+export interface IntegrationEtat {
+  id: string
+  nom: string
+  connecte: boolean
+  detail: string
+}
+
+export interface But {
+  id: string
+  titre: string
+  statut: 'JUST SET' | 'IN PROGRESS' | 'DONE'
+  requis: { id: string; connecte: boolean }[]
+}
+
+export interface Automation {
+  id: string
+  nom: string
+  moment: string
+  action: string
+  jours: string[]
+  active: boolean
+  derniere: number
+  prochaine: number
+}
+
+export interface DocumentConnaissance {
+  id: number
+  titre: string
+  source: string
+  ts: number
+  taille: number
+}
+
+export interface Brain {
+  preferences: { cle: string; contenu: string }[]
+  people: { cle: string; contenu: string }[]
+  projects: { cle: string; contenu: string }[]
+  facts: { contenu: string }[]
+}
+
 export interface EtatOperator {
   kpis: {
     actions_24h: number
@@ -28,6 +68,8 @@ export interface EtatOperator {
   journal: { ts: number; categorie: string; titre: string }[]
   vie: EtatVie
   mode?: ModeGlobal
+  integrations?: Record<string, IntegrationEtat>
+  buts?: But[]
 }
 
 async function json<T>(chemin: string, init?: RequestInit): Promise<T | null> {
@@ -75,5 +117,37 @@ export const api = {
       `/api/operator/reponse/${id}`,
     )
     return r && r.pret ? r.texte : null
+  },
+
+  brain: () => json<Brain>('/api/operator/brain'),
+
+  automations: () => json<{ automations: Automation[] }>('/api/operator/automations'),
+
+  knowledge: () =>
+    json<{ documents: DocumentConnaissance[] }>('/api/operator/knowledge'),
+
+  knowledgeAjouter: async (titre: string, contenu: string): Promise<boolean> => {
+    const r = await json<{ ok: boolean }>('/api/operator/knowledge', {
+      method: 'POST',
+      body: JSON.stringify({ titre, contenu }),
+    })
+    return Boolean(r && r.ok)
+  },
+
+  buts: () => json<{ buts: But[] }>('/api/operator/buts'),
+
+  butAjouter: async (titre: string): Promise<But | null> => {
+    const r = await json<{ ok: boolean; but: But }>('/api/operator/buts', {
+      method: 'POST',
+      body: JSON.stringify({ titre }),
+    })
+    return r && r.ok ? r.but : null
+  },
+
+  butSupprimer: async (id: string): Promise<boolean> => {
+    const r = await json<{ ok: boolean }>(`/api/operator/buts/${id}`, {
+      method: 'DELETE',
+    })
+    return Boolean(r && r.ok)
   },
 }

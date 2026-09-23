@@ -5,6 +5,7 @@ import WorkspaceControls, { type ModeCentre } from './WorkspaceControls'
 import ZoeyBranding from './ZoeyBranding'
 import ConsolePanel from './ConsolePanel'
 import ConfigurationPanel from './ConfigurationPanel'
+import BrainPanel from './BrainPanel'
 import type { IntegrationId } from '../lib/integrations'
 
 interface Props {
@@ -80,6 +81,7 @@ export default function MainWorkspace(props: Props) {
           onConnecter={props.onConnecter}
         />
       )}
+      {mode === 'brain' && <BrainPanel onFermer={() => onMode('chat')} />}
     </main>
   )
 }
