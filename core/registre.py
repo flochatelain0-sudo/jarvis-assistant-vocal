@@ -149,6 +149,9 @@ _N3 = frozenset({
     "delete_event", "automation_supprimer",
     "eteindre_pc",
     "controle_pc_astra",
+    "supprimer_fichier",
+    "executer_commande",
+    "envoyer_message_linkedin",
 })
 
 

@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    name: Tests backend (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Installer PortAudio (satellite audio)
+        run: sudo apt-get update && sudo apt-get install -y libportaudio2
+
+      - name: Installer uv
+        run: pip install uv
+
+      - name: Installer les dependances
+        run: uv sync --dev
+
+      - name: Tests pytest
+        run: uv run pytest tests/ -q
+
+  console-ui:
+    name: Console UI (tsc + vite)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: console-ui
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: console-ui/package-lock.json
+
+      - name: Installer les dependances
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck (tsc --noEmit)
+        run: npx tsc --noEmit
+
+      - name: Build (vite)
+        run: npm run build
+
+      - name: Bundle inline (web/console.html a jour)
+        run: node scripts/emballer.mjs
+
+      - name: Verifier le bundle regenere
+        working-directory: .
+        run: git diff --exit-code -- web/console.html && echo "web/console.html a jour avec le build"

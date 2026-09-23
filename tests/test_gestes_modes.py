@@ -10,9 +10,16 @@ import math
 
 
 def _module(nom):
+    """Stub de module tier. Utilise par _restaurer() apres l'import du tracker."""
+    precedent = sys.modules.get(nom)
     module = types.ModuleType(nom)
     sys.modules[nom] = module
+    if precedent is not None:
+        _RESTAURER.append((nom, precedent))
     return module
+
+
+_RESTAURER: list = []
 
 
 _module("cv2")
@@ -40,6 +47,13 @@ from gestes.tracker import (  # noqa: E402
     pose,
     ratio_ouverture_pouce,
 )
+
+# Les stubs ne servent qu'a importer gestes.tracker sans MediaPipe/OpenCV.
+# On restaure aussitot les vrais modules : sys.modules['requests'] ne doit
+# pas rester un module vide pour le reste de la session pytest (les autres
+# fichiers de test font de vraies requetes HTTP).
+for _nom, _precedent in _RESTAURER:
+    sys.modules[_nom] = _precedent
 
 
 def _main(doigts=0, pouce=False, x=0.5, y=0.5):

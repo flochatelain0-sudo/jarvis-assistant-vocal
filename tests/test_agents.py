@@ -1,26 +1,32 @@
 """Onglets d'agents de la page Operator : presets de personnalite nommes
-(Jarvis, Builder, Counsel, Marketer) basculables sans reecrire config.yaml."""
+(Jarvis, Builder, Counsel, Marketer, Operator, Zoey) basculables sans
+reecrire config.yaml."""
 import pytest
 from core import personnalite
 from core.config import definir_volatile, reglage
 
 
-def test_les_quatre_agents_exposent_role_et_preset():
+def test_les_agents_exposent_role_et_preset():
     ids = {a["id"] for a in personnalite.agents()}
-    assert ids == {"neutre", "builder", "counsel", "marketer"}
+    assert ids == {"neutre", "builder", "counsel", "marketer", "operator", "zoey"}
     for a in personnalite.agents():
         assert a["nom"] and a["role"]
 
 
 def test_chaque_agent_a_une_consigne_distincte():
     textes = {personnalite.persona(a["id"]) for a in personnalite.agents()}
-    assert len(textes) == 4
+    assert len(textes) == 6
+    # Zoey orchestre : sa consigne couvre OS, veille web et leads LinkedIn
+    assert "ZOEY" in personnalite.persona("zoey")
+    assert "LinkedIn" in personnalite.persona("zoey")
 
 
 def test_est_agent_distingue_les_presets():
     assert personnalite.est_agent("builder") is True
     assert personnalite.est_agent("counsel") is True
     assert personnalite.est_agent("marketer") is True
+    assert personnalite.est_agent("operator") is True
+    assert personnalite.est_agent("zoey") is True
     assert personnalite.est_agent("neutre") is False
     assert personnalite.est_agent("jarvis_sarcastique") is False
 
