@@ -184,6 +184,27 @@ def test_nom_voix_systeme_mac(mac, monkeypatch):
     assert plateforme.nom_voix_systeme() == "voix macOS (say · Thomas)"
 
 
+def test_voix_systeme_configurable(mac, monkeypatch, popens):
+    """tts.voix_systeme dans config.yaml prime sur l'auto-detection."""
+    monkeypatch.setattr(plateforme.shutil, "which", lambda n: "/usr/bin/say")
+    monkeypatch.setattr(plateforme, "_voix_francaise_mac", lambda: "Thomas")
+    monkeypatch.setattr(plateforme, "reglage",
+                        lambda cle, defaut=None: "Thomas (ppremium)"
+                        if cle == "tts.voix_systeme" else defaut)
+    plateforme.parler_systeme("Bonjour")
+    assert popens == [["say", "-v", "Thomas (ppremium)", "-f", "-"]]
+
+
+def test_voix_systeme_config_vide_retombe_sur_l_auto(mac, monkeypatch, popens):
+    monkeypatch.setattr(plateforme.shutil, "which", lambda n: "/usr/bin/say")
+    monkeypatch.setattr(plateforme, "_voix_francaise_mac", lambda: "Thomas")
+    monkeypatch.setattr(plateforme, "reglage",
+                        lambda cle, defaut=None: "  " 
+                        if cle == "tts.voix_systeme" else defaut)
+    plateforme.parler_systeme("Bonjour")
+    assert popens == [["say", "-v", "Thomas", "-f", "-"]]
+
+
 # ---------------------------------------------------------------- extinction
 
 def test_extinction_mac_est_une_minuterie_annulable(mac, monkeypatch):

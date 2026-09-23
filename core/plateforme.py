@@ -21,6 +21,8 @@ import threading
 import time
 from pathlib import Path
 
+from core.config import reglage
+
 LOG = logging.getLogger("jarvis")
 
 EST_WINDOWS = sys.platform == "win32"
@@ -1010,7 +1012,7 @@ def nom_voix_systeme() -> str:
     if EST_WINDOWS:
         return "voix Windows (SAPI)"
     if EST_MAC:
-        v = _voix_francaise_mac()
+        v = (reglage("tts.voix_systeme", "") or "").strip() or _voix_francaise_mac()
         return f"voix macOS (say · {v})" if v else "voix macOS (say)"
     return "voix système (espeak/spd-say)"
 
@@ -1044,7 +1046,8 @@ def parler_systeme(texte: str):
         if not shutil.which("say"):
             return None
         cmd = ["say", "-f", "-"]           # lit le texte sur stdin
-        voix = _voix_francaise_mac()
+        voix = (reglage("tts.voix_systeme", "") or "").strip() \
+            or _voix_francaise_mac()
         if voix:
             cmd[1:1] = ["-v", voix]
         return subprocess.Popen(cmd, stdin=subprocess.PIPE,
