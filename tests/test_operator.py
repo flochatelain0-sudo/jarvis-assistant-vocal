@@ -182,19 +182,22 @@ def test_page_console_refuse_le_lan():
     page = dict(app.routes)["/console"]
     assert page(_Req(host="192.168.1.5")).status_code == 403
     assert page(_Req()).status_code == 200
-    assert b"ZOEY OS" in page(_Req()).body
+    assert b"ZOEY_OS" in page(_Req()).body
 
 
 def test_page_console_servie_depuis_web_console(tmp_path):
-    """La page vient bien de web/console.html, pas d'une page morte."""
+    """La page vient bien de web/console.html, pas d'une page morte : c'est le
+    build React inline (console-ui) branche sur les vrais endpoints."""
     assert (operator._RACINE / "web" / "console.html").exists()
     app = _app_routes()
     page = dict(app.routes)["/console"]
     reponse = page(_Req())
     assert reponse.status_code == 200
-    assert b"ZOEY OS" in reponse.body
-    assert b"envoyerDemande" in reponse.body          # chat branche aux vrais endpoints
-    assert b"/api/operator/message" in reponse.body
+    corps = reponse.body
+    assert b"ZOEY_OS" in corps                       # marque ZOEY_OS du build React
+    assert b"/api/operator/message" in corps          # chat branche aux vrais endpoints
+    assert b"/api/operator/reponse/" in corps        # poll de la reponse
+    assert b"/api/operator/etat" in corps            # pouls de l'assistant
 
 
 def test_api_refuse_le_lan():

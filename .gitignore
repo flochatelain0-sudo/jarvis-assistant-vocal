@@ -57,3 +57,6 @@ finances/*
 data/operator_journal.json
 data/automations.json
 data/knowledge.json
+
+# Console UI : dependances npm et build (regenere via console-ui).
+node_modules/
