@@ -280,7 +280,33 @@ class VoxtralProvider(ProviderTTS):
                           if it.get("id") and any(
                               str(l).lower().startswith("fr")
                               for l in (it.get("languages") or [""]))]
-            choisie = francaises[0] if francaises else items[0]
+            if francaises:
+                choisie = francaises[0]
+            else:
+                # Pas de voix francaise sur le compte : on evite les voix
+                # a emotion negative (Sad, Angry, Frustrated...) — un "Paul -
+                # Sad" par defaut donnait a Jarvis une voix depressante.
+                # Preferer : Neutral, puis Confident, Cheerful, Happy.
+                preferees = ("neutral", "confident", "cheerful", "happy")
+                anglaises = [it for it in items if it.get("id") and any(
+                    str(l).lower().startswith("en")
+                    for l in (it.get("languages") or [""]))]
+                choisie = None
+                for preferee in preferees:
+                    choisie = next(
+                        (it for it in anglaises
+                         if preferee in str(it.get("name") or "").lower()),
+                        None)
+                    if choisie:
+                        break
+                if choisie is None:
+                    choisie = next(
+                        (it for it in anglaises
+                         if not any(neg in str(it.get("name") or "").lower()
+                                    for neg in ("sad", "angry", "frustrated"))),
+                        None)
+                if choisie is None:
+                    choisie = items[0]
         identifiant = str(choisie.get("id")).strip()
         try:
             from core.config import definir

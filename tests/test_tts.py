@@ -392,6 +392,54 @@ def test_voxtral_auto_reparation_cible_la_premiere_voix_francaise(monkeypatch):
     assert ecrits == [("voxtral.voix", "vchr_fr1")]
 
 
+def test_voxtral_sans_voix_francaise_evite_les_emotions_negatives(monkeypatch):
+    """Compte 100% anglais (compte gratuit Mistral) : jamais "Paul - Sad".
+    L'auto-reparation doit preferer Neutral > Confident > Cheerful > Happy."""
+    trames = bytes(range(0, 256)) * 20
+    audio_b64 = base64.b64encode(_wav_int16(trames, 24000)).decode()
+    reglages = {"mistral.cle": "cle-test", "voxtral.voix": "fr_female"}
+    voix_compte = _compte_voxtral(
+        {"id": "id_sad", "name": "Paul - Sad", "languages": ["en_us"]},
+        {"id": "id_angry", "name": "Paul - Angry", "languages": ["en_us"]},
+        {"id": "id_confident", "name": "Paul - Confident", "languages": ["en_us"]},
+        {"id": "id_neutral", "name": "Paul - Neutral", "languages": ["en_us"]})
+    urlopen, appels = _urlopen_deux_temps(audio_b64)
+    monkeypatch.setattr(tts, "reglage",
+                        lambda chemin, defaut=None: reglages.get(chemin, defaut))
+    monkeypatch.setattr("urllib.request.urlopen", urlopen)
+    monkeypatch.setattr(tts, "lister_voix_voxtral", lambda: voix_compte)
+    ecrits = []
+    monkeypatch.setattr("core.config.definir",
+                        lambda chemin, valeur: ecrits.append((chemin, valeur)))
+    provider = tts.VoxtralProvider()
+    assert provider.synthetiser("Bonjour") is not None
+    assert provider.voix == "id_neutral"
+    assert ecrits == [("voxtral.voix", "id_neutral")]
+
+
+def test_voxtral_sans_voix_francaise_ni_preferee_prend_une_non_negative(monkeypatch):
+    """Anglais sans Neutral/Confident/Cheerful/Happy : on evite quand meme
+    Sad/Angry/Frustrated (ici on tombe sur Excited)."""
+    trames = bytes(range(0, 256)) * 20
+    audio_b64 = base64.b64encode(_wav_int16(trames, 24000)).decode()
+    reglages = {"mistral.cle": "cle-test", "voxtral.voix": "fr_female"}
+    voix_compte = _compte_voxtral(
+        {"id": "id_sad", "name": "Paul - Sad", "languages": ["en_us"]},
+        {"id": "id_excited", "name": "Paul - Excited", "languages": ["en_us"]})
+    urlopen, _ = _urlopen_deux_temps(audio_b64)
+    monkeypatch.setattr(tts, "reglage",
+                        lambda chemin, defaut=None: reglages.get(chemin, defaut))
+    monkeypatch.setattr("urllib.request.urlopen", urlopen)
+    monkeypatch.setattr(tts, "lister_voix_voxtral", lambda: voix_compte)
+    ecrits = []
+    monkeypatch.setattr("core.config.definir",
+                        lambda chemin, valeur: ecrits.append((chemin, valeur)))
+    provider = tts.VoxtralProvider()
+    assert provider.synthetiser("Bonjour") is not None
+    assert provider.voix == "id_excited"
+    assert ecrits == [("voxtral.voix", "id_excited")]
+
+
 def test_voxtral_auto_reparation_resout_voix_vide_au_demarrage(monkeypatch):
     """voxtral.voix vide : reparation AVANT l'erreur — plus besoin du terminal."""
     trames = bytes(range(0, 256)) * 20
