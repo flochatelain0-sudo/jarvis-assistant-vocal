@@ -137,6 +137,9 @@
       <div class="fld"><div class="lab"><b>Voix Voxtral (Mistral)</b>
         <small>Si moteur = Voxtral : les voix de ton compte Mistral, listées automatiquement.</small></div>
         <select class="txt" id="sel-voix-voxtral" onchange="setReglage('voxtral.voix',this.value,this)"></select>
+      <div class="fld"><div class="lab"><b>Voix OS (macOS)</b>
+        <small>Si moteur = OS : la voix say du Mac, listée automatiquement. Vide = auto-détection.</small></div>
+        <select class="txt" id="sel-voix-systeme" onchange="setReglage('tts.voix_systeme',this.value,this)"></select></div>
       </div>
       <div class="row"><button class="act" onclick="testerVoix()">Tester la voix</button></div>
       <div id="tts-msg" class="msg"></div>
@@ -448,6 +451,13 @@ async function chargerReglages(){
     vv.innerHTML=items.length
       ? items.map(v=>opt(v.id,`${v.nom}${v.langues?' · '+v.langues:''}`,v.id===d.voxtral_voix_active)).join('')
       : opt('', 'Aucune voix listée — vérifie mistral.cle dans config.yaml', true);
+  }
+  // voix OS (macOS : sorties de `say -v ?`)
+  const vs=$('#sel-voix-systeme');
+  if(vs){
+    const items=(d.voix_systeme||[]);
+    vs.innerHTML=opt('','(auto-détection — première voix française)',!d.voix_systeme_active)
+      + items.map(v=>opt(v.nom,`${v.nom} · ${v.locale}`,v.nom===d.voix_systeme_active)).join('');
   }
   // sliders
   $('#rng-suite').value=d.duree_suite; $('#val-suite').textContent=d.duree_suite+' s';

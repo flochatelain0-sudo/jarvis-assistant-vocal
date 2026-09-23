@@ -1,8 +1,9 @@
 """Tests sans réseau des bascules modèle/mode/voix du panneau local."""
+import subprocess
 import unittest
 from unittest.mock import patch
 
-from core import panneau
+from core import panneau, plateforme as plateforme_panneau
 
 
 class PanneauSwitchTests(unittest.TestCase):
@@ -64,6 +65,53 @@ class PanneauSwitchTests(unittest.TestCase):
         self.assertTrue(resultat["ok"])
         ecrire.assert_called_once_with("tts.moteur", "piper")
         reinitialiser.assert_called_once_with()
+
+
+class PanneauVoixSystemeTests(unittest.TestCase):
+    """Le select de voix macOS du panneau : liste et priorite FR, sans plantage."""
+
+    def test_voix_systeme_vide_hors_macos(self):
+        with patch.object(plateforme_panneau, "EST_MAC", False):
+            self.assertEqual(panneau._voix_systeme(), [])
+
+    def test_voix_systeme_lit_sorties_de_say(self):
+        sortie = ("Amelie              fr_CA    # Bonjour\n"
+                  "Thomas              fr_FR    # Bonjour\n"
+                  "Alex                en_US    # Hello\n")
+        resultat = subprocess.CompletedProcess([], 0, sortie, "")
+        with patch.object(plateforme_panneau, "EST_MAC", True), \
+             patch.object(subprocess, "run", return_value=resultat):
+            voix = panneau._voix_systeme()
+        self.assertEqual([v["nom"] for v in voix],
+                         ["Amelie", "Thomas", "Alex"])   # FR en premier
+
+    def test_voix_systeme_say_absent_renvoie_vide(self):
+        def echoue(*a, **kw):
+            raise OSError("pas de say")
+        with patch.object(plateforme_panneau, "EST_MAC", True), \
+             patch.object(subprocess, "run", side_effect=echoue):
+            self.assertEqual(panneau._voix_systeme(), [])
+
+    def test_reglages_exposent_la_voix_systeme_active(self):
+        with patch.object(panneau, "reglage",
+                          side_effect=lambda cle, defaut=None:
+                          "Thomas" if cle == "tts.voix_systeme" else defaut), \
+             patch.object(panneau, "_voix_systeme", return_value=[]):
+            d = panneau._reglages()
+        self.assertEqual(d["voix_systeme_active"], "Thomas")
+
+    def test_moteur_vocal_os_est_autorise(self):
+        with patch("core.config.definir") as ecrire, \
+             patch("core.tts.reinitialiser"):
+            resultat = panneau._definir_reglage("tts.moteur", "os")
+        self.assertTrue(resultat["ok"])
+        ecrire.assert_called_once_with("tts.moteur", "os")
+
+    def test_voix_systeme_est_un_reglage_whiteliste(self):
+        with patch("core.config.definir") as ecrire:
+            resultat = panneau._definir_reglage("tts.voix_systeme", "Amelie")
+        self.assertTrue(resultat["ok"])
+        ecrire.assert_called_once_with("tts.voix_systeme", "Amelie")
 
 
 if __name__ == "__main__":

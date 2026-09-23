@@ -499,6 +499,35 @@ def _audio_devices():
         return [], []
 
 
+def _voix_systeme():
+    """Les voix de l'OS pour le select du panneau (macOS : sorties de `say -v ?`).
+
+    Jamais bloquant : ailleurs que macOS, ou sans `say`, liste vide (le select
+    affiche l'aide). Les voix FR sont proposees en premier — c'est un
+    assistant francophone.
+    """
+    from core import plateforme
+    if not plateforme.EST_MAC:
+        return []
+    try:
+        r = subprocess.run(["say", "-v", "?"], capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=6)
+    except Exception:
+        return []
+    voix = []
+    for ligne in (r.stdout or "").splitlines():
+        morceaux = ligne.split()
+        if len(morceaux) < 2:
+            continue
+        locale = morceaux[1]
+        nom = ligne.split("  ")[0].strip()
+        if nom and locale:
+            voix.append({"nom": nom, "locale": locale})
+    francais = [v for v in voix if v["locale"].lower().startswith("fr")]
+    autres = [v for v in voix if not v["locale"].lower().startswith("fr")]
+    return francais + autres
+
+
 def _voix_voxtral():
     """Les voix du compte Mistral pour le select du panneau. Jamais bloquant :
     sans cle ou erreur reseau -> liste vide (le select affiche l'aide)."""
@@ -528,6 +557,8 @@ def _reglages():
                           "concis", "builder", "counsel", "marketer"],
         "voxtral_voix": _voix_voxtral(),
         "voxtral_voix_active": reglage("voxtral.voix", ""),
+        "voix_systeme": _voix_systeme(),
+        "voix_systeme_active": reglage("tts.voix_systeme", ""),
     }
 
 
@@ -551,7 +582,8 @@ def _definir_reglage(cle, valeur):
                 return {"ok": False, "message": "Mode invalide."}
             return {"ok": True, "message": f"Mode {valeur} actif immediatement."}
         if cle == "tts.moteur" and valeur not in {
-                "auto", "piper", "kokoro", "windows"}:
+                "auto", "piper", "kokoro", "voxtral", "gemini", "os",
+                "windows"}:
             return {"ok": False, "message": "Moteur vocal invalide."}
         if cle == "cloud.fournisseur" and valeur not in {
                 "mistral", "openai", "anthropic", "gemini"}:
