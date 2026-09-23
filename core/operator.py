@@ -392,6 +392,33 @@ def conversation():
         return list(_CONVERSATION)
 
 
+def carte_mails(donnees):
+    """Injecte une carte de compte rendu des mails dans la conversation de
+    la page (meme mecanisme que les validations). Affiche les categories
+    (securite, reponse attendue, interne, notifications) et les mails de
+    chaque categorie, pendant que Jarvis resume a voix haute."""
+    titre = str(donnees.get("titre", "Compte rendu des mails") or
+                "Compte rendu des mails")[:80]
+    categories = donnees.get("categories") or []
+    with _VERROU:
+        _CONVERSATION.append({
+            "role": "jarvis", "type": "mails",
+            "texte": titre,
+            "categories": [{
+                "titre": str(c.get("titre", ""))[:60],
+                "icone": str(c.get("icone", ""))[:8],
+                "mails": [{
+                    "expediteur": str(m.get("expediteur", ""))[:80],
+                    "objet": str(m.get("objet", ""))[:120],
+                    "detail": str(m.get("detail", ""))[:200],
+                    "action": str(m.get("action", ""))[:200],
+                } for m in (c.get("mails") or [])[:10]],
+            } for c in categories[:6]],
+            "ts": time.time(),
+        })
+        del _CONVERSATION[:-_MAX_CONV]
+
+
 def carte_briefing(donnees):
     """Injecte une carte de briefing client dans la conversation de la page
     (meme mecanisme que les validations). Affiche la fiche CRM, le RDV et les

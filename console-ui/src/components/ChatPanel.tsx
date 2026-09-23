@@ -2,11 +2,25 @@ import { useEffect, useRef, useState } from 'react'
 import { Plus, SendHorizontal, RotateCcw, ExternalLink, X, AudioLines } from 'lucide-react'
 import { api } from '../lib/api'
 
+export interface MailRendu {
+  expediteur: string
+  objet: string
+  detail: string
+  action: string
+}
+
+export interface CategorieMails {
+  titre: string
+  icone: string
+  mails: MailRendu[]
+}
+
 export interface MessageChat {
   id: number
   role: 'vous' | 'zoey'
   texte: string
   ts: number
+  carteMails?: CategorieMails[]
 }
 
 interface Props {
@@ -82,7 +96,13 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, journal, enAtte
           const cle = `${role}:${m.texte}`
           if (vus.has(cle)) continue
           vus.add(cle)
-          ajoutes.push({ id: ++compteur, role, texte: m.texte, ts: m.ts || maintenant() })
+          ajoutes.push({
+            id: ++compteur,
+            role,
+            texte: m.texte,
+            ts: m.ts || maintenant(),
+            carteMails: m.type === 'mails' ? m.categories : undefined,
+          })
         }
         return ajoutes.length ? [...prec, ...ajoutes] : prec
       })
@@ -150,12 +170,56 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, journal, enAtte
       <div className="flex-1 overflow-y-auto px-4 pb-3">
         {messages.map((m) => (
           <div key={m.id} className="mb-4">
-            <div
-              className="max-w-[92%] text-[15px] leading-[1.65]"
-              style={{ color: m.role === 'vous' ? '#f5f5f5' : '#c7c7c7' }}
-            >
-              {m.texte}
-            </div>
+            {m.carteMails ? (
+              <div
+                className="mb-1 max-w-[95%] rounded-xl border p-3"
+                style={{ borderColor: 'var(--border-orange)', background: 'rgba(14,14,14,0.9)' }}
+              >
+                <div className="label-tech mb-2 flex items-center gap-2 text-[9.5px] text-orange">
+                  <span>{m.texte}</span>
+                </div>
+                {m.carteMails.map((cat, i) => (
+                  <div key={i} className="mb-2 last:mb-0">
+                    <div className="label-tech mb-1 flex items-center gap-1.5 text-[9px] text-[#f5f5f5]">
+                      <span>{cat.icone}</span>
+                      <span>{cat.titre}</span>
+                      <span className="text-[#777777]">({cat.mails.length})</span>
+                    </div>
+                    <div className="overflow-hidden rounded-lg border" style={{ borderColor: 'var(--border)' }}>
+                      {cat.mails.map((mail, j) => (
+                        <div
+                          key={j}
+                          className="flex flex-col gap-0.5 px-2.5 py-1.5"
+                          style={{ background: j % 2 ? 'rgba(20,20,20,0.6)' : 'rgba(8,8,8,0.6)' }}
+                        >
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="truncate text-[12px] font-medium text-[#f5f5f5]">
+                              {mail.expediteur}
+                            </span>
+                            <span className="label-tech shrink-0 text-[8px] text-orange/80">
+                              {mail.action}
+                            </span>
+                          </div>
+                          {mail.objet && (
+                            <div className="truncate text-[11px] text-[#999999]">{mail.objet}</div>
+                          )}
+                          {mail.detail && (
+                            <div className="text-[11px] text-[#777777]">{mail.detail}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div
+                className="max-w-[92%] text-[15px] leading-[1.65]"
+                style={{ color: m.role === 'vous' ? '#f5f5f5' : '#c7c7c7' }}
+              >
+                {m.texte}
+              </div>
+            )}
             <div className="label-tech mt-1 text-[8.5px] text-[#555]">
               {m.role === 'zoey' ? 'JARVIS' : 'YOU'} ·{' '}
               {new Date(m.ts * 1000).toLocaleTimeString('fr-FR', {
