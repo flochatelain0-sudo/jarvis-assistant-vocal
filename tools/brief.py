@@ -18,6 +18,15 @@ def faire_brief() -> str:
     """Brief du moment : heure, meteo, deadlines Loopstr et apercu des nouveaux mails."""
     morceaux = [heure_et_date(), meteo()]
     try:
+        from core import operator
+        operator.carte_briefing({
+            "client": "Brief du moment",
+            "rdv": heure_et_date()[:80],
+            "champs": [{"titre": "Meteo", "valeur": meteo()[:120]}],
+        })
+    except Exception:
+        pass
+    try:
         from tools.loopstr import deadlines_brief
         deadlines = deadlines_brief()
         if deadlines:

@@ -21,6 +21,12 @@ export interface ActionVue {
   resultat: string
 }
 
+export interface CarteBriefing {
+  client: string
+  rdv?: string
+  champs: { titre: string; valeur: string }[]
+}
+
 export interface MessageChat {
   id: number
   role: 'vous' | 'zoey'
@@ -28,6 +34,7 @@ export interface MessageChat {
   ts: number
   tsServeur?: number
   carteMails?: CategorieMails[]
+  carteBriefing?: CarteBriefing
   action?: ActionVue
 }
 
@@ -119,6 +126,10 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, onNouveauBut, j
               ts: m.ts || maintenant(),
               tsServeur: tsServeur || undefined,
               carteMails: m.type === 'mails' ? m.categories : undefined,
+              carteBriefing:
+                m.type === 'briefing' && m.champs && m.champs.length
+                  ? { client: m.client || m.texte, rdv: m.rdv, champs: m.champs }
+                  : undefined,
               action:
                 m.type === 'action'
                   ? { categorie: m.categorie || 'autre', detail: m.detail || '', resultat: m.resultat || 'ok' }
@@ -238,6 +249,22 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, onNouveauBut, j
                       ? 'A CONFIRMER'
                       : 'OK'}
                 </span>
+              </div>
+            ) : m.carteBriefing ? (
+              <div
+                className="mb-1 max-w-[95%] rounded-xl border p-3"
+                style={{ borderColor: 'var(--border-orange)', background: 'rgba(14,14,14,0.9)' }}
+              >
+                <div className="label-tech mb-2 text-[9.5px] text-orange">
+                  {m.carteBriefing.client.toUpperCase()}
+                  {m.carteBriefing.rdv ? ` · ${m.carteBriefing.rdv}` : ''}
+                </div>
+                {m.carteBriefing.champs.map((c, i) => (
+                  <div key={i} className="mb-1 flex gap-2 text-[12px] last:mb-0">
+                    <span className="shrink-0 text-[var(--muted)]">{c.titre}</span>
+                    <span className="text-[var(--dim)]">{c.valeur}</span>
+                  </div>
+                ))}
               </div>
             ) : m.carteMails ? (
               <div

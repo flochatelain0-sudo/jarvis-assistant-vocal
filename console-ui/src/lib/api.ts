@@ -144,6 +144,9 @@ export const api = {
         categorie?: string
         detail?: string
         resultat?: string
+        client?: string
+        rdv?: string
+        champs?: { titre: string; valeur: string }[]
       }[]
     }>('/api/operator/conversation'),
 
