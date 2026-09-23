@@ -7,7 +7,7 @@ import ChatPanel from '../components/ChatPanel'
 import ConnectionModal from '../components/ConnectionModal'
 import type { ModeCentre } from '../components/WorkspaceControls'
 import type { But } from '../data/etat-initial'
-import { BUTS_INITIAUX, CREDITS_INITIAL } from '../data/etat-initial'
+import { BUTS_INITIAUX } from '../data/etat-initial'
 import type { IntegrationId } from '../lib/integrations'
 import { api, type EtatOperator } from '../lib/api'
 
@@ -17,7 +17,6 @@ export default function App() {
   const [ecoute, setEcoute] = useState(true)
   const [mode, setMode] = useState<ModeCentre>('chat')
   const [page, setPage] = useState(0)
-  const [credits] = useState(CREDITS_INITIAL)
   const [buts, setButs] = useState<But[]>(BUTS_INITIAUX)
   const [connectes, setConnectes] = useState<Set<IntegrationId>>(new Set())
   const [aConnecter, setAConnecter] = useState<IntegrationId | null>(null)
@@ -140,10 +139,9 @@ export default function App() {
           connectes={connectes}
           onConnecter={setAConnecter}
           orbMobile={false}
-          credits={credits}
         />
 
-        {/* droite : chat Zoey */}
+        {/* droite : chat Jarvis */}
         <div
           className="transition-all duration-300"
           style={{ width: chatOuvert ? 'clamp(270px, 28vw, 400px)' : 0, overflow: 'hidden' }}

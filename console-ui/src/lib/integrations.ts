@@ -14,19 +14,19 @@ export const INTEGRATIONS: Record<IntegrationId, Integration> = {
   gmail: {
     id: 'gmail',
     nom: 'GMAIL',
-    description: 'Connect Gmail so Zoey can help organize your inbox.',
+    description: 'Connect Gmail so Jarvis can help organize your inbox.',
     icone: Mail,
   },
   gcal: {
     id: 'gcal',
     nom: 'GOOGLE CALENDAR',
-    description: 'Connect Google Calendar so Zoey can organize your schedule.',
+    description: 'Connect Google Calendar so Jarvis can organize your schedule.',
     icone: Calendar,
   },
   github: {
     id: 'github',
     nom: 'GITHUB',
-    description: 'Connect GitHub so Zoey can manage your project.',
+    description: 'Connect GitHub so Jarvis can manage your project.',
     icone: Github,
   },
 }

@@ -22,7 +22,7 @@ const MESSAGE_ACCUEIL: MessageChat[] = [
     id: 1,
     role: 'zoey',
     texte:
-      "Hey — I'm Zoey. I keep an eye on your inbox, calendar and projects so you don't have to. What should we get on top of first?",
+      "Hey — I'm Jarvis. I keep an eye on your inbox, calendar and projects so you don't have to. What should we get on top of first?",
     ts: Date.now() / 1000 - 90,
   },
   {
@@ -71,16 +71,19 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, journal, enAtte
     api.conversation().then((c) => {
       if (!c || !c.messages || !c.messages.length) return
       setMessages((prec) => {
-        const ids = new Set(prec.map((m) => m.texte.slice(0, 120)))
-        const ajoutes = c.messages!
-          .filter((m) => m.role === 'vous' || m.role === 'jarvis')
-          .map((m) => ({
-            id: ++compteur,
-            role: (m.role === 'vous' ? 'vous' : 'zoey') as 'vous' | 'zoey',
-            texte: m.texte,
-            ts: m.ts || maintenant(),
-          }))
-          .filter((m) => !ids.has(m.texte.slice(0, 120)))
+        // Deduplication sur le texte COMPLET + role : un message deja affiche
+        // (poll direct ou precedent) ne doit jamais etre re-ajoute par le
+        // rejeu de l'historique, sinon la reponse apparait deux fois.
+        const vus = new Set(prec.map((m) => `${m.role}:${m.texte}`))
+        const ajoutes: MessageChat[] = []
+        for (const m of c.messages!) {
+          if (m.role !== 'vous' && m.role !== 'jarvis') continue
+          const role = (m.role === 'vous' ? 'vous' : 'zoey') as 'vous' | 'zoey'
+          const cle = `${role}:${m.texte}`
+          if (vus.has(cle)) continue
+          vus.add(cle)
+          ajoutes.push({ id: ++compteur, role, texte: m.texte, ts: m.ts || maintenant() })
+        }
         return ajoutes.length ? [...prec, ...ajoutes] : prec
       })
     })
@@ -109,7 +112,7 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, journal, enAtte
         style={{ top: 72, background: 'rgba(8,8,8,0.85)', borderColor: 'var(--border-orange)' }}
       >
         <AudioLines size={13} className="text-orange" />
-        <span className="label-tech text-[10px] text-[#c7c7c7]">ZOEY</span>
+        <span className="label-tech text-[10px] text-[#c7c7c7]">JARVIS</span>
       </button>
     )
   }
@@ -126,7 +129,7 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, journal, enAtte
             className="h-2 w-2 rounded-full bg-orange"
             style={{ boxShadow: '0 0 10px rgba(255,106,0,0.7)' }}
           />
-          <span className="label-tech text-[#c7c7c7]">ZOEY</span>
+          <span className="label-tech text-[#c7c7c7]">JARVIS</span>
           {enAttente > 0 && (
             <span className="label-tech rounded-full border px-2 text-[8.5px] text-orange"
               style={{ borderColor: 'var(--border-orange)' }}>
@@ -154,7 +157,7 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, journal, enAtte
               {m.texte}
             </div>
             <div className="label-tech mt-1 text-[8.5px] text-[#555]">
-              {m.role === 'zoey' ? 'ZOEY' : 'YOU'} ·{' '}
+              {m.role === 'zoey' ? 'JARVIS' : 'YOU'} ·{' '}
               {new Date(m.ts * 1000).toLocaleTimeString('fr-FR', {
                 hour: '2-digit',
                 minute: '2-digit',
@@ -198,7 +201,7 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, journal, enAtte
             value={saisie}
             onChange={(e) => setSaisie(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && envoyer()}
-            placeholder="Message Zoey..."
+            placeholder="Message Jarvis..."
             className="flex-1 bg-transparent text-[14px] text-[#f5f5f5] outline-none placeholder:text-[#555]"
           />
           <button

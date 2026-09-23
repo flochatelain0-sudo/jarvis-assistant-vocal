@@ -11,7 +11,7 @@ export default function TopBar({ onOuvrirRecherche }: Props) {
       style={{ background: 'rgba(5,5,5,0.92)', borderColor: 'var(--border)' }}
     >
       <div className="label-tech text-orange" style={{ fontSize: 12, letterSpacing: '0.28em' }}>
-        ZOEY_OS<span className="align-super text-[8px]">™</span>
+        JARVIS_OS<span className="align-super text-[8px]">™</span>
       </div>
       <div className="flex items-center gap-4 text-[#777777]">
         <button
