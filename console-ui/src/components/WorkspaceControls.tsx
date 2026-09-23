@@ -1,6 +1,6 @@
-import { MessageSquare, Terminal, Settings, Brain, type LucideIcon } from 'lucide-react'
+import { MessageSquare, Terminal, Settings, Brain, Unplug, type LucideIcon } from 'lucide-react'
 
-export type ModeCentre = 'chat' | 'console' | 'configurer' | 'brain' | null
+export type ModeCentre = 'chat' | 'console' | 'configurer' | 'brain' | 'integrations' | null
 
 interface Props {
   mode: ModeCentre
@@ -36,10 +36,11 @@ export default function WorkspaceControls({ mode, onChoisir }: Props) {
         {onglet('chat', MessageSquare, 'Chat')}
         {onglet('console', Terminal, 'Console')}
         {onglet('brain', Brain, 'Brain')}
+        {onglet('integrations', Unplug, 'Integrations')}
         {onglet('configurer', Settings, 'Configure')}
       </div>
       <p className="label-tech text-[8.5px] text-[#555]">
-        Chat · Console · Brain · Configure · tap an item to open or close it
+        Chat · Console · Brain · Integrations · Configure · tap an item to open or close it
       </p>
     </div>
   )

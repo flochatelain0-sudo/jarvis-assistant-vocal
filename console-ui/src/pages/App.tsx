@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
 import TopBar from '../components/TopBar'
 import ConsoleSidebar from '../components/ConsoleSidebar'
 import MainWorkspace from '../components/MainWorkspace'
 import ChatPanel from '../components/ChatPanel'
 import ConnectionModal from '../components/ConnectionModal'
+import IntegrationsPanel from '../components/IntegrationsPanel'
 import type { ModeCentre } from '../components/WorkspaceControls'
 import type { IntegrationId } from '../lib/integrations'
 import {
@@ -29,6 +30,11 @@ export default function App() {
   const [aConnecter, setAConnecter] = useState<IntegrationId | null>(null)
   const [etapesFaites, setEtapesFaites] = useState<Set<number>>(new Set())
   const [recherche, setRecherche] = useState('')
+  const [pageIntegrations, setPageIntegrations] = useState(false)
+  const oauthResultat = useMemo(() => {
+    const p = new URLSearchParams(window.location.search).get('oauth')
+    return p
+  }, [])
   const [etat, setEtat] = useState<EtatOperator | null>(null)
   const [modeGlobal, setModeGlobal] = useState<ModeGlobal>('manual')
 
@@ -128,6 +134,13 @@ export default function App() {
         mode={modeGlobal}
         onMode={changerMode}
       />
+
+      {pageIntegrations && (
+        <IntegrationsPanel
+          onFermer={() => setPageIntegrations(false)}
+          oauthResultat={oauthResultat}
+        />
+      )}
 
       {recherche !== '' && (
         <div

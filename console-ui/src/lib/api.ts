@@ -45,6 +45,38 @@ export interface DocumentConnaissance {
   taille: number
 }
 
+export type IntegrationStatut = 'connected' | 'available' | 'setup_required'
+
+export interface IntegrationDef {
+  id: string
+  name: string
+  slug: string
+  description: string
+  category: string
+  capabilities: string[]
+  scopes: string[]
+  authType: string
+  enabled: boolean
+  requiresOAuth: boolean
+  documentationUrl: string
+  connected: boolean
+  status: IntegrationStatut
+}
+
+export interface CatalogueIntegrations {
+  integrations: IntegrationDef[]
+  categories: string[]
+  connectedCount: number
+}
+
+export interface ConnexionIntegration {
+  provider: string
+  providerAccountId: string
+  scopes: string
+  connectedAt: number
+  expiresAt: number
+}
+
 export interface Brain {
   preferences: { cle: string; contenu: string }[]
   people: { cle: string; contenu: string }[]
@@ -150,4 +182,23 @@ export const api = {
     })
     return Boolean(r && r.ok)
   },
+
+  // Page INTEGRATIONS : catalogue statique + etat REEL cote serveur.
+  catalogueIntegrations: () => json<CatalogueIntegrations>('/api/integrations'),
+
+  integrationsConnectees: () =>
+    json<{ connected: ConnexionIntegration[] }>('/api/integrations/connected'),
+
+  statutIntegration: (provider: string) =>
+    json<{ ok: boolean; connected: boolean; connection: ConnexionIntegration | null; enabled: boolean; setupRequired: boolean }>(
+      `/api/integrations/${provider}/status`,
+    ),
+
+  connecterIntegration: async (provider: string): Promise<{ ok: boolean; authorizationUrl?: string; message?: string }> =>
+    json('/api/integrations/' + provider + '/connect', { method: 'POST' }) as Promise<{ ok: boolean; authorizationUrl?: string; message?: string }>,
+
+  deconnecterIntegration: async (provider: string): Promise<{ ok: boolean; message?: string }> =>
+    json(`/api/integrations/${provider}/disconnect`, {
+      method: 'POST',
+    }) as Promise<{ ok: boolean; message?: string }>,
 }

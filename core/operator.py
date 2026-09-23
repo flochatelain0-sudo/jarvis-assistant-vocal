@@ -415,6 +415,13 @@ def carte_briefing(donnees):
 
 # ------------------------------------------------------------------ routes
 
+def _redirection_console(resultat):
+    """Apres un callback OAuth : renvoie la console locale avec un
+    parametre de resultat — le navigateur affiche le message adequat."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(f"/console?oauth={resultat}", status_code=302)
+
+
 def monter_routes(app):
     """Routes du CRM Operator, LOCALES uniquement, meme garde que le panneau."""
     from fastapi import Request
@@ -723,6 +730,117 @@ def monter_routes(app):
             return refus
         from core import automations as autos
         return {"ok": autos.supprimer(identifiant)}
+
+    # -------------------------------------------------------- integrations
+    # Page INTEGRATIONS : catalogue + OAuth reel. Les jetons restent cote
+    # serveur (chiffres) ; le navigateur ne voit que l'etat de connexion.
+    @app.get("/api/integrations")
+    def api_integrations_catalogue(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import integrations_oauth
+        catalogue = integrations_oauth.vue_catalogue()
+        return {
+            "integrations": catalogue,
+            "categories": integrations_oauth.CATEGORIES,
+            "connectedCount": sum(1 for c in catalogue if c["connected"]),
+        }
+
+    @app.get("/api/integrations/connected")
+    def api_integrations_connectees(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import integrations_oauth
+        return {"connected": [integrations_oauth.vue_connexion(pid)
+                              for pid in integrations_oauth.connectes_ids()
+                              if integrations_oauth.vue_connexion(pid)]}
+
+    @app.get("/api/integrations/{provider}/status")
+    def api_integration_statut(provider: str, request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import integrations_oauth
+        p = integrations_oauth.provider(provider)
+        if not p:
+            return JSONResponse({"ok": False,
+                                 "message": "Unknown integration."},
+                                status_code=404)
+        vue = integrations_oauth.vue_connexion(provider)
+        return {
+            "ok": True,
+            "connected": vue is not None,
+            "connection": vue,
+            "enabled": integrations_oauth.configure(provider),
+            "setupRequired": not integrations_oauth.configure(provider),
+        }
+
+    @app.post("/api/integrations/{provider}/connect")
+    def api_integration_connecter(provider: str, request: Request):
+        """Genere l'URL OAuth REELLE du provider (state + PKCE). Sans
+        identifiants configurés : erreur propre, jamais de simulation."""
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import integrations_oauth
+        if not integrations_oauth.provider(provider):
+            return JSONResponse({"ok": False,
+                                 "message": "Unknown integration."},
+                                status_code=404)
+        if not integrations_oauth.configure(provider):
+            return JSONResponse({"ok": False,
+                                 "message": "This integration requires "
+                                            "additional setup. Add its client "
+                                            "ID and secret to config.yaml."},
+                                status_code=409)
+        url = integrations_oauth.url_autorisation(
+            provider, integrations_oauth._base_url_locale())
+        if not url:
+            return JSONResponse({"ok": False,
+                                 "message": "Unable to start the connection."},
+                                status_code=500)
+        journaliser("systeme", f"Connexion OAuth lancée : {provider}",
+                    "page INTEGRATIONS")
+        return {"ok": True, "authorizationUrl": url}
+
+    @app.get("/api/integrations/{provider}/callback")
+    def api_integration_callback(provider: str, request: Request):
+        """Callback OAuth : valide le state (CSRF), echange le code, stocke
+        les jetons chiffres, puis renvoie la console (page locale)."""
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import integrations_oauth
+        erreur = request.query_params.get("error", "")
+        if erreur:
+            return _redirection_console("cancelled")
+        code = request.query_params.get("code", "")
+        state = request.query_params.get("state", "")
+        verifier = integrations_oauth.valider_state(provider, state)
+        if verifier is None or not code:
+            return _redirection_console("state")
+        _, message = integrations_oauth.echanger_code(provider, code, verifier)
+        if message:
+            return _redirection_console("failed")
+        journaliser("systeme", f"Intégration connectée : {provider}",
+                    "OAuth autorisé depuis la page INTEGRATIONS")
+        return _redirection_console("connected")
+
+    @app.post("/api/integrations/{provider}/disconnect")
+    def api_integration_deconnecter(provider: str, request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import integrations_oauth
+        if not integrations_oauth.connexion(provider):
+            return {"ok": False, "message": "Not connected."}
+        ok = integrations_oauth.deconnecter(provider)
+        if ok:
+            journaliser("systeme", f"Intégration déconnectée : {provider}",
+                        "révocation provider + suppression locale")
+        return {"ok": ok}
 
     # --------------------------------------------------------------- brain
 
