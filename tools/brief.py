@@ -17,6 +17,17 @@ from tools.temps import heure_et_date
 def faire_brief() -> str:
     """Brief du moment : heure, meteo, deadlines Loopstr et apercu des nouveaux mails."""
     morceaux = [heure_et_date(), meteo()]
+    # VISUEL : le brief s'affiche aussi dans la console, pas seulement a voix.
+    try:
+        from core import operator
+        from tools.temps import heure_et_date as _h
+        operator.carte_briefing({
+            "client": "Brief du moment",
+            "rdv": _h()[:80],
+            "champs": [{"titre": "Meteo", "valeur": meteo()[:120]}],
+        })
+    except Exception:
+        pass
     try:
         from tools.loopstr import deadlines_brief
         deadlines = deadlines_brief()

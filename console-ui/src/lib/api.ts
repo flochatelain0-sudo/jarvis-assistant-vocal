@@ -130,9 +130,17 @@ export const api = {
   },
 
   conversation: () =>
-    json<{ messages: { role: 'vous' | 'jarvis'; texte: string; ts: number }[] }>(
-      '/api/operator/conversation',
-    ),
+    json<{
+      messages: {
+        role: 'vous' | 'jarvis'
+        texte: string
+        ts: number
+        type?: string
+        client?: string
+        rdv?: string
+        champs?: { titre: string; valeur: string }[]
+      }[]
+    }>('/api/operator/conversation'),
 
   // Envoie une demande ecrite ; renvoie l'identifiant a poller, ou null si
   // l'API est absente (mode simule).

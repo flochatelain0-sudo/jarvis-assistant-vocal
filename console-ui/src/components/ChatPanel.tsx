@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Plus, SendHorizontal, RotateCcw, ExternalLink, X, AudioLines } from 'lucide-react'
 import { api } from '../lib/api'
 
@@ -7,6 +7,11 @@ export interface MessageChat {
   role: 'vous' | 'zoey'
   texte: string
   ts: number
+  carte?: {
+    client: string
+    rdv?: string
+    champs: { titre: string; valeur: string }[]
+  }
 }
 
 interface Props {
@@ -82,7 +87,17 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, journal, enAtte
           const cle = `${role}:${m.texte}`
           if (vus.has(cle)) continue
           vus.add(cle)
-          ajoutes.push({ id: ++compteur, role, texte: m.texte, ts: m.ts || maintenant() })
+          const carte =
+            m.type === 'briefing' && m.champs && m.champs.length
+              ? { client: m.client || m.texte, rdv: m.rdv, champs: m.champs }
+              : undefined
+          ajoutes.push({
+            id: ++compteur,
+            role,
+            texte: m.texte,
+            ts: m.ts || maintenant(),
+            carte,
+          })
         }
         return ajoutes.length ? [...prec, ...ajoutes] : prec
       })
@@ -149,21 +164,43 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, journal, enAtte
       {/* conversation */}
       <div className="flex-1 overflow-y-auto px-4 pb-3">
         {messages.map((m) => (
-          <div key={m.id} className="mb-4">
-            <div
-              className="max-w-[92%] text-[15px] leading-[1.65]"
-              style={{ color: m.role === 'vous' ? '#f5f5f5' : '#c7c7c7' }}
-            >
-              {m.texte}
+          <React.Fragment key={m.id}>
+            {m.carte && (
+              <div
+                className="mb-3 max-w-[92%] rounded-lg border p-3"
+                style={{
+                  borderColor: 'rgba(255,106,0,0.35)',
+                  background: 'rgba(255,106,0,0.05)',
+                }}
+              >
+                <div className="label-tech mb-1.5 text-[9px] text-orange">
+                  {m.carte.client.toUpperCase()}
+                  {m.carte.rdv ? ` · ${m.carte.rdv}` : ''}
+                </div>
+                {m.carte.champs.map((c, i) => (
+                  <div key={i} className="mb-1 flex gap-2 text-[12px]">
+                    <span className="shrink-0 text-[#777777]">{c.titre}</span>
+                    <span className="text-[#c7c7c7]">{c.valeur}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="mb-4">
+              <div
+                className="max-w-[92%] text-[15px] leading-[1.65]"
+                style={{ color: m.role === 'vous' ? '#f5f5f5' : '#c7c7c7' }}
+              >
+                {m.texte}
+              </div>
+              <div className="label-tech mt-1 text-[8.5px] text-[#555]">
+                {m.role === 'zoey' ? 'JARVIS' : 'YOU'} ·{' '}
+                {new Date(m.ts * 1000).toLocaleTimeString('fr-FR', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </div>
             </div>
-            <div className="label-tech mt-1 text-[8.5px] text-[#555]">
-              {m.role === 'zoey' ? 'JARVIS' : 'YOU'} ·{' '}
-              {new Date(m.ts * 1000).toLocaleTimeString('fr-FR', {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </div>
-          </div>
+          </React.Fragment>
         ))}
         {reflechir && (
           <div className="mb-4 flex items-center gap-2 text-[#777777]">

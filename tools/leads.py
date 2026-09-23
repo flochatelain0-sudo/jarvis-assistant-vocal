@@ -161,6 +161,16 @@ def rediger_message_lead(nom: str, relance: bool = False) -> str:
         })
         _sauver(leads)
 
+    try:
+        from core import operator
+        operator.carte_briefing({
+            "client": lead["nom"][:40],
+            "rdv": "Brouillon de relance" if relance else "Brouillon de contact",
+            "champs": [{"titre": "Message prepare",
+                        "valeur": brouillon[:220]}],
+        })
+    except Exception:  # pragma: no cover
+        pass
     return (
         f"BROUILLON pour {lead['nom']} (aucun envoi sans ta confirmation) :\n"
         f"---\n{brouillon}\n---\n"
@@ -296,6 +306,13 @@ def envoyer_message_linkedin(nom: str) -> str:
         from core import operator
         operator.journaliser("crm", f"message LinkedIn prepare pour {lead_nom}",
                              brouillon[:200], "pret")
+        # VISUEL : le brouillon s'affiche dans la console aussi.
+        operator.carte_briefing({
+            "client": lead_nom[:40],
+            "rdv": "Brouillon LinkedIn",
+            "champs": [{"titre": "Message prepare",
+                        "valeur": brouillon[:220]}],
+        })
     except Exception:  # pragma: no cover
         pass
     return (

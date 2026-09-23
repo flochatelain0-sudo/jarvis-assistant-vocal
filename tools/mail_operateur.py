@@ -25,6 +25,7 @@ LOG = logging.getLogger("jarvis.mail_operateur")
 
 _NOMBRE_DEFAUT = 15
 _MINUTES_PAR_MAIL = 2     # temps estime gagne par mail traite (bilan final)
+_MAX_CARTE = 12           # mails affiches dans la carte console
 
 # Sujets typiques d'un mail a reponse simple/factuelle : confirmation,
 # acces, notification, livraison... Le reste (hors pub) est « a valider ».
@@ -159,12 +160,30 @@ def _mettre_en_attente(nom_outil: str, args: dict) -> None:
         LOG.exception("mail_operateur : mise en file impossible (%s)", nom_outil)
 
 
+def _carte_mail(e, brouillon):
+    """VISUEL : carte pour UN mail presente — qui, sujet, brouillon propose.
+    Jamais d'exception : le visuel ne casse pas le vocal."""
+    try:
+        from core import operator
+        operator.carte_briefing({
+            "client": (e.get("nom") or "contact")[:30],
+            "rdv": (e.get("sujet") or "sans objet")[:70],
+            "champs": [{"titre": "Reponse proposee",
+                        "valeur": str(brouillon or "")[:220]}],
+        })
+    except Exception:
+        pass
+
+
 def _traiter_suivant() -> str:
     """Presente le mail suivant de la file : enjeu + brouillon + envoi N3 en
     file. Bilan final quand la file est vide."""
     if not _RESTANTS:
         total = _TRAITES["spam"] + _TRAITES["auto"] + _TRAITES["valides"]
         minutes = total * _MINUTES_PAR_MAIL
+        _carte_mail({"nom": "Bilan final",
+                     "sujet": f"{total} mail(s) gere(s) — {minutes} min gagnees"},
+                    "")
         return (f"Tout est traite ! {total} mail(s) gere(s) ce matin, tu viens "
                 f"de gagner environ {minutes} minutes. Bonne journee !")
     from tools import mail as m
@@ -190,6 +209,7 @@ def _traiter_suivant() -> str:
             intro = (f"Il reste un mail qui attend ton avis : {nom} te demande "
                      f"« {sujet} ».")
         _mettre_en_attente("envoyer_mail", {})
+        _carte_mail(e, brouillon)
         return (intro
                 + f" Reponse proposee : {brouillon}"
                 + " Dis « oui » pour confirmer l'envoi, ou dis-moi ce qu'il "
@@ -230,6 +250,29 @@ def operateur_mails(nombre: int = _NOMBRE_DEFAUT) -> str:
     _RESTANTS.clear()
     _RESTANTS.extend(simples + valider)
     _TRAITES.update({"spam": len(spam), "auto": 0, "valides": 0})
+
+    # Carte visible dans la console : le compte rendu ne se fait pas
+    # qu'a voix haute — l'utilisateur VOIT ce que Jarvis a fait.
+    try:
+        from core import operator
+        champs = []
+        if spam:
+            champs.append({"titre": "Poubelles",
+                           "valeur": f"{len(spam)} pub/spam a jeter"})
+        if simples:
+            champs.append({"titre": "Traites auto",
+                           "valeur": f"{len(simples)} reponse simple preparee"})
+        if valider:
+            noms = ", ".join(e.get("nom", "")[:20] for e in valider[:4])
+            champs.append({"titre": "A valider",
+                           "valeur": f"{len(valider)} — {noms}"})
+        for e in entetes[:_MAX_CARTE]:
+            champs.append({"titre": (e.get("nom") or "?")[:24],
+                           "valeur": (e.get("sujet") or "sans objet")[:60]})
+        operator.carte_briefing({"client": "Compte rendu mails",
+                                 "champs": champs})
+    except Exception:
+        pass
 
     morceaux = [
         f"Tu avais {len(entetes)} mail(s) ce matin. "
