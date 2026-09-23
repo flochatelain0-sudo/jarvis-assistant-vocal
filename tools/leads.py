@@ -18,6 +18,7 @@ Pipeline : nouveau -> brouillon -> a_relancer -> repondu -> gagne | perdu.
 import datetime as dt
 import json
 import logging
+import re
 import threading
 from pathlib import Path
 
@@ -319,3 +320,245 @@ def envoyer_message_linkedin(nom: str) -> str:
         "verifie le message a l'ecran avant d'envoyer. Je ne clique jamais sur "
         "Envoyer a ta place."
     )
+
+
+# ======================================================================
+# Prospection web type Mistral Work : chercher de nouvelles agences study
+# abroad sur le web, les dedoublonner contre le CRM, afficher la carte
+# console, puis les ajouter a monday.com APRES confirmation (jamais
+# d'ecriture silencieuse — meme doctrine que le reste de la plateforme).
+# ======================================================================
+
+_REQUETES_PROSPECTION = (
+    "study abroad agency education consultants contact email",
+    "overseas education agency international students partnerships",
+    "education agent study abroad directory list contact",
+)
+
+
+def _chercher_web_brut(requete: str, max_resultats: int = 6) -> list:
+    """Recherche web (meme moteur que tools.web), resultats bruts."""
+    try:
+        from ddgs import DDGS
+    except ImportError:
+        try:
+            from duckduckgo_search import DDGS
+        except ImportError:
+            return []
+    try:
+        with DDGS() as ddgs:
+            return list(ddgs.text(requete, region="wt-wt",
+                                  max_results=max(1, max_resultats)))
+    except Exception:
+        LOG.exception("prospection : recherche web impossible")
+        return []
+
+
+def _extraire_agences(resultats: list) -> list:
+    """LLM : extrait un JSON structure des agences trouvees.
+    Repli : titres + urls des resultats, sans emails."""
+    agences = []
+    try:
+        from core import rapport_work
+        elements = [{"titre": r.get("title", ""),
+                     "contenu": (r.get("body", "") + " "
+                                 + r.get("href", ""))[:1200]}
+                    for r in resultats]
+        consigne = (
+            "Tu es l'assistant prospection de Florian (PhoneBox, eSIM/telecom "
+            "etudiants). Voici des resultats de recherche web. Extrait les "
+            "AGENCES study abroad / education agents distinctes et renvoie "
+            "UNIQUEMENT un tableau JSON (sans texte autour) : "
+            '[{"nom": "nom de l agence", "site": "url du site", '
+            '"pays": "pays du siege", "email": "email de contact trouve '
+            '(vide si absent)", "type": "Study agent"}]\n'
+            "Une seule entree par agence. Ignore les universites, les "
+            "articles de blog et les annuaires generiques.\n\n"
+            + "\n\n".join(f"### RESULTAT {i + 1}\n{e['titre']}\n{e['contenu']}"
+                          for i, e in enumerate(elements))
+        )
+        analyses = rapport_work.analyser(consigne, elements)
+        import json as _json
+        for a in analyses:
+            nom = str(a.get("nom", "")).strip()
+            if not nom:
+                continue
+            agences.append({
+                "nom": nom[:120],
+                "site": str(a.get("site", "")).strip()[:200],
+                "pays": str(a.get("pays", "")).strip()[:60],
+                "email": str(a.get("email", "")).strip()[:120],
+                "type": str(a.get("type", "Study agent")).strip()[:60],
+            })
+    except Exception:
+        LOG.exception("prospection : extraction LLM impossible")
+    if not agences:
+        for r in resultats:
+            titre = str(r.get("title", "")).strip()
+            href = str(r.get("href", "")).strip()
+            if titre and href and href.startswith("http"):
+                agences.append({
+                    "nom": titre[:120], "site": href[:200], "pays": "",
+                    "email": "", "type": "Study agent",
+                })
+    return agences
+
+
+def _doublons_crm(agences: list) -> tuple:
+    """Separe (nouveaux, doublons) : verifie le board monday configure ET
+    le pipeline local data/leads.json (noms normalises, sans casse)."""
+    existants = set()
+    try:
+        from tools.monday import _requete, _tableau
+        if _tableau():
+            donnees, erreurs = _requete(
+                """query ($id: [ID!]) { boards(ids: $id) {
+                     items_page(limit: 100) { items { name } } } }""",
+                {"id": [str(_tableau())]})
+            if not erreurs:
+                for b in (donnees.get("boards") or []):
+                    for it in ((b.get("items_page") or {}).get("items") or []):
+                        existants.add(_cle_doublon(it.get("name", "")))
+    except Exception:
+        LOG.exception("prospection : lecture CRM impossible, dedoublonnage local")
+    with _VERROU:
+        for l in _charger():
+            existants.add(_cle_doublon(l.get("entreprise", "") or l.get("nom", "")))
+    nouveaux, doublons = [], []
+    for a in agences:
+        if _cle_doublon(a["nom"]) in existants:
+            doublons.append(a)
+        else:
+            nouveaux.append(a)
+    return nouveaux, doublons
+
+
+def _cle_doublon(nom: str) -> str:
+    from core.util import sans_accents
+    return " ".join(re.sub(r"[^a-z0-9]+", " ",
+                           sans_accents(str(nom or "").lower())).split())
+
+
+def _annoncer_prospection(args):
+    nb = args.get("nombre", 0)
+    tableau = ""
+    try:
+        from tools.monday import _tableau
+        if _tableau():
+            tableau = f" dans ton tableau monday { _tableau() }"
+    except Exception:
+        pass
+    return (f"ajouter {nb} nouveau(x) lead(s) study abroad{tableau} "
+            f"(creation monday.com)")
+
+
+@outil(
+    nom="prospection_leads",
+    description=(
+        "Cherche de NOUVELLES agences study abroad sur le web, les "
+        "dedoublonne contre ton CRM monday, affiche la carte des leads "
+        "trouves dans la console, puis les ajoute a monday.com APRES "
+        "confirmation. Pour \u00ab cherche-moi des nouveaux leads study "
+        "abroad \u00bb, \u00ab trouve des agences study abroad et ajoute-les "
+        "a mon CRM \u00bb, \u00ab de la prospection \u00bb."
+    ),
+    parametres={
+        "type": "object",
+        "properties": {
+            "nombre": {"type": "integer",
+                       "description": "Combien de leads viser (defaut 6, max 10)."}
+        },
+    },
+    lent=True,
+    phrase_attente="Je cherche de nouvelles agences study abroad, un instant.",
+    confirmation=True,
+    annonce=_annoncer_prospection,
+    mcp_expose=False,
+)
+def prospection_leads(nombre: int = 6) -> str:
+    """Prospection web type Work : recherche -> extraction LLM -> dedup ->
+    carte console -> creation monday EN ATTENTE DE CONFIRMATION."""
+    cible = max(1, min(int(nombre or 6), 10))
+    resultats = []
+    for requete in _REQUETES_PROSPECTION:
+        resultats.extend(_chercher_web_brut(requete))
+        if len(resultats) >= cible * 3:
+            break
+    if not resultats:
+        return ("La recherche web est indisponible (ddgs absent ou sans "
+                "reseau). Relance-moi plus tard.")
+    agences = _extraire_agences(resultats)[:cible]
+    if not agences:
+        return ("Je n'ai pas reussi a identifier de nouvelles agences dans "
+                "les resultats. Reformule, ou precise une region.")
+    nouveaux, doublons = _doublons_crm(agences)
+
+    # Carte console type Work : nouveaux leads a ajouter, doublons ecartes.
+    try:
+        from core import rapport_work
+        groupes = {
+            "reponse": [{"expediteur": a["nom"], "objet": a["type"],
+                         "resume": f"{a['pays'] or 'pays inconnu'} — {a['site']}",
+                         "action": f"Ajouter au CRM — {a['email'] or 'email a trouver'}",
+                         "brouillon": ""} for a in nouveaux],
+            "attention": [{"expediteur": d["nom"], "objet": "Doublon",
+                           "resume": "Deja present dans ton CRM ou ton pipeline",
+                           "action": "Ecarte", "brouillon": ""}
+                          for d in doublons[:6]],
+            "info": [],
+        }
+        rapport_work.carte(
+            "Prospection study abroad",
+            (("reponse", "Nouvelles agences a ajouter", "\U0001F4E9"),
+             ("attention", "Deja dans ton CRM", "\U0001F512"),
+             ("info", "Pour info", "\U0001F4CA")),
+            groupes)
+    except Exception:
+        LOG.exception("prospection : carte impossible")
+
+    if not nouveaux:
+        return (f"Les {len(agences)} agence(s) trouvee(s) sont TOUTES deja "
+                "dans ton CRM. Rien a ajouter — le detail est dans la console.")
+    # La creation monday passe par la file de confirmation (95/5) :
+    # Florian entend la liste et dit oui.
+    try:
+        from core import registre
+        from tools import monday
+        objet = registre.get("monday_creer_item")
+        if objet is not None and monday._configue():
+            for a in nouveaux:
+                colonnes = {"text_mm1c1d44": a["email"]} if a["email"] else {}
+                registre.mettre_en_attente(objet, {"nom": a["nom"],
+                                                    "colonnes": ""})
+            premiere = nouveaux[0]["nom"]
+            return (f"J'ai trouve {len(nouveaux)} nouvelle(s) agence(s) : "
+                    f"{', '.join(a['nom'] for a in nouveaux[:4])}"
+                    + ("..." if len(nouveaux) > 4 else "")
+                    + f". Je commence par ajouter {premiere} dans monday."
+                    f" Tu confirmes ? (les autres suivront, un par un)")
+    except Exception:
+        LOG.exception("prospection : mise en file monday impossible")
+    # monday non configure : tout reste en pipeline local.
+    for a in nouveaux:
+        ajouter_lead(nom=a["nom"], entreprise=a["nom"],
+                     note=f"Prospection web — {a['site']}")
+    return (f"J'ai trouve {len(nouveaux)} nouvelle(s) agence(s) : "
+            f"{', '.join(a['nom'] for a in nouveaux[:4])}. monday.com n'est "
+            "pas configure : je les ai ajoutees a ton pipeline local "
+            "(dis-moi quand monday est pret).")
+
+
+def router_prospection_leads(phrase: str, piece: str = ""):
+    """Route deterministe : les formulations de prospection de leads study
+    abroad declenchent directement l'outil (sans improvisation du LLM).
+    Renvoie (nom_outil, arguments) ou None."""
+    from core.util import sans_accents
+    p = sans_accents(str(phrase or "").lower())
+    if not any(mot in p for mot in ("lead", "agence", "agencies", "agency",
+                                   "prospection", "prospect", "partenaire")):
+        return None
+    if not any(mot in p for mot in ("cherche", "trouve", "cherche-moi",
+                                    "trouve-moi", "nouveaux", "nouvelles",
+                                    "de la prospection", "genere")):
+        return None
+    return "prospection_leads", {}
