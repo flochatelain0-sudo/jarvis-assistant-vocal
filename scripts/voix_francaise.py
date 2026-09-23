@@ -73,16 +73,18 @@ def main() -> int:
     print("  Voix francaise Piper (fr_FR-siwis-medium)")
     print("=" * 52)
 
-    if not args.forcer:
-        existantes = voix_existantes()
-        if existantes:
-            for v in existantes:
-                print(f"  [ok] voix deja installee : {v.name}")
-            print("\nUne voix Piper est deja la. Relance avec --forcer "
-                  "pour installer siwis par-dessus.")
-            return 0
-
+    existantes = voix_existantes()
+    siwis_deja_la = (DOSSIER_VOIX / FICHIERS[0]).exists()
+    if not args.forcer and existantes and not siwis_deja_la:
+        for v in existantes:
+            print(f"  [ok] voix deja installee : {v.name}")
+        print("\nUne voix Piper est deja la. Relance avec --forcer "
+              "pour installer siwis par-dessus.")
+        return 0
+    if siwis_deja_la:
+        print("  [ok] voix fr_FR-siwis-medium deja presente.")
     DOSSIER_VOIX.mkdir(parents=True, exist_ok=True)
+    ok = True
     for nom in FICHIERS:
         try:
             telecharger(nom)
@@ -90,11 +92,25 @@ def main() -> int:
             print(f"  [!] echec du telechargement de {nom} : {e}")
             print("      Verifie ta connexion, ou telecharge manuellement "
                   f"depuis\n      {BASE}")
-            return 1
+            ok = False
+    if not ok:
+        return 1
 
-    print("\nVoix installee dans voix/. Pour l'utiliser, dans config.yaml :")
-    print("  piper:")
-    print("    modele: fr_FR-siwis-medium.onnx")
+    # Configuration AUTOMATIQUE : piper.modele ecrit dans config.yaml.
+    # Le chemin est RELATIF A LA RACINE (core/tts.py resout piper.modele
+    # depuis la racine du projet) : il faut donc voix/ devant le nom.
+    try:
+        sys.path.insert(0, str(RACINE))
+        from core import config
+        config._CONFIG = None          # forcer la relecture du fichier
+        config.definir("piper.modele", "voix/fr_FR-siwis-medium.onnx")
+        print("\n  [ok] config.yaml mis a jour : piper.modele = "
+              "voix/fr_FR-siwis-medium.onnx")
+    except Exception as e:
+        print(f"\n  [!] configuration automatique impossible ({e}).")
+        print("      Ajoute dans config.yaml :")
+        print("        piper:")
+        print("          modele: voix/fr_FR-siwis-medium.onnx")
 
     if not args.silence:
         print("\nTest de la voix ...")
