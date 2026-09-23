@@ -1,11 +1,51 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { X, Check } from 'lucide-react'
 import { INTEGRATIONS, type IntegrationId } from '../lib/integrations'
+import { api } from '../lib/api'
 
 interface Props {
   onFermer: () => void
   connectes: Set<IntegrationId>
   onConnecter: (id: IntegrationId) => void
+}
+
+type Mode = 'manual' | 'auto'
+
+function ChoixMode({ mode, onChoisir }: { mode: Mode; onChoisir: (m: Mode) => void }) {
+  const options: { id: Mode; titre: string; texte: string }[] = [
+    { id: 'manual', titre: 'MANUAL', texte: "Companions ask before acting." },
+    { id: 'auto', titre: 'AUTO', texte: "Companions act on their own." },
+  ]
+  return (
+    <div className="mb-7">
+      <h3 className="label-tech mb-3 text-[10px] text-[#777777]">MODE</h3>
+      <div className="grid grid-cols-2 gap-2">
+        {options.map((o) => {
+          const actif = mode === o.id
+          return (
+            <button
+              key={o.id}
+              onClick={() => onChoisir(o.id)}
+              className="rounded-lg border px-4 py-3 text-left transition"
+              style={{
+                background: actif ? 'rgba(255,106,0,0.10)' : 'var(--panel)',
+                borderColor: actif ? 'rgba(255,110,0,0.45)' : 'var(--border)',
+                boxShadow: actif ? '0 0 18px rgba(255,106,0,0.12)' : 'none',
+              }}
+            >
+              <div className="label-tech text-[11px]" style={{ color: actif ? '#FF8500' : '#c7c7c7' }}>
+                {o.titre}
+              </div>
+              <div className="mt-1 text-[11.5px] leading-snug text-[#777777]">{o.texte}</div>
+            </button>
+          )
+        })}
+      </div>
+      <p className="mt-2.5 text-[11px] leading-snug text-[#777777]">
+        Deletes, sends and anything involving money always ask.
+      </p>
+    </div>
+  )
 }
 
 interface Reglage {
@@ -28,6 +68,19 @@ export default function ConfigurationPanel({ onFermer, connectes, onConnecter }:
     autopilote: false,
     style: false,
   })
+  const [mode, setMode] = useState<Mode>('manual')
+
+  // mode reel depuis config.yaml (securite.autopilote) ; sauvegarde au choix
+  useEffect(() => {
+    api.mode().then((m) => {
+      if (m && m.mode) setMode(m.mode)
+    })
+  }, [])
+
+  const choisirMode = (m: Mode) => {
+    setMode(m)
+    api.definirMode(m)
+  }
 
   return (
     <div
@@ -45,6 +98,8 @@ export default function ConfigurationPanel({ onFermer, connectes, onConnecter }:
             <X size={15} />
           </button>
         </div>
+
+        <ChoixMode mode={mode} onChoisir={choisirMode} />
 
         <div className="mb-7 flex flex-col gap-3">
           {REGLAGES.map((r) => (

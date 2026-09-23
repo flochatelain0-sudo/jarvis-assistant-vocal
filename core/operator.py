@@ -183,6 +183,12 @@ def etat():
     }
 
 
+def mode_autopilote():
+    """Mode d'action MANUAL/AUTO pour la console (doctrine registre)."""
+    from core import registre
+    return {"mode": registre.mode_autopilote()}
+
+
 def profil():
     """Nom de l'utilisateur pour la top bar (config utilisateur.nom)."""
     nom = (reglage("utilisateur.nom", "") or "Moi").strip()
@@ -446,6 +452,25 @@ def monter_routes(app):
     @app.get("/api/operator/profil")
     def api_profil(request: Request):
         return garde(request) or profil()
+
+    @app.get("/api/operator/mode")
+    def api_mode(request: Request):
+        return garde(request) or mode_autopilote()
+
+    @app.post("/api/operator/mode")
+    async def api_definir_mode(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        corps = {}
+        try:
+            corps = await request.json()
+        except Exception:
+            corps = {}
+        from core import registre
+        valeur = registre.definir_mode_autopilote((corps or {}).get("mode", ""))
+        journaliser("validation", f"Mode d'action : {valeur.upper()}")
+        return {"ok": True, "mode": valeur}
 
     @app.post("/api/operator/valider")
     def api_valider(request: Request):

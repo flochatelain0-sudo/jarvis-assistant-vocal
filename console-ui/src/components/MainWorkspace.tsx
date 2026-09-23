@@ -22,6 +22,8 @@ interface Props {
   connectes: Set<IntegrationId>
   onConnecter: (id: IntegrationId) => void
   orbMobile: boolean
+  reco: { actif: boolean; partiel: string; erreur: string | null; disponible: boolean }
+  transcription: string
 }
 
 const CARTES = [
@@ -43,7 +45,7 @@ export default function MainWorkspace(props: Props) {
       <div
         className="absolute inset-x-0 top-6 z-30 flex flex-col items-center gap-2"
       >
-        <ListeningIndicator actif={ecoute} onBasculer={onEcoute} />
+        <ListeningIndicator actif={ecoute} onBasculer={onEcoute} reco={props.reco} transcription={props.transcription} />
         <div className="mt-2">
           <WorkspaceControls
             mode={mode}

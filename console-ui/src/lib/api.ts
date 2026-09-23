@@ -42,6 +42,16 @@ async function json<T>(chemin: string, init?: RequestInit): Promise<T | null> {
 export const api = {
   etat: () => json<EtatOperator>('/api/operator/etat'),
 
+  profil: () => json<{ nom: string }>('/api/operator/profil'),
+
+  mode: () => json<{ mode: 'manual' | 'auto' }>('/api/operator/mode'),
+
+  definirMode: (mode: 'manual' | 'auto') =>
+    json<{ ok: boolean; mode: string }>('/api/operator/mode', {
+      method: 'POST',
+      body: JSON.stringify({ mode }),
+    }),
+
   conversation: () =>
     json<{ messages: { role: 'vous' | 'jarvis'; texte: string; ts: number }[] }>(
       '/api/operator/conversation',

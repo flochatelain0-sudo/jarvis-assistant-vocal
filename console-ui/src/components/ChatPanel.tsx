@@ -15,24 +15,39 @@ interface Props {
   onFermer: () => void
   journal: { ts: number; categorie: string; titre: string }[]
   enAttente: number
+  nbButs: number
 }
 
-const MESSAGE_ACCUEIL: MessageChat[] = [
-  {
-    id: 1,
-    role: 'zoey',
-    texte:
-      "Hey — I'm Jarvis. I keep an eye on your inbox, calendar and projects so you don't have to. What should we get on top of first?",
-    ts: Date.now() / 1000 - 90,
-  },
-  {
-    id: 2,
-    role: 'zoey',
-    texte:
-      'I set two goals for us: getting your inbox and calendar under control, and shipping your current project. Connect the platforms below and I\u2019ll take it from there.',
-    ts: Date.now() / 1000 - 60,
-  },
-]
+function accueilHumain(prenom: string, nbButs: number): MessageChat[] {
+  const p = prenom || ''
+  const salut = p ? `Hey ${p}.` : 'Hey.'
+  const butsTxt =
+    nbButs > 0
+      ? `I've recorded the ${nbButs === 1 ? 'one thing' : `${nbButs} things`} you want to tackle${nbButs === 1 ? '' : ' — a solid mix'}.`
+      : "I've recorded what you want to tackle — a solid mix."
+  return [
+    {
+      id: 1,
+      role: 'zoey',
+      texte: `${salut} Welcome to your world.`,
+      ts: Date.now() / 1000 - 90,
+    },
+    {
+      id: 2,
+      role: 'zoey',
+      texte:
+        `${butsTxt} I'm already preparing recommendations under each one — the integrations and access we'll need to make these actually work — and you'll see them appearing in the Console on your left as they come ready.`,
+      ts: Date.now() / 1000 - 70,
+    },
+    {
+      id: 3,
+      role: 'zoey',
+      texte:
+        `For what comes next, look for the Getting Started card in the bottom-left corner. It'll walk you through the key connectors in just a few minutes. But honestly, you don't have to follow any sequence. Just tell me what you want to start on first — typed or out loud, either works — and we'll get moving on it right now.`,
+      ts: Date.now() / 1000 - 50,
+    },
+  ]
+}
 
 let compteur = 100
 const maintenant = () => Date.now() / 1000
@@ -59,11 +74,19 @@ async function attendreReponse(texte: string): Promise<string> {
   return reponses[Math.floor(Math.random() * reponses.length)]
 }
 
-export default function ChatPanel({ ouverte, onOuvrir, onFermer, journal, enAttente }: Props) {
-  const [messages, setMessages] = useState<MessageChat[]>(MESSAGE_ACCUEIL)
+export default function ChatPanel({ ouverte, onOuvrir, onFermer, journal, enAttente, nbButs }: Props) {
+  const [messages, setMessages] = useState<MessageChat[]>(accueilHumain('', nbButs))
   const [saisie, setSaisie] = useState('')
   const [reflechir, setReflechir] = useState(false)
   const basRef = useRef<HTMLDivElement>(null)
+
+  // prenom reel de config.yaml (utilisateur.nom) pour l'accueil humain
+  useEffect(() => {
+    api.profil().then((p) => {
+      if (!p || !p.nom) return
+      setMessages(accueilHumain(p.nom, nbButs))
+    })
+  }, [])
 
   // rejoue la conversation existante du vrai Jarvis a l'ouverture
   useEffect(() => {
@@ -138,7 +161,7 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, journal, enAtte
           )}
         </div>
         <div className="flex items-center gap-3 text-[#777777]">
-          <button aria-label="Réinitialiser" onClick={() => setMessages(MESSAGE_ACCUEIL)}
+          <button aria-label="Réinitialiser" onClick={() => setMessages(accueilHumain('', nbButs))}
             className="transition hover:text-[#f5f5f5]"><RotateCcw size={13} /></button>
           <button aria-label="Ouvrir" className="transition hover:text-[#f5f5f5]"><ExternalLink size={13} /></button>
           <span className="h-2 w-2 rounded-full bg-orange" style={{ boxShadow: '0 0 8px rgba(255,106,0,0.7)' }} />

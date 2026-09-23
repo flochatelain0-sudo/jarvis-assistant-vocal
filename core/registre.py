@@ -177,6 +177,45 @@ def est_autorise(nom):
     return niveau(nom) == "N2" and nom in autorisations()
 
 
+# ------------------------------------------------- mode MANUAL / AUTO
+# Doctrine affichee par la console : en MANUAL, chaque action sensible demande
+# avant d'agir ; en AUTO, Jarvis agit seul SAUF le N3 (envois, suppressions,
+# argent, PC) qui demande TOUJOURS, quel que soit le mode.
+
+def mode_autopilote():
+    """Mode d'action courant : 'manual' ou 'auto' (config securite.autopilote)."""
+    from core.config import reglage
+    return 'auto' if str(reglage("securite.autopilote", "manual") or "").lower() == 'auto' else 'manual'
+
+
+def definir_mode_autopilote(mode):
+    """Change le mode d'action et le sauvegarde dans config.yaml."""
+    from core.config import definir
+    valeur = 'auto' if str(mode or '').lower() == 'auto' else 'manual'
+    definir("securite.autopilote", valeur)
+    return valeur
+
+
+def doit_confirmer(nom):
+    """LA doctrine, un seul endroit : cette action demande-t-elle confirmation ?
+
+    - N1 (sur)               : jamais de question.
+    - N3 (critique)          : TOUJOURS la question, meme en AUTO, meme
+                               'toujours autoriser'.
+    - N2 (sensible), MANUAL  : question (sauf 'toujours autoriser' memorise).
+    - N2 (sensible), AUTO     : Jarvis agit seul (l'utilisateur a donne le
+                               feu vert global via la console).
+    """
+    niv = niveau(nom)
+    if niv == "N1":
+        return False
+    if niv == "N3":
+        return True
+    if mode_autopilote() == 'auto':
+        return False
+    return not est_autorise(nom)
+
+
 def autoriser_toujours(nom):
     """Memorise 'toujours autoriser' pour un N2. Renvoie True si effectif (N2 uniquement,
     jamais un N3)."""
