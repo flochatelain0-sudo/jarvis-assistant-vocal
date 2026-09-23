@@ -7,6 +7,7 @@ export interface MailRendu {
   objet: string
   detail: string
   action: string
+  brouillon?: string
 }
 
 export interface CategorieMails {
@@ -300,6 +301,19 @@ export default function ChatPanel({ ouverte, onOuvrir, onFermer, onNouveauBut, j
                           )}
                           {mail.detail && (
                             <div className="text-[11px] text-[var(--muted)]">{mail.detail}</div>
+                          )}
+                          {mail.brouillon && (
+                            <div
+                              className="mt-1 rounded-md border px-2 py-1"
+                              style={{ borderColor: 'var(--border)', background: 'rgba(28,24,16,0.5)' }}
+                            >
+                              <div className="label-tech text-[8px] text-orange/80">
+                                ✍️ Brouillon proposé
+                              </div>
+                              <div className="whitespace-pre-wrap text-[11px] text-[var(--text)]">
+                                {mail.brouillon}
+                              </div>
+                            </div>
                           )}
                         </div>
                       ))}

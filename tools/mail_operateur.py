@@ -305,6 +305,116 @@ def _carte_compte_rendu(familles: dict) -> None:
         LOG.exception("mail_operateur : injection carte mails impossible")
 
 
+# ------------------------------------------------------------------
+# Compte rendu intelligent (style Mistral Work) : lecture des CORPS des
+# mails, analyse LLM groupee, resumes fideles au contenu reel et
+# brouillons de reponse proposes. Doctrine N3 intacte : rien n'est envoye
+# sans confirmation explicite de Florian.
+
+_MAX_CORPS = 2500          # caracteres du corps transmis au LLM par mail
+_MAILS_PAR_LOT = 6          # mails analyses par appel LLM
+_MAX_BROUILLOTS = 3         # brouillons prepares par compte rendu
+
+_GROUPE_REPONSE = ("A REPONDRE", "reponse", "repondre")
+_GROUPE_ATTENTION = ("ATTENTION", "attention", "verifier", "a verifier")
+_GROUPE_INFO = ("INFO", "info", "information", "pour info", "fyi")
+
+
+def _lire_corps(uid) -> str:
+    """Corps texte d'un mail par son UID (BODY.PEEK : ne marque pas lu).
+    Renvoie "" en cas d'echec : le compte rendu ne plante jamais."""
+    from tools import mail as m
+    try:
+        import email as _email
+        imap = m._imap()
+        imap.select("INBOX")
+        _, d = imap.uid("fetch", uid, "(BODY.PEEK[])")
+        brut = d[0][1] if d and d[0] else b""
+        imap.logout()
+        message = _email.message_from_bytes(brut)
+        return m._corps_texte(message).strip()
+    except Exception:
+        LOG.exception("mail_operateur : lecture du corps impossible")
+        return ""
+
+
+def _analyser_lot(entetes: list) -> list:
+    """Analyse LLM d'un lot de mails : renvoie pour chaque mail un dict
+    {indice, groupe, resume, action, brouillon} bases sur le VRAI contenu.
+    Repli deterministe si le LLM est indisponible ou renvoie un JSON invalide.
+    """
+    from core import llm as _llm
+    lignes = []
+    for i, e in enumerate(entetes):
+        corps = e.get("corps") or ""
+        if len(corps) > _MAX_CORPS:
+            corps = corps[:_MAX_CORPS]
+        lignes.append(
+            f"### MAIL {i + 1}\nDe: {e.get('nom')} <{e.get('adresse')}>")
+        lignes.append(f"Objet: {e.get('sujet')}\n{corps}")
+    modele_json = (
+        '{"indice": <numero du mail>, "groupe": "A REPONDRE | ATTENTION | INFO", '
+        '"resume": "1-2 phrases fideles au contenu reel du mail, en francais, '
+        'avec les noms, dates et montants exacts", "action": "l action concrete a '
+        'faire (ou Aucune action)", "brouillon": "une reponse en francais prete a '
+        'envoyer si groupe=A REPONDRE, sinon chaine vide"}'
+    )
+    consigne = (
+        "Tu es l'assistant email de Florian. Analyse ces mails et renvoie "
+        "UNIQUEMENT un tableau JSON (sans texte autour, sans bloc de code) "
+        "avec un objet par mail, dans l'ordre, selon ce modele :\n"
+        + modele_json + "\n\n"
+        "Regles de groupe : A REPONDRE = quelqu'un attend une reponse de "
+        "Florian ; ATTENTION = securite, facture impayee, echec d'envoi ou "
+        "information demandant une verification ; INFO = le reste "
+        "(confirmations, rapports internes, newsletters utiles).\n\n"
+        + "\n\n".join(lignes)
+    )
+    try:
+        reponse = _llm.llm().repondre(consigne, [], [])
+        brut = " ".join(
+            b.text for b in reponse.blocs
+            if getattr(b, "type", "") == "text" and getattr(b, "text", "")
+        ).strip()
+        import json as _json
+        debut, fin = brut.find("["), brut.rfind("]")
+        if debut >= 0 and fin > debut:
+            analyses = _json.loads(brut[debut:fin + 1])
+            if isinstance(analyses, list):
+                return [a for a in analyses if isinstance(a, dict)]
+    except Exception:
+        LOG.exception("mail_operateur : analyse LLM impossible, repli")
+    # Repli : liste vide -> le compte rendu retombe sur les familles
+    # deterministes locales (_categoriser_rendu).
+    return []
+
+
+def _groupe_depuis_texte(groupe: str, entete: dict) -> str:
+    """Groupe final d'un mail : l'avis du LLM, corrige par les regles
+    deterministes de securite (jamais de mail sensible en INFO)."""
+    g = _sans_accent(str(groupe or ""))
+    if _est_securite(entete):
+        return "attention"
+    if any(mot in g for mot in _GROUPE_ATTENTION):
+        return "attention"
+    if any(mot in g for mot in _GROUPE_REPONSE):
+        return "reponse"
+    if any(mot in g for mot in _GROUPE_INFO):
+        return "info"
+    return "info"
+
+
+def _consolider_groupe(groupe: str, entete: dict) -> str:
+    """Affine le groupe avec les heuristiques locales : interne / notif."""
+    if _est_securite(entete):
+        return "attention"
+    if groupe == "reponse":
+        return "reponse"
+    if _est_systeme(entete):
+        return "info"
+    return groupe or "info"
+
+
 def router_compte_rendu_mails(phrase: str):
     """Route deterministe : les formulations de compte rendu mail declenchent
     directement l'outil, sans passer par le LLM (qui improvise parfois une
@@ -343,9 +453,11 @@ def domaine_entreprise() -> str:
 @outil(
     nom="compte_rendu_mails",
     description=(
-        "Compte rendu des derniers mails recus, categorie par categorie "
-        "(securite, reponse attendue, interne, notifications), AFFICHE dans "
-        "la console en carte detaillee ET resume a voix haute. Pour \u00ab compte "
+        "Compte rendu intelligent des derniers mails recus : lit les CORPS "
+        "des mails, les regroupe (a te repondre / a verifier / pour info), "
+        "resume chaque mail fidelement a son contenu reel et PREPARE des "
+        "brouillons de reponse (jamais envoyes sans confirmation). AFFICHE "
+        "le detail dans la console ET resume a voix haute. Pour \u00ab compte "
         "rendu de mes mails \u00bb, \u00ab quels mails j'ai recu \u00bb, \u00ab resume mes mails "
         "\u00bb, \u00ab recap de mes mails \u00bb."
     ),
@@ -357,45 +469,134 @@ def domaine_entreprise() -> str:
         },
     },
     lent=True,
-    phrase_attente="Je fais le compte rendu de tes mails, un instant.",
+    phrase_attente="Je lis tes mails et je prepare le compte rendu, un instant.",
 )
 def compte_rendu_mails(nombre: int = 20) -> str:
-    """Compte rendu des mails : carte dans la console + resume vocal."""
+    """Compte rendu type Mistral Work : groupes + resumes fideles aux
+    CORPS reels + brouillons proposes, affiche dans la console et resume
+    a voix haute. Doctrine N3 : aucun envoi sans confirmation."""
     entetes = _entetes(max(1, min(int(nombre or 20), 50)))
     if entetes is None:
         return ("La messagerie n'est pas configuree ou injoignable. "
                 "Renseigne la section mail de config.yaml.")
     if not entetes:
         return "Ta boite de reception est vide. Rien a signaler."
-    familles = _categoriser_rendu(entetes)
-    _carte_compte_rendu(familles)
-
-    morceaux = []
-    total = sum(len(v) for v in familles.values())
-    if not total:
+    entetes = [e for e in entetes if not e.get("spam")]
+    if not entetes:
         return ("Rien a signaler : uniquement de la pub ou du spam, ecartes "
                 "du compte rendu. Dis \u00ab vide la poubelle \u00bb pour les jeter.")
-    morceaux.append(f"Compte rendu de tes mails : {total} mail(s) a signaler.")
-    if familles["securite"]:
+
+    # 1) Lecture des corps (reelle) pour fonder les resumes.
+    for e in entetes:
+        e["corps"] = _lire_corps(e["uid"])
+
+    # 2) Analyse LLM par lots, avec repli deterministe (familles locales).
+    analyses = {}
+    for debut in range(0, len(entetes), _MAILS_PAR_LOT):
+        lot = entetes[debut:debut + _MAILS_PAR_LOT]
+        for a in _analyser_lot(lot):
+            try:
+                indice = int(a.get("indice", 0))
+            except (TypeError, ValueError):
+                continue
+            if 1 <= indice <= len(lot):
+                analyses[debut + indice - 1] = a
+
+    # Repli : familles deterministes pour les mails sans analyse LLM.
+    familles = _categoriser_rendu(entetes)
+    _GROUPE_DEFAUT = {"securite": "attention", "attente": "reponse",
+                      "interne": "info", "notifs": "info"}
+    defauts = {}
+    for cle, groupe in _GROUPE_DEFAUT.items():
+        for e in familles.get(cle) or []:
+            defauts[e["uid"]] = groupe
+
+    groupes = {"reponse": [], "attention": [], "info": []}
+    for i, e in enumerate(entetes):
+        a = analyses.get(i) or {}
+        if a:
+            groupe = _consolider_groupe(
+                _groupe_depuis_texte(a.get("groupe", ""), e), e)
+        else:
+            groupe = defauts.get(e["uid"], "info")
+        e["resume"] = str(a.get("resume", "")).strip()[:400]
+        e["action"] = str(a.get("action", "")).strip()[:200]
+        e["brouillon"] = str(a.get("brouillon", "")).strip()
+        groupes[groupe].append(e)
+
+    # 3) Brouillons proposes : le PREMIER mail a repondre part en file N3,
+    # les autres restent consultables dans la carte.
+    brouillons_prete = []
+    for e in groupes["reponse"]:
+        if not e.get("brouillon") or not e.get("adresse"):
+            continue
+        brouillons_prete.append(e)
+        if len(brouillons_prete) >= _MAX_BROUILLOTS:
+            break
+    if brouillons_prete:
+        from tools import mail as m
+        premier = brouillons_prete[0]
+        sujet = premier.get("sujet") or ""
+        objet = sujet if sujet.lower().startswith("re:") else "Re: " + sujet
+        m.preparer_mail(premier["adresse"], objet, premier["brouillon"])
+
+    # 4) Carte console detaillee : 3 groupes, resumes fideles, actions et
+    # brouillons visibles. Jamais d'exception : le vocal continue.
+    try:
+        from core import operator
+        correspondances = (
+            ("reponse", "A te repondre", "\U0001F4E9"),
+            ("attention", "A verifier en priorite", "\U0001F512"),
+            ("info", "Pour info - sans action", "\U0001F4CA"),
+        )
+        categories = []
+        for cle, titre, icone in correspondances:
+            mails = groupes.get(cle) or []
+            if not mails:
+                continue
+            categories.append({
+                "titre": titre,
+                "icone": icone,
+                "mails": [{
+                    "expediteur": e.get("nom") or "un contact",
+                    "objet": e.get("sujet") or "sans objet",
+                    "detail": e.get("resume")
+                              or (e.get("corps") or "")[:200],
+                    "action": e.get("action")
+                              or ("Reponse attendue" if cle == "reponse"
+                                  else "Verification conseillee" if cle == "attention"
+                                  else "Aucune action"),
+                    "brouillon": e.get("brouillon") or "",
+                } for e in mails[:10]],
+            })
+        operator.carte_mails({
+            "titre": "Compte rendu de tes mails",
+            "categories": categories,
+        })
+    except Exception:
+        LOG.exception("mail_operateur : injection carte mails impossible")
+
+    # 5) Resume vocal : groupes + points clus + premiere action.
+    total = sum(len(v) for v in groupes.values())
+    morceaux = [f"Compte rendu de tes mails : {total} mail(s) a signaler."]
+    if groupes["reponse"]:
         noms = ", ".join(
-            (e.get("nom") or "un contact") for e in familles["securite"][:3])
+            (e.get("nom") or "un contact") for e in groupes["reponse"][:3])
         morceaux.append(
-            f"{len(familles['securite'])} alerte(s) de securite a verifier en "
-            f"priorite ({noms}).")
-    if familles["attente"]:
+            f"{len(groupes['reponse'])} mail(s) attendent ta reponse : {noms}.")
+        if brouillons_prete:
+            morceaux.append(
+                f"J'ai prepare un brouillon pour {brouillons_prete[0].get('nom')}, "
+                "dis \u00ab envoie \u00bb pour le valider.")
+    if groupes["attention"]:
         noms = ", ".join(
-            (e.get("nom") or "un contact") for e in familles["attente"][:4])
+            (e.get("nom") or "un contact") for e in groupes["attention"][:3])
         morceaux.append(
-            f"{len(familles['attente'])} mail(s) attendent ta reponse : {noms}.")
-    if familles["interne"]:
-        noms = ", ".join(
-            (e.get("nom") or "un contact") for e in familles["interne"][:4])
+            f"{len(groupes['attention'])} point(s) a verifier : {noms}.")
+    if groupes["info"]:
         morceaux.append(
-            f"{len(familles['interne'])} message(s) interne(s) : {noms}.")
-    if familles["notifs"]:
-        morceaux.append(
-            f"Et {len(familles['notifs'])} notification(s) sans action attendue.")
-    morceaux.append("Le detail complet est affiche dans la console.")
+            f"Et {len(groupes['info'])} mail(s) d'information sans action.")
+    morceaux.append("Le detail et les brouillons sont affiches dans la console.")
     return " ".join(morceaux)
 
 

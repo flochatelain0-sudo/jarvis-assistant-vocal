@@ -433,6 +433,7 @@ def carte_mails(donnees):
                     "objet": str(m.get("objet", ""))[:120],
                     "detail": str(m.get("detail", ""))[:200],
                     "action": str(m.get("action", ""))[:200],
+                    "brouillon": str(m.get("brouillon", ""))[:400],
                 } for m in (c.get("mails") or [])[:10]],
             } for c in categories[:6]],
             "ts": time.time(),
