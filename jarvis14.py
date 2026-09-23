@@ -1516,12 +1516,15 @@ def traiter(audio, whisper, historique, flux, reveil):
 
 
 def _feedback_geste(geste):
-    """Feedback discret quand un geste est reconnu : petit bip + flash HUD. Non bloquant."""
+    """Feedback discret quand un geste est reconnu : petit bip + flash HUD.
+    Non bloquant, et SANS bip si Jarvis parle — sounddevice ne mixe pas :
+    un sd.play() concurrent ecraserait la voix en cours de lecture."""
     freq = 1200 if geste == "armement" or geste.startswith("mode_") else 900
-    try:
-        threading.Thread(target=lambda: bip(freq, 0.05), daemon=True).start()
-    except Exception:
-        pass
+    if not _PARLE.is_set():
+        try:
+            threading.Thread(target=lambda: bip(freq, 0.05), daemon=True).start()
+        except Exception:
+            pass
     _hud("outil", "geste", geste)
 
 
