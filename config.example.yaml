@@ -181,7 +181,8 @@ assistant:
   arbitrage_verrou: 4.0        # evite une seconde reponse au meme wake word
   priorite_micro: 1.0          # multiplicateur du micro principal (laisser 1.0 normalement)
   piece_nuit: "chambre"        # piece allumee au demarrage s'il fait nuit ("" pour desactiver)
-  personnalite: "jarvis_sarcastique"   # jarvis_sarcastique | neutre | concis
+  personnalite: "jarvis_sarcastique"   # jarvis_mc | jarvis_sarcastique | neutre | concis | builder | counsel | marketer
+                                       # jarvis_mc = J.A.R.V.I.S. formel de Tony Stark (« monsieur », precis, proactif)
                                # (modifiable a la voix : "passe en mode neutre")
   scene_extinction: "off"      # scene lumieres jouee AVANT d'eteindre le PC ("eteins le PC")
   delai_extinction: 30         # secondes avant l'arret (annulable : "annule l'extinction")

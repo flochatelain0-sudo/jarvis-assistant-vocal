@@ -36,3 +36,16 @@ def test_definir_volatile_ne_touche_pas_le_disque():
 def test_preset_inconnu_retombe_sur_neutre():
     assert "assistant" in personnalite.persona("inconnu").lower() \
         or personnalite.persona("inconnu") == personnalite.persona("neutre")
+
+
+def test_jarvis_mc_est_un_preset_complet():
+    texte = personnalite.persona("jarvis_mc")
+    assert "J.A.R.V.I.S." in texte
+    assert "monsieur" in texte
+    assert personnalite.persona("jarvis_mc") != personnalite.persona("jarvis_sarcastique")
+
+
+def test_normaliser_reconnaît_le_mode_mcu():
+    assert personnalite.normaliser("mode jarvis mcu") == "jarvis_mc"
+    assert personnalite.normaliser("sir") == "jarvis_mc"
+    assert personnalite.normaliser("mode jarvis") == "jarvis_sarcastique"
