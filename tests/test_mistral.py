@@ -187,3 +187,92 @@ def test_reponse_texte_simple(provider, monkeypatch):
         {"role": "user", "content": "salut"}], [])
     assert rep.stop_reason == "end"
     assert rep.content[0].text == "bonjour"
+
+
+# ------------------------------------------------- mode agent Mistral Work
+# `mistral.agent_id` branche TOUTE la boucle Jarvis sur l'agent (Agents API).
+
+class _ReponseHTTP:
+    def __init__(self, corps):
+        self._corps = corps
+        self.status_code = 200
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self._corps
+
+
+class _ClientAgent:
+    """Client faux qui capture l'appel /agents/completions."""
+
+    def __init__(self, reponse):
+        self._reponse = reponse
+        self.appels = []
+
+    def post(self, url, json=None, timeout=None):
+        self.appels.append({"url": url, "corps": json, "timeout": timeout})
+        return _ReponseHTTP(self._reponse)
+
+
+def _provider_agent(monkeypatch, reponse):
+    monkeypatch.setattr(llm, "reglage",
+                        lambda chemin, defaut=None:
+                        "ag-123" if chemin == "mistral.agent_id" else defaut)
+    prov = llm.MistralProvider(modele="mistral-small-latest")
+    prov.client = _ClientAgent(reponse)
+    return prov
+
+
+def test_agent_id_active_le_mode_agent(monkeypatch):
+    prov = _provider_agent(monkeypatch, {"choices": [{}]})
+    assert prov._via_agent() is True
+
+
+def test_sans_agent_id_reste_en_chat_completions(monkeypatch):
+    monkeypatch.setattr(llm, "reglage", lambda chemin, defaut=None: defaut)
+    prov = llm.MistralProvider(modele="mistral-small-latest")
+    prov.client = type("C", (), {"chat": None})()
+    assert prov._via_agent() is False
+
+
+def test_repondre_via_agent_texte_simple(monkeypatch):
+    prov = _provider_agent(
+        monkeypatch,
+        {"choices": [{"message": {"content": "Bonjour Florian !"}}]})
+    rep = prov.repondre("Tu es Jarvis.", [{"role": "user", "content": "Salut"}], [])
+    assert rep.stop_reason == "end"
+    assert rep.content[0].text == "Bonjour Florian !"
+    requete = prov.client.appels[0]
+    assert requete["url"] == "/agents/completions"
+    assert requete["corps"]["agent_id"] == "ag-123"
+    # Le prompt systeme de Jarvis est bien transmis a l'agent
+    roles = [m["role"] for m in requete["corps"]["messages"]]
+    assert roles[0] == "system"
+    assert roles[1] == "user"
+
+
+def test_repondre_via_agent_avec_appel_outil_local(monkeypatch):
+    """Les outils LOCAUX de Jarvis passent a l'agent par function calling :
+    il peut piloter Chrome/CRM, l'execution reste chez l'utilisateur."""
+    prov = _provider_agent(
+        monkeypatch,
+        {"choices": [{"message": {"content": "",
+                                   "tool_calls": [{
+                                       "id": "t1",
+                                       "function": {
+                                           "name": "browser_open",
+                                           "arguments": "{\"url\": \"https://netflix.com\"}"}}]}}]})
+    outils = [{"name": "browser_open",
+               "description": "Ouvre un site",
+               "input_schema": {"type": "object",
+                                "properties": {"url": {"type": "string"}}}}]
+    rep = prov.repondre("Tu es Jarvis.", [{"role": "user", "content": "ouvre netflix"}], outils)
+    assert rep.stop_reason == "tool_use"
+    assert rep.content[0].type == "tool_use"
+    assert rep.content[0].name == "browser_open"
+    assert rep.content[0].input == {"url": "https://netflix.com"}
+    requete = prov.client.appels[0]
+    assert requete["corps"]["tools"][0]["type"] == "function"
+    assert requete["corps"]["tools"][0]["function"]["name"] == "browser_open"

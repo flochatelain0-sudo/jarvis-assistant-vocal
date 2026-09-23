@@ -123,6 +123,10 @@ anthropic:                     # fournisseur Claude / Anthropic alternatif
 
 mistral:                      # Mistral AI (console.mistral.ai) ; voir docs/mistral.md
   cle: ""                      # section API keys (commence par ...)
+  # agent_id: "ag_xxx"         # AGENT Mistral Work : renseigne cet id et TOUTE la
+                               # boucle Jarvis passe par ton agent (instructions,
+                               # personnalite + outils serveur web_search/code) ;
+                               # les outils locaux restent executes chez toi.
   modele: "mistral-small-latest"       # mode hybride : rapide et economique
   modele_qualite: "mistral-large-latest"  # mode qualite
   max_tokens: 2048             # plafond par reponse

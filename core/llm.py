@@ -226,7 +226,16 @@ class ClaudeProvider(ProviderLLM):
 # --------------------------------------------------------------- Mistral (cloud)
 
 class MistralProvider(ProviderLLM):
-    """Mistral AI via l'API compatible OpenAI (chat completions).
+    """Mistral AI via l'Agents API (agent Mistral Work) ou chat completions.
+
+    Si `mistral.agent_id` est renseigne, TOUTE la boucle de Jarvis passe par
+    l'agent Mistral (POST /v1/agents/completions) : ses instructions, sa
+    personnalite et ses outils SERVEUR (recherche web, code...) s'ajoutent a
+    ceux de Jarvis. Les outils LOCAUX (Chrome, souris, CRM) restent transmis
+    par function calling et s'executent chez l'utilisateur sous confirmation
+    vocale — la doctrine de Jarvis n'est jamais contournee.
+
+    Sinon, comportement historique : API chat compatible OpenAI.
 
     L'assistant parle le format Anthropic (blocs text / tool_use /
     tool_result) : ce provider traduit dans les deux sens, comme
@@ -234,14 +243,56 @@ class MistralProvider(ProviderLLM):
     seul ``additionalProperties: false`` est elague car Mistral le
     rejette sinon sur l'appel entier.
     """
-
     nom = "Mistral"
 
     def __init__(self, modele=None, qualite=False):
         self.modele = modele or cloud.modele(qualite=qualite)
         self.qualite = qualite
         self.client = cloud.client_mistral()
+        self.agent_id = str(reglage("mistral.agent_id", "") or "").strip()
 
+    def _via_agent(self):
+        """Vrai si la boucle doit taper l'Agents API."""
+        return bool(self.agent_id) and self.client is not None
+
+    def _completer_agent(self, kwargs):
+        """Appel /v1/agents/completions (reponse au format chat)."""
+        messages = kwargs.pop("messages")
+        requete = {"agent_id": self.agent_id, "messages": messages}
+        if kwargs.get("tools"):
+            requete["tools"] = [
+                {"type": "function", "function": t["function"]}
+                if "function" in t else t for t in kwargs["tools"]]
+        if kwargs.get("max_tokens"):
+            requete["max_tokens"] = kwargs["max_tokens"]
+        reponse = self.client.post(
+            "/agents/completions", json=requete,
+            timeout=float(reglage("agent_mistral.timeout", 300) or 300))
+        reponse.raise_for_status()
+        donnees = reponse.json()
+        choix = (donnees.get("choices") or [{}])[0]
+        message = choix.get("message") or {}
+
+        class _Msg:
+            pass
+        m = _Msg()
+        m.content = message.get("content") or ""
+        appels = []
+        for tc in message.get("tool_calls") or []:
+            fn = tc.get("function") or {}
+            arguments = fn.get("arguments")
+            if not isinstance(arguments, str):
+                arguments = json.dumps(arguments or {}, ensure_ascii=False)
+            appel = _Msg()
+            appel.id = tc.get("id")
+            appel.function = _Msg()
+            appel.function.name = fn.get("name", "")
+            appel.function.arguments = arguments
+            appels.append(appel)
+        m.tool_calls = appels
+        return m
+
+    
     def disponible(self):
         return self.client is not None
 
@@ -333,10 +384,12 @@ class MistralProvider(ProviderLLM):
         outils_api = self._outils(outils)
         if outils_api:
             kwargs["tools"] = outils_api
-        rep = self.client.chat.completions.create(**kwargs)
-        cloud.enregistrer_usage(rep, "Mistral (Jarvis)", self.modele)
-
-        message = rep.choices[0].message
+        if self._via_agent():
+            message = self._completer_agent(kwargs)
+        else:
+            rep = self.client.chat.completions.create(**kwargs)
+            cloud.enregistrer_usage(rep, "Mistral (Jarvis)", self.modele)
+            message = rep.choices[0].message
         blocs = []
         if (message.content or "").strip():
             blocs.append(Bloc("text", text=message.content.strip()))
