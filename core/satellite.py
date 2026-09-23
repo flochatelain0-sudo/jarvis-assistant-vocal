@@ -360,7 +360,7 @@ def _executer_decision_prioritaire(session, decision):
         o = registre.get(nom)
         if o is None:
             return None
-        if o.confirmation and not registre.est_autorise(nom):
+        if o.confirmation and registre.demande_confirmation(nom):
             session.en_attente = (nom, args)
             try:
                 annonce = o.annonce(args) if o.annonce else None

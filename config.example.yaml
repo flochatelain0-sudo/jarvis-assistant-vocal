@@ -374,6 +374,9 @@ suivi:                         # suivi de contenus (pipeline video) ; voir docs/
   fichier: "contenus.yaml"     # liste des contenus (non versionnee) ; chemin relatif = racine du projet
 
 securite:                      # niveaux de permission (N8) ; voir docs/panneau.md
+  mode: manual                 # manual (defaut) : les compagnions demandent avant d'agir ;
+                               # auto : les N2 agissent seuls. Un N3 (suppressions, envois,
+                               # argent, PC) demande TOUJOURS, dans les deux modes.
   toujours: []                 # outils N2 memorises "toujours autoriser" (revocables au panneau)
                                # rempli a la voix ("oui, toujours") ; un N3 n'y entre JAMAIS
 

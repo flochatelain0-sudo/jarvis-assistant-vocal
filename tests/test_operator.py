@@ -253,6 +253,57 @@ def test_route_message_corps_invalide_ne_plante_pas():
     assert res["ok"] is False
 
 
+def test_route_mode_lit_et_change(tmp_path, monkeypatch):
+    """GET /api/operator/mode expose le mode, POST le bascule ; la valeur
+    invalide ne casse rien et ne change rien."""
+    import asyncio
+    from core import config
+    monkeypatch.setattr(config, "FICHIER", tmp_path / "config.yaml")
+    monkeypatch.setattr(config, "_CONFIG", {"securite": {"mode": "manual"}})
+    app = _app_routes()
+    # app.routes : [(chemin, fn), ...] — GET et POST partagent le chemin, on
+    # distingue par _Req.method (le GET ne consomme pas de corps, le POST si).
+    par_chemin = {}
+    for chemin, fn in app.routes:
+        par_chemin.setdefault(chemin, []).append(fn)
+    mode_fns = par_chemin["/api/operator/mode"]
+    get_mode = next(f for f in mode_fns if not asyncio.iscoroutinefunction(f))
+    post_mode = next(f for f in mode_fns if asyncio.iscoroutinefunction(f))
+    assert _attendre(lambda: get_mode(_Req())) == {"mode": "manual"}
+    res = _attendre(lambda: post_mode(_Req(method="POST", corps={"mode": "auto"})))
+    assert res["ok"] is True
+    assert res["mode"] == "auto"
+    assert _attendre(lambda: get_mode(_Req())) == {"mode": "auto"}
+    res = _attendre(lambda: post_mode(_Req(method="POST", corps={"mode": "n'importe"})))
+    assert res["ok"] is False
+    assert _attendre(lambda: get_mode(_Req())) == {"mode": "auto"}
+    assert (tmp_path / "config.yaml").exists()  # le POST persiste bien
+    assert config.reglage("securite.mode") == "auto"
+
+
+def test_etat_expose_le_mode():
+    from core.config import definir_volatile
+    definir_volatile("securite.mode", "auto")
+    assert operator.etat()["mode"] == "auto"
+    definir_volatile("securite.mode", "manual")
+
+
+def test_route_mode_refuse_le_lan():
+    import asyncio
+    app = _app_routes()
+    par_chemin = {}
+    for chemin, fn in app.routes:
+        par_chemin.setdefault(chemin, []).append(fn)
+    get_mode = next(f for f in par_chemin["/api/operator/mode"]
+                    if not asyncio.iscoroutinefunction(f))
+    post_mode = next(f for f in par_chemin["/api/operator/mode"]
+                     if asyncio.iscoroutinefunction(f))
+    assert get_mode(_Req(host="192.168.1.5")).status_code == 403
+    res = _attendre(lambda: post_mode(
+        _Req(forwarded=True, method="POST", corps={"mode": "auto"})))
+    assert res.status_code == 403
+
+
 def test_route_automation_basculer_lit_le_corps_async(tmp_path, monkeypatch):
     from core import automations as autos
     monkeypatch.setattr(autos, "_FICHIER", tmp_path / "automations.json")

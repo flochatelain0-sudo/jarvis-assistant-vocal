@@ -143,10 +143,10 @@ def exposes_mcp():
 #                 Verrouille ici. (Le pont iPhone refuse deja tout outil a confirmation,
 #                 quel que soit le store : le "toujours autoriser" n'ouvre RIEN a distance.)
 _N3 = frozenset({
-    "envoyer_mail", "mettre_a_la_corbeille",
+    "envoyer_mail", "mettre_a_la_corbeille", "vider_poubelle",
     "call_with_message", "call_and_book",
     "book_appointment", "confirmer_reservation",
-    "delete_event",
+    "delete_event", "automation_supprimer",
     "eteindre_pc",
     "controle_pc_astra",
 })
@@ -175,6 +175,49 @@ def autorisations():
 def est_autorise(nom):
     """Vrai si on SAUTE la confirmation EN LOCAL (N2 memorise). Jamais un N3 ni un N1."""
     return niveau(nom) == "N2" and nom in autorisations()
+
+
+# ------------------------------------------------------------- mode global
+#
+# Mode MANUAL / AUTO, change depuis la console ZOEY OS (TopBar) ou la voix.
+#   MANUAL : les compagnons demandent avant d'agir (tout N2/N3 confirme).
+#   AUTO   : les compagnons agissent seuls — les N2 passent sans question.
+# Les N3 (suppressions, envois, argent, PC) demandent TOUJOURS, dans les deux
+# modes. Le mode ne cree AUCUN droit nouveau : il ne retire que les questions
+# des N2 non encore memorises, et seulement EN LOCAL (jamais a distance).
+
+def mode():
+    """Mode actif : 'manual' (defaut) ou 'auto'."""
+    from core.config import reglage
+    m = str(reglage("securite.mode", "manual") or "manual").strip().lower()
+    return m if m in ("manual", "auto") else "manual"
+
+
+def definir_mode(valeur):
+    """Change le mode global (persiste dans config.yaml). Retourne le mode en vigueur."""
+    from core.config import definir
+    v = str(valeur or "").strip().lower()
+    if v not in ("manual", "auto"):
+        return mode()
+    definir("securite.mode", v)
+    return v
+
+
+def demande_confirmation(nom):
+    """Politique COMPLETE de confirmation pour un outil, EN LOCAL :
+    N1           -> jamais (sur).
+    N3           -> toujours (suppressions, envois, argent, PC).
+    N2 en MANUAL -> toujours, sauf memorise "toujours autoriser".
+    N2 en AUTO   -> jamais (agis seul), sauf demande explicite de l'ecran.
+    """
+    n = niveau(nom)
+    if n == "N1":
+        return False
+    if n == "N3":
+        return True
+    if n == "N2":
+        return mode() == "manual" and not est_autorise(nom)
+    return True
 
 
 def autoriser_toujours(nom):

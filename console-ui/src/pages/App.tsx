@@ -9,7 +9,7 @@ import type { ModeCentre } from '../components/WorkspaceControls'
 import type { But } from '../data/etat-initial'
 import { BUTS_INITIAUX } from '../data/etat-initial'
 import type { IntegrationId } from '../lib/integrations'
-import { api, type EtatOperator } from '../lib/api'
+import { api, type EtatOperator, type ModeGlobal } from '../lib/api'
 
 export default function App() {
   const [consoleOuverte, setConsoleOuverte] = useState(true)
@@ -23,13 +23,17 @@ export default function App() {
   const [etapesFaites, setEtapesFaites] = useState<Set<number>>(new Set())
   const [recherche, setRecherche] = useState('')
   const [etat, setEtat] = useState<EtatOperator | null>(null)
+  const [modeGlobal, setModeGlobal] = useState<ModeGlobal>('manual')
 
   // le vrai pouls de Jarvis : etat de vie + journal, poll toutes les 5 s
   useEffect(() => {
     let vivant = true
     const maj = async () => {
       const e = await api.etat()
-      if (vivant && e && e.vie) setEtat(e)
+      if (vivant && e && e.vie) {
+        setEtat(e)
+        if (e.mode) setModeGlobal(e.mode)
+      }
     }
     maj()
     const t = setInterval(maj, 5000)
@@ -38,6 +42,13 @@ export default function App() {
       clearInterval(t)
     }
   }, [])
+
+  const changerMode = async (m: ModeGlobal) => {
+    if (m === modeGlobal) return
+    setModeGlobal(m)
+    const confirme = await api.changerMode(m)
+    if (confirme) setModeGlobal(confirme)
+  }
 
   const connecter = (id: IntegrationId) => {
     setConnectes((p) => new Set(p).add(id))
@@ -76,7 +87,11 @@ export default function App() {
 
   return (
     <div className="flex h-full w-full flex-col pt-[60px]">
-      <TopBar onOuvrirRecherche={() => setRecherche(' ')} />
+      <TopBar
+        onOuvrirRecherche={() => setRecherche(' ')}
+        mode={modeGlobal}
+        onMode={changerMode}
+      />
 
       {recherche !== '' && (
         <div
