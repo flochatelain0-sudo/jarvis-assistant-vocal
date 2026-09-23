@@ -75,6 +75,7 @@ def decider_prioritaire(phrase: str, piece: str = "") -> Decision | None:
         ("tools.apps", "router_ouverture_simple"),
         ("tools.mail_operateur", "router_compte_rendu_mails"),
         ("tools.leads", "router_prospection_leads"),
+        ("tools.chrome_agent", "router_agent_linkedin"),
     ):
         try:
             mod = __import__(module, fromlist=[fonction])

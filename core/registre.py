@@ -103,6 +103,7 @@ _NON_LOCAUX = {
     "book_appointment", "confirmer_reservation",
     "browser_current_page", "browser_tabs", "browser_close_tabs",
     "browser_interact",
+    "lire_messages_linkedin", "repondre_messages_linkedin",
     "lire_netflix",
     "controle_pc_astra",
     "call_with_message", "call_and_book", "cout_appels",
@@ -152,6 +153,7 @@ _N3 = frozenset({
     "supprimer_fichier",
     "executer_commande",
     "envoyer_message_linkedin",
+    "repondre_messages_linkedin",
 })
 
 
