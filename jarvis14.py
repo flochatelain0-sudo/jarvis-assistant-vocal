@@ -13,9 +13,11 @@ Usage : uv run python jarvis14.py
 """
 
 import datetime as dt
+import fcntl
 import os
 import queue
 import re
+import tempfile
 import threading
 import time
 import wave
@@ -1704,7 +1706,35 @@ def _ouvrir_micro():
         raise SystemExit(1)
 
 
+def _verrou_instance():
+    """Un seul Jarvis a la fois : un flock sur un fichier temporaire.
+
+    Sans lui, l'autostart launchd ET un lancement manuel coexistent : deux
+    micros, deux voix — chaque reponse etait dite DEUX fois, et le serveur web
+    du second processus mourait silencieusement sur le port pris. Le fichier
+    porte le PID pour le diagnostic (savoir qui bloque sans deviner).
+    """
+    chemin = Path(tempfile.gettempdir()) / "jarvis14-instance.lock"
+    try:
+        descripteur = open(chemin, "w")
+        fcntl.flock(descripteur, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        descripteur.write(str(os.getpid()))
+        descripteur.flush()
+        return descripteur, chemin
+    except OSError:
+        try:
+            pid_existant = chemin.read_text().strip() or "?"
+        except OSError:
+            pid_existant = "?"
+        print(f"Un Jarvis tourne deja (pid {pid_existant}) : je m'arrete. "
+              f"Si c'est une erreur, ferme l'autre instance ou supprime {chemin}.")
+        return None, chemin
+
+
 def main():
+    verrou, _ = _verrou_instance()
+    if verrou is None:
+        raise SystemExit(1)
     print("Chargement des modeles...")
 
     registre.charger_outils()
