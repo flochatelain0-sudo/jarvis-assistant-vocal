@@ -462,7 +462,15 @@ def traiter_texte(session, phrase):
                         "attente_confirmation": True}
             res = _executer_outil(b.name, b.input or {})
             faits.append(b.name)
-            resultats.append({"type": "tool_result", "tool_use_id": b.id, "content": str(res)})
+            # Garde-fous d'entree : le resultat d'outil est du contenu
+            # externe, scanne/caviarde avant d'entrer dans le modele.
+            from core import garde_fous
+            try:
+                res_scanne = garde_fous.verifier(str(res), source=b.name)
+            except garde_fous.TexteRefuse:
+                res_scanne = ("Contenu refuse par les garde-fous de securite : "
+                              "secret ou tentative d'injection detecte.")
+            resultats.append({"type": "tool_result", "tool_use_id": b.id, "content": res_scanne})
         session.historique.append({"role": "user", "content": resultats})
     return {"reponse": "Commande trop longue à traiter.", "attente_confirmation": False}
 
