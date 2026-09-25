@@ -4,6 +4,16 @@ Toutes les évolutions notables de Jarvis. Format inspiré de
 [Keep a Changelog](https://keepachangelog.com/fr/) ; versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [Non publié]
+
+### Sécurité
+
+- Garde-fous d'entrée (inspirés du pipeline de sécurité d'OpenJarvis) : le
+  contenu externe (pages web, mails, LinkedIn, Instagram) est scanné **avant
+  d'entrer dans l'historique du LLM** — secrets, PII, injections de prompt.
+  Trois modes (`securite.garde_fous_entree`) : `observer` (défaut, journalise),
+  `caviarder` (masque), `bloquer` (refuse). Voir [docs/garde_fous.md](docs/garde_fous.md).
+
 ## [1.0.0] — 2026-08-07
 
 Première version publique. Assistant vocal local en français, architecture

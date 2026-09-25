@@ -764,7 +764,15 @@ def _executer_outils(blocs):
         else:
             print(f"  [outil] {nom} -> termine")
             _hud("outil", nom, "Action terminee")
-            contenu = str(resultat)
+            # Garde-fous d'entree (inspire d'OpenJarvis) : un resultat d'outil
+            # est du contenu externe (page web, mail, LinkedIn...) — il est
+            # scanne/caviarde avant d'entrer dans l'historique du modele.
+            from core import garde_fous
+            try:
+                contenu = garde_fous.verifier(str(resultat), source=nom)
+            except garde_fous.TexteRefuse:
+                contenu = ("Contenu refuse par les garde-fous de securite : "
+                           "secret ou tentative d'injection detecte.")
 
         resultats.append({
             "type": "tool_result",
