@@ -166,6 +166,17 @@ Dis « Hey Jarvis ». Il faut soit la clé API du fournisseur cloud sélectionn�
 (`openai.cle` ou `anthropic.cle`), soit un modèle Ollama en mode local. Tout le reste
 est optionnel.
 
+**Sans micro** (serveur, Docker, VPS, test) : le mode texte remplace la boucle
+vocale — même pipeline (routage, outils, confirmations, garde-fous), la phrase
+se tape au clavier, la réponse s'affiche en console :
+
+```bash
+uv run python jarvis_texte.py
+```
+
+Les actions sensibles s'y valident par « oui » (ou « oui, toujours » pour
+mémoriser l'autorisation d'un N2), et `quit` / Ctrl+C quitte.
+
 Débutant complet ? Vois **[INSTALL_WITH_AI.md](INSTALL_WITH_AI.md)** — à coller dans
 n'importe quelle IA gratuite, elle t'installe tout pas à pas. Ou lance l'installateur
 interactif : `python scripts/setup.py`. Un souci ? `python scripts/doctor.py` diagnostique

@@ -6,6 +6,13 @@ Toutes les évolutions notables de Jarvis. Format inspiré de
 
 ## [Non publié]
 
+### Cœur
+
+- Mode texte (`jarvis_texte.py`) : la boucle vocale remplacée par le clavier —
+  même pipeline (routage, outils, confirmations N2/N3, garde-fous), pour un
+  serveur sans micro (Docker, VPS) ou pour tester. « oui, toujours » y
+  mémorise l'autorisation d'un N2 comme à la voix.
+
 ### Sécurité
 
 - Garde-fous d'entrée (inspirés du pipeline de sécurité d'OpenJarvis) : le
