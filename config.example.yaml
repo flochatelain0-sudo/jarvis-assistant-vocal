@@ -58,6 +58,44 @@ voxtral:                      # TTS cloud Mistral, la voix de Le Chat (docs/mist
                                # presets : fr_female, fr_male, casual_female, casual_male,
                                # cheerful_female, neutral_female, neutral_male, ...
 
+integrations:                  # page INTEGRATIONS : OAuth REEL, un provider par cle.
+                               # Sans client_id/secret, la carte affiche
+                               # « Available — setup required » (jamais de fake).
+  cle: ""                     # cle maitresse de chiffrement des jetons (Fernet).
+                               # Vide = derivee de utilisateur.nom. LONGUE et
+                               # unique recommande en production.
+  gmail:
+    client_id: ""              # https://console.cloud.google.com/apis/credentials
+    client_secret: ""          # redirect URI : http://127.0.0.1:8790/api/integrations/gmail/callback
+  gcal:
+    client_id: ""
+    client_secret: ""          # redirect URI : .../api/integrations/gcal/callback
+  gdrive:
+    client_id: ""
+    client_secret: ""
+  github:
+    client_id: ""              # https://github.com/settings/developers
+    client_secret: ""          # callback : .../api/integrations/github/callback
+  slack:
+    client_id: ""
+    client_secret: ""
+  notion:
+    client_id: ""
+    client_secret: ""
+  linear:
+    client_id: ""
+    client_secret: ""
+  outlook:
+    client_id: ""              # https://portal.azure.com — app registration
+    client_secret: ""
+  hubspot:
+    client_id: ""
+    client_secret: ""
+  linkedin:
+    client_id: ""              # https://www.linkedin.com/developers/apps
+    client_secret: ""          # redirect URI : http://127.0.0.1:8790/api/integrations/linkedin/callback
+                               # scopes : r_liteprofile, w_member_social
+
 mcp_externes: []               # serveurs MCP distants dont Jarvis peut appeler
                                # les outils (voir docs/mcp_externe.md). Exemple :
                                # - nom: yorkhost
@@ -75,10 +113,6 @@ gemini:                        # alternative a Claude/OpenAI ; palier gratuit su
   cle: ""                      # https://aistudio.google.com/apikey
   modele: "gemini-2.5-flash"   # verifie les noms courants sur ai.google.dev
   modele_qualite: "gemini-2.5-pro"
-  # Voix TTS Gemini (tts.moteur: gemini) : 30 voix, dont Kore et Puck
-  # parlent un francais naturel. Liste complete : ai.google.dev/gemini-api/docs/speech-generation
-  voix_tts: "Kore"             # Kore | Puck | Zephyr | Charon | ...
-  modele_tts: "gemini-2.5-flash-tts"   # ou gemini-2.5-pro-tts (meilleur, plus lent)
   temperature: 0.3
   max_tokens: 1024
 
@@ -96,10 +130,17 @@ mistral:                      # Mistral AI (console.mistral.ai) ; voir docs/mist
   max_retries: 1
   # url: "https://api.mistral.ai/v1"   # API officielle ; laisse ce defaut
 
+agent_mistral:                 # Agent Mistral (Agents API, outils serveur)
+  agent_id: ""                 # vide = mode direct : modele + connecteurs ci-dessous
+  modele: "mistral-small-latest"
+  connecteurs: ["web_search"]  # outils SERVEUR : rien de local, aucun risque
+  resume_max: 500              # caracteres lus a voix haute
+  timeout: 300                 # secondes max par delegation
+
 tts:
-  moteur: auto                 # auto | piper | kokoro | voxtral | gemini | os
+  moteur: auto                 # auto | piper | kokoro | voxtral | os
                                # auto = voix locale (Piper/Kokoro), sinon la voix de l'OS
-                               # voxtral = voix cloud de Mistral ; gemini = voix cloud Google
+                               # voxtral = voix cloud de Mistral
   voix_systeme: ""             # macOS : voix `say` choisie (ex. "Thomas (ppremium)")
                                # vide = auto-detection de la 1re voix francaise
 
@@ -374,6 +415,9 @@ suivi:                         # suivi de contenus (pipeline video) ; voir docs/
   fichier: "contenus.yaml"     # liste des contenus (non versionnee) ; chemin relatif = racine du projet
 
 securite:                      # niveaux de permission (N8) ; voir docs/panneau.md
+  mode: manual                 # manual (defaut) : les compagnions demandent avant d'agir ;
+                               # auto : les N2 agissent seuls. Un N3 (suppressions, envois,
+                               # argent, PC) demande TOUJOURS, dans les deux modes.
   toujours: []                 # outils N2 memorises "toujours autoriser" (revocables au panneau)
                                # rempli a la voix ("oui, toujours") ; un N3 n'y entre JAMAIS
 

@@ -328,6 +328,37 @@ def ou_j_en_suis() -> str:
     agenda_txt = _croisement_agenda(contenus)
     if agenda_txt:
         resume += " " + agenda_txt
+    # Carte console type Work : retards et echeances en avant, le reste en
+    # info. Repli deterministe integre (donnees locales, sans LLM).
+    try:
+        from core import rapport_work
+        groupes = {"reponse": [], "attention": [], "info": []}
+        for c, j in retards:
+            groupes["attention"].append({
+                "expediteur": c.get("titre", "")[:80], "objet": c.get("statut", ""),
+                "resume": f"Deadline depassee de {j} j — {c.get('titre', '')}",
+                "action": "Rattraper ce contenu", "brouillon": ""})
+        for c, j in bientot:
+            groupes["attention"].append({
+                "expediteur": c.get("titre", "")[:80], "objet": c.get("statut", ""),
+                "resume": ("Echeance aujourd'hui" if j == 0
+                            else f"Echeance dans {j} j") + f" — {c.get('titre', '')}",
+                "action": "A tourner / monter", "brouillon": ""})
+        for c in contenus:
+            if any(c is r[0] for r in retards) or any(c is b[0] for b in bientot):
+                continue
+            groupes["info"].append({
+                "expediteur": c.get("titre", "")[:80], "objet": c.get("statut", ""),
+                "resume": f"{c.get('statut', 'idee')} — {c.get('plateforme', '')}",
+                "action": "", "brouillon": ""})
+        rapport_work.carte(
+            "Pipeline de contenus",
+            (("reponse", "A decider", "\U0001F4E9"),
+             ("attention", "Retards et echeances", "\U0001F512"),
+             ("info", "En cours", "\U0001F4CA")),
+            groupes)
+    except Exception:
+        LOG.exception("ou_j_en_suis : carte pipeline impossible")
     return resume
 
 

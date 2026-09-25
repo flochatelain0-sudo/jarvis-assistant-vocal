@@ -392,6 +392,54 @@ def test_voxtral_auto_reparation_cible_la_premiere_voix_francaise(monkeypatch):
     assert ecrits == [("voxtral.voix", "vchr_fr1")]
 
 
+def test_voxtral_sans_voix_francaise_evite_les_emotions_negatives(monkeypatch):
+    """Compte 100% anglais (compte gratuit Mistral) : jamais "Paul - Sad".
+    L'auto-reparation doit preferer Neutral > Confident > Cheerful > Happy."""
+    trames = bytes(range(0, 256)) * 20
+    audio_b64 = base64.b64encode(_wav_int16(trames, 24000)).decode()
+    reglages = {"mistral.cle": "cle-test", "voxtral.voix": "fr_female"}
+    voix_compte = _compte_voxtral(
+        {"id": "id_sad", "name": "Paul - Sad", "languages": ["en_us"]},
+        {"id": "id_angry", "name": "Paul - Angry", "languages": ["en_us"]},
+        {"id": "id_confident", "name": "Paul - Confident", "languages": ["en_us"]},
+        {"id": "id_neutral", "name": "Paul - Neutral", "languages": ["en_us"]})
+    urlopen, appels = _urlopen_deux_temps(audio_b64)
+    monkeypatch.setattr(tts, "reglage",
+                        lambda chemin, defaut=None: reglages.get(chemin, defaut))
+    monkeypatch.setattr("urllib.request.urlopen", urlopen)
+    monkeypatch.setattr(tts, "lister_voix_voxtral", lambda: voix_compte)
+    ecrits = []
+    monkeypatch.setattr("core.config.definir",
+                        lambda chemin, valeur: ecrits.append((chemin, valeur)))
+    provider = tts.VoxtralProvider()
+    assert provider.synthetiser("Bonjour") is not None
+    assert provider.voix == "id_neutral"
+    assert ecrits == [("voxtral.voix", "id_neutral")]
+
+
+def test_voxtral_sans_voix_francaise_ni_preferee_prend_une_non_negative(monkeypatch):
+    """Anglais sans Neutral/Confident/Cheerful/Happy : on evite quand meme
+    Sad/Angry/Frustrated (ici on tombe sur Excited)."""
+    trames = bytes(range(0, 256)) * 20
+    audio_b64 = base64.b64encode(_wav_int16(trames, 24000)).decode()
+    reglages = {"mistral.cle": "cle-test", "voxtral.voix": "fr_female"}
+    voix_compte = _compte_voxtral(
+        {"id": "id_sad", "name": "Paul - Sad", "languages": ["en_us"]},
+        {"id": "id_excited", "name": "Paul - Excited", "languages": ["en_us"]})
+    urlopen, _ = _urlopen_deux_temps(audio_b64)
+    monkeypatch.setattr(tts, "reglage",
+                        lambda chemin, defaut=None: reglages.get(chemin, defaut))
+    monkeypatch.setattr("urllib.request.urlopen", urlopen)
+    monkeypatch.setattr(tts, "lister_voix_voxtral", lambda: voix_compte)
+    ecrits = []
+    monkeypatch.setattr("core.config.definir",
+                        lambda chemin, valeur: ecrits.append((chemin, valeur)))
+    provider = tts.VoxtralProvider()
+    assert provider.synthetiser("Bonjour") is not None
+    assert provider.voix == "id_excited"
+    assert ecrits == [("voxtral.voix", "id_excited")]
+
+
 def test_voxtral_auto_reparation_resout_voix_vide_au_demarrage(monkeypatch):
     """voxtral.voix vide : reparation AVANT l'erreur — plus besoin du terminal."""
     trames = bytes(range(0, 256)) * 20
@@ -453,52 +501,3 @@ def test_voxtral_voix_invalide_se_reconnait_des_erreurs_benignes(monkeypatch):
     assert provider._voix_invalide("HTTP 403 sur url : moderation") is False
     assert provider._voix_invalide("OSError: plus de reseau") is False
     assert provider._voix_invalide("") is False
-
-
-# ---------------------------------------------------------------- Gemini TTS
-def test_gemini_choisi_par_la_fabrique(monkeypatch):
-    reglages = {"tts.moteur": "gemini", "gemini.cle": "cle-test"}
-    monkeypatch.setattr("core.routage.mode_actuel", lambda: "hybride")
-    monkeypatch.setattr(tts, "reglage",
-                        lambda chemin, defaut=None: reglages.get(chemin, defaut))
-    assert tts.tts().nom == "Gemini"
-
-
-def test_mode_local_ignore_gemini_et_garde_piper(monkeypatch):
-    assert _fabrique(monkeypatch, "local", True, moteur="gemini").nom == "Piper"
-
-
-def test_gemini_indisponible_sans_cle(monkeypatch):
-    monkeypatch.setattr(tts, "reglage", lambda chemin, defaut=None: defaut)
-    assert tts.GeminiTTSProvider().disponible() is False
-
-
-def test_gemini_decode_le_pcm_en_int16_24khz(monkeypatch):
-    np = _numpy()
-    trames = bytes(range(0, 256)) * 20
-    audio_b64 = base64.b64encode(trames).decode()
-    reglages = {"gemini.cle": "cle-test", "gemini.voix_tts": "Kore"}
-    appels = []
-
-    def _fausse_urlopen(requete, timeout=None):
-        appels.append(requete)
-        corps = {"candidates": [{"content": {"parts": [{
-            "inlineData": {"mimeType": "audio/L16;rate=24000",
-                           "data": audio_b64}}]}}]}
-        return _ReponseHTTP(_json.dumps(corps).encode())
-
-    monkeypatch.setattr(tts, "reglage",
-                        lambda chemin, defaut=None: reglages.get(chemin, defaut))
-    monkeypatch.setattr("urllib.request.urlopen", _fausse_urlopen)
-    provider = tts.GeminiTTSProvider()
-    assert provider.voix == "Kore"
-    resultat = provider.synthetiser("Bonjour, je suis Jarvis.")
-    assert resultat is not None
-    audio, freq = resultat
-    assert audio.dtype == np.int16 and freq == 24000
-    assert len(audio) == len(trames) // 2
-    requete = appels[0]
-    assert "gemini-2.5-flash-tts:generateContent" in requete.full_url
-    corps = _json.loads(requete.data.decode())
-    assert corps["generationConfig"]["speechConfig"]["voiceConfig"][
-        "prebuiltVoiceConfig"]["voiceName"] == "Kore"

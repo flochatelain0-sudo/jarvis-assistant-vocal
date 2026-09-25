@@ -360,7 +360,7 @@ def _executer_decision_prioritaire(session, decision):
         o = registre.get(nom)
         if o is None:
             return None
-        if registre.doit_confirmer(nom):
+        if o.confirmation and registre.demande_confirmation(nom):
             session.en_attente = (nom, args)
             try:
                 annonce = o.annonce(args) if o.annonce else None
@@ -447,7 +447,7 @@ def traiter_texte(session, phrase):
             # Toute action marquée sensible suit la même politique qu'au bureau.
             # N2 mémorisé peut passer ; N3 ne l'est jamais.
             o = registre.get(b.name)
-            if o is not None and registre.doit_confirmer(b.name):
+            if o is not None and o.confirmation and not registre.est_autorise(b.name):
                 session.en_attente = (b.name, b.input or {})
                 q = None
                 if o is not None and getattr(o, "annonce", None):

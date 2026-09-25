@@ -13,6 +13,7 @@ import json
 import re
 import threading
 import time
+import uuid
 from pathlib import Path
 
 from core.registre import outil
@@ -73,7 +74,7 @@ def ajouter_depuis_texte(contenu, titre="", source="texte"):
     with _VERROU:
         docs = _charger()
         doc = {
-            "id": int(time.time() * 1000) % (10 ** 12),
+            "id": int(uuid.uuid4().hex[:12], 16),
             "titre": (titre or _titre_de(contenu, source)).strip()[:80],
             "contenu": contenu,
             "source": source[:120],

@@ -19,7 +19,7 @@ export default function GettingStarted({ etapesFaites, onOuvrirEtape, onReplier 
     <div
       className="rounded-xl border p-3.5"
       style={{
-        background: 'rgba(13,13,13,0.85)',
+        background: 'var(--panel-glass-strong)',
         borderColor: 'var(--border-orange)',
         boxShadow: '0 0 34px rgba(255,106,0,0.13), 0 8px 30px rgba(0,0,0,0.5)',
       }}
@@ -27,25 +27,25 @@ export default function GettingStarted({ etapesFaites, onOuvrirEtape, onReplier 
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Sparkles size={12} className="text-orange" />
-          <span className="label-tech text-[#c7c7c7]">GETTING STARTED</span>
+          <span className="label-tech text-[var(--dim)]">GETTING STARTED</span>
         </div>
         <button
           onClick={onReplier}
           aria-label="Replier"
-          className="rounded p-1 text-[#777777] transition hover:text-[#f5f5f5]"
+          className="rounded p-1 text-[var(--muted)] transition hover:text-[var(--text)]"
         >
           <Minus size={13} />
         </button>
       </div>
       <div className="mb-1 flex items-baseline gap-2">
-        <span className="text-[15px] font-semibold text-[#f5f5f5]">
+        <span className="text-[15px] font-semibold text-[var(--text)]">
           {etapesFaites.size}/4
         </span>
-        <span className="text-[12px] text-[#777777]">
+        <span className="text-[12px] text-[var(--muted)]">
           {restantes === 1 ? 'One left' : `${restantes} left`}
         </span>
       </div>
-      <p className="label-tech mb-2 text-[9px] text-[#777777]">
+      <p className="label-tech mb-2 text-[9px] text-[var(--muted)]">
         TAP A STEP TO OPEN IT
       </p>
       <div className="flex flex-col">
@@ -69,7 +69,7 @@ export default function GettingStarted({ etapesFaites, onOuvrirEtape, onReplier 
               </span>
               <ChevronRight
                 size={12}
-                className="text-[#777777] transition group-hover:translate-x-0.5 group-hover:text-orange"
+                className="text-[var(--muted)] transition group-hover:translate-x-0.5 group-hover:text-orange"
               />
             </button>
           )

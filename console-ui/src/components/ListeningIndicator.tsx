@@ -14,11 +14,12 @@ interface Props {
 
 export default function ListeningIndicator({ actif, onBasculer, reco, transcription }: Props) {
   const ecouteEnCours = reco.actif
-
   return (
     <div className="flex flex-col items-center gap-2">
       <button
         onClick={onBasculer}
+        aria-label={ecouteEnCours ? 'Écoute en cours' : actif ? "Réactiver l'écoute" : "Couper l'écoute"}
+        title={ecouteEnCours ? 'Reconnaissance vocale active' : actif ? 'Micro actif' : 'Micro en pause'}
         className="flex items-center gap-2.5 rounded-full border px-5 py-1.5 transition-all"
         style={{
           borderColor: ecouteEnCours
@@ -26,7 +27,7 @@ export default function ListeningIndicator({ actif, onBasculer, reco, transcript
             : actif
               ? 'rgba(255,110,0,0.25)'
               : 'var(--border)',
-          background: 'rgba(5,5,5,0.55)',
+          background: 'var(--panel-glass)',
           boxShadow: ecouteEnCours
             ? '0 0 24px rgba(32,232,120,0.18)'
             : actif

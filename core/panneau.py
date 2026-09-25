@@ -582,7 +582,7 @@ def _definir_reglage(cle, valeur):
                 return {"ok": False, "message": "Mode invalide."}
             return {"ok": True, "message": f"Mode {valeur} actif immediatement."}
         if cle == "tts.moteur" and valeur not in {
-                "auto", "piper", "kokoro", "voxtral", "gemini", "os",
+                "auto", "piper", "kokoro", "voxtral", "os",
                 "windows"}:
             return {"ok": False, "message": "Moteur vocal invalide."}
         if cle == "cloud.fournisseur" and valeur not in {

@@ -18,6 +18,15 @@ def faire_brief() -> str:
     """Brief du moment : heure, meteo, deadlines Loopstr et apercu des nouveaux mails."""
     morceaux = [heure_et_date(), meteo()]
     try:
+        from core import operator
+        operator.carte_briefing({
+            "client": "Brief du moment",
+            "rdv": heure_et_date()[:80],
+            "champs": [{"titre": "Meteo", "valeur": meteo()[:120]}],
+        })
+    except Exception:
+        pass
+    try:
         from tools.loopstr import deadlines_brief
         deadlines = deadlines_brief()
         if deadlines:
@@ -32,7 +41,11 @@ def faire_brief() -> str:
     except Exception:
         pass
     if _mail_configure():
-        morceaux.append(lire_mails(5))
+        try:
+            from tools.mail_operateur import compte_rendu_mails
+            morceaux.append(compte_rendu_mails(10))
+        except Exception:
+            morceaux.append(lire_mails(5))
     planning = _planning_bref()
     if planning:
         morceaux.append(planning)

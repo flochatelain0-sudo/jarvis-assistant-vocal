@@ -253,7 +253,30 @@ def get_events(periode: str = "aujourd'hui") -> str:
     if not evenements:
         return f"Rien de prevu {libelle}."
     evenements.sort(key=lambda x: x[0])
-    return _formuler(evenements, libelle, fenetre=(debut, fin))
+    texte = _formuler(evenements, libelle, fenetre=(debut, fin))
+    # Carte console type Work : chaque evenement visible avec son heure,
+    # les deadlines mises en avant. Repli deterministe integre : sans LLM,
+    # la carte reste injectee avec les donnees locales.
+    try:
+        from core import rapport_work
+        groupes = {"reponse": [], "attention": [], "info": []}
+        for d, tout_jour, titre, cal in evenements:
+            heure = "toute la journee" if tout_jour else _heure_fr(d)
+            e = {"expediteur": titre[:80], "objet": f"{heure}",
+                 "resume": f"{_jour_fr(d)} {heure} — {titre}",
+                 "action": "Deadline" if _est_loopstr(cal) else "",
+                 "brouillon": ""}
+            (groupes["attention"] if _est_loopstr(cal)
+             else groupes["info"]).append(e)
+        rapport_work.carte(
+            f"Agenda — {libelle}",
+            (("reponse", "A confirmer", "\U0001F4E9"),
+             ("attention", "Deadlines", "\U0001F512"),
+             ("info", "Evenements", "\U0001F4CA")),
+            groupes)
+    except Exception:
+        LOG.exception("get_events : carte agenda impossible")
+    return texte
 
 
 # ---- creation

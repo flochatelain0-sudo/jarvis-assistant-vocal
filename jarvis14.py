@@ -721,22 +721,29 @@ def _executer_outils(blocs):
 
         if outil is None:
             resultat = f"Outil inconnu : {nom}"
-        elif registre.doit_confirmer(nom):
-            # Doctrine centrale : N3 toujours, N2 selon le mode MANUAL/AUTO et
-            # le 'toujours autoriser'. Un N3 n'est jamais autorise d'avance.
+        elif outil.confirmation and registre.demande_confirmation(nom):
+            # MANUAL : on attend le feu vert. AUTO : un N2 agit seul ; un N3
+            # (suppressions, envois, argent, PC) attend TOUJOURS, quel que soit
+            # le mode. Un N2 memorise "toujours autoriser" n'attend jamais.
             resultat = registre.mettre_en_attente(outil, arguments)
             operator.journaliser("validation", f"Action préparée : {nom}",
                                  resultat="en_attente")
+            operator.action_vue("validation", f"Action préparée : {nom}",
+                               str(arguments)[:200], resultat="en_attente")
         else:
             try:
                 resultat = outil.fonction(**arguments)
                 operator.journaliser(_categorie(nom), f"Action exécutée : {nom}",
                                      str(resultat)[:200])
+                operator.action_vue(_categorie(nom), f"Action exécutée : {nom}",
+                                    str(resultat)[:200])
             except Exception:
                 LOG.exception("outil %s a plante", nom)
                 resultat = "Desole, je n'ai pas reussi a faire ca."
                 operator.journaliser("systeme", f"Action échouée : {nom}",
                                      resultat="erreur")
+                operator.action_vue("systeme", f"Action échouée : {nom}",
+                                   resultat="erreur")
 
         LOG.info("outil %s termine en %.3fs (type=%s)", nom,
                  time.monotonic() - debut_outil, type(resultat).__name__)
@@ -795,6 +802,16 @@ def _repondre_route_prioritaire_commune(historique):
             _hud("etat", "reflexion")
             texte = executer_controle(decision.tache)
         nom_outil = "controle_pc_astra"
+        try:
+            from core import operator
+            operator.journaliser(_categorie(nom_outil),
+                                 f"Action executee : {nom_outil}",
+                                 str(texte)[:200])
+            operator.action_vue(_categorie(nom_outil),
+                                f"Action executee : {nom_outil}",
+                                decision.tache[:200])
+        except Exception:
+            pass
 
     elif decision.type == "vision":
         from tools.ecran import analyser_ecran
@@ -806,6 +823,16 @@ def _repondre_route_prioritaire_commune(historique):
         texte = analyser_ecran(decision.tache)
         fil_vision.join()
         nom_outil = "capture_screen"
+        try:
+            from core import operator
+            operator.journaliser(_categorie(nom_outil),
+                                 f"Action executee : {nom_outil}",
+                                 decision.tache[:200])
+            operator.action_vue(_categorie(nom_outil),
+                                f"Action executee : {nom_outil}",
+                                decision.tache[:200])
+        except Exception:
+            pass
 
     elif decision.type == "hermes":
         from tools.deleguer_a_hermes import deleguer_en_fond
@@ -815,13 +842,23 @@ def _repondre_route_prioritaire_commune(historique):
             nom_thread="contenu-hermes",
         )
         nom_outil = "deleguer_a_hermes"
+        try:
+            from core import operator
+            operator.journaliser(_categorie(nom_outil),
+                                 f"Action executee : {nom_outil}",
+                                 decision.tache[:200])
+            operator.action_vue(_categorie(nom_outil),
+                                f"Action executee : {nom_outil}",
+                                decision.tache[:200])
+        except Exception:
+            pass
 
     else:
         nom_outil = decision.outil
         outil = registre.get(nom_outil)
         if outil is None:
             return None
-        confirmation = registre.doit_confirmer(nom_outil)
+        confirmation = outil.confirmation and registre.demande_confirmation(nom_outil)
         fil_accuse = None
         if outil.lent and outil.phrase_attente and not confirmation:
             _hud("etat", "parole")
@@ -847,6 +884,13 @@ def _repondre_route_prioritaire_commune(historique):
         texte = str(resultats[0]["content"] if resultats else "C'est fait.")
 
     historique.append({"role": "assistant", "content": texte})
+    try:
+        from core import operator
+        if not any(m.get("texte") == str(texte)[:2000]
+                   for m in operator.conversation()[-3:]):
+            operator.reponse_vue(str(texte)[:2000])
+    except Exception:
+        pass
     _hud("outil", nom_outil, question[:60])
     _hud("etat", "parole")
     if texte and not _INTERRUPTION.is_set():
@@ -1356,8 +1400,10 @@ def _tronquer(historique):
 
 def traiter_ecrit(demande, historique):
     """Traite un message TAPE depuis la page Operator : meme pipeline que la
-    voix (routage, outils, 95/5), reponse affichee ET prononcee.
-    Renvoie le texte de reponse (jamais d'exception : la page attend une reponse).
+    voix (routage, outils, 95/5). Le pipeline (repondre) prononce deja la
+    reponse : on ne la prononce PAS une seconde fois ici, d'ou le second
+    element de retour toujours vide.
+    Renvoie (texte_affiche, a_prononcer) (jamais d'exception : la page attend).
     """
     question = nettoyer((demande or "").strip())
     if not question:
@@ -1378,16 +1424,21 @@ def traiter_ecrit(demande, historique):
             _hud_status()
             print(f"  Jarvis : {annonce}\n")
             _tronquer(historique)
-            return annonce, annonce
+            return annonce, ""
         if not texte:
+            # Reponse vide : le pipeline n'a rien prononce, on le fait ici
+            # (une seule fois).
             texte = "C'est fait."
+            if not _INTERRUPTION.is_set():
+                _hud("etat", "parole")
+                dire(texte)
         texte = nettoyer_reponse_vocale(texte)
         _hud("dire_jarvis", texte)
         _afficher_overlay(texte)
         _hud_status()
         print(f"  Jarvis : {texte}\n")
         _tronquer(historique)
-        return texte, texte
+        return texte, ""
     except Exception:
         LOG.exception("message ecrit")
         return ("Desole, une erreur est survenue en traitant ta demande.", "")
@@ -1500,6 +1551,11 @@ def traiter(audio, whisper, historique, flux, reveil):
             _hud("etat", "parole")
             dire(texte)
 
+    try:
+        from core import operator
+        operator.reponse_vue(texte)
+    except Exception:
+        pass
     _hud("dire_jarvis", texte)
     _afficher_overlay(texte)
     _hud_status()
@@ -1509,12 +1565,15 @@ def traiter(audio, whisper, historique, flux, reveil):
 
 
 def _feedback_geste(geste):
-    """Feedback discret quand un geste est reconnu : petit bip + flash HUD. Non bloquant."""
+    """Feedback discret quand un geste est reconnu : petit bip + flash HUD.
+    Non bloquant, et SANS bip si Jarvis parle — sounddevice ne mixe pas :
+    un sd.play() concurrent ecraserait la voix en cours de lecture."""
     freq = 1200 if geste == "armement" or geste.startswith("mode_") else 900
-    try:
-        threading.Thread(target=lambda: bip(freq, 0.05), daemon=True).start()
-    except Exception:
-        pass
+    if not _PARLE.is_set():
+        try:
+            threading.Thread(target=lambda: bip(freq, 0.05), daemon=True).start()
+        except Exception:
+            pass
     _hud("outil", "geste", geste)
 
 

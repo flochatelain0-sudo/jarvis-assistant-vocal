@@ -173,26 +173,47 @@ def _fil_vocal():
 
 def etat():
     """L'etat complet servi a la page Operator (API GET)."""
+    from core import registre, integrations
+    from core import buts
+    buts.initialiser_modele()
     return {
         "kpis": _kpis(),
         "a_valider": _file_validation(),
         "journal": _charger()[:60],
         "taches": _taches(),
         "vie": _vie(),
+        "mode": registre.mode(),
         "fil_vocal": _fil_vocal(),
+        "integrations": integrations.etat(),
+        "buts": buts.lister(),
     }
-
-
-def mode_autopilote():
-    """Mode d'action MANUAL/AUTO pour la console (doctrine registre)."""
-    from core import registre
-    return {"mode": registre.mode_autopilote()}
 
 
 def profil():
     """Nom de l'utilisateur pour la top bar (config utilisateur.nom)."""
     nom = (reglage("utilisateur.nom", "") or "Moi").strip()
     return {"nom": nom[:40] or "Moi"}
+
+
+def mode():
+    """Mode global MANUAL / AUTO (core.registre)."""
+    from core import registre
+    return {"mode": registre.mode()}
+
+
+def changer_mode(valeur):
+    """Bascule MANUAL / AUTO depuis la console. Un N3 (suppressions, envois,
+    argent) reste a confirmation dans les deux modes."""
+    from core import registre
+    v = str(valeur or "").strip().lower()
+    if v not in ("manual", "auto"):
+        return {"ok": False, "mode": registre.mode()}
+    avant = registre.mode()
+    apres = registre.definir_mode(v)
+    if apres != avant:
+        journaliser("systeme", f"Mode global : {apres.upper()}",
+                    "bascule depuis la console ZOEY OS")
+    return {"ok": True, "mode": apres}
 
 
 def valider():
@@ -332,11 +353,17 @@ def etat_traitement():
 
 
 def reponse_message(ident, texte):
-    """Depose la reponse de l'assistant pour la page (et l'affiche)."""
+    """Depose la reponse de l'assistant pour la page (et l'affiche).
+    Anti-doublon : si le meme texte vient d'etre depose (reponse_vue), on
+    ne le reinjecte pas."""
+    texte = str(texte or "")[:2000]
     with _VERROU:
-        _REPONSES[ident] = (str(texte or "")[:2000], time.time())
-        _CONVERSATION.append({"role": "jarvis", "texte": str(texte or "")[:2000],
-                             "ts": time.time()})
+        _REPONSES[ident] = (texte, time.time())
+        derniers = _CONVERSATION[-3:]
+        if not any(m.get("texte") == texte and m.get("role") == "jarvis"
+                  for m in derniers):
+            _CONVERSATION.append({"role": "jarvis", "texte": texte,
+                                 "ts": time.time()})
         del _CONVERSATION[:-_MAX_CONV]
         # purger les reponses de plus de 10 minutes : pas de fuite memoire
         limite = time.time() - 600
@@ -364,11 +391,71 @@ def question_validation(ident, outil, niv, annonce):
         del _CONVERSATION[:-_MAX_CONV]
 
 
+def reponse_vue(texte):
+    """Depose une reponse vocale dans la conversation de la console : meme
+    quand la reponse ne vient PAS du pipeline ecrit (reponse vocale, route
+    prioritaire), elle s'affiche dans le fil. Dedup sur le texte : une
+    reponse identique consecutive n'est pas reinjectee."""
+    texte = str(texte or "")[:2000]
+    with _VERROU:
+        if any(m.get("texte") == texte and m.get("role") == "jarvis"
+               for m in _CONVERSATION[-3:]):
+            return
+        _CONVERSATION.append({"role": "jarvis", "texte": texte,
+                              "ts": time.time()})
+        del _CONVERSATION[:-_MAX_CONV]
+
+
 def conversation():
 
     """Derniers echanges, pour affichage immediat a l'ouverture de la page."""
     with _VERROU:
         return list(_CONVERSATION)
+
+
+def carte_mails(donnees):
+    """Injecte une carte de compte rendu des mails dans la conversation de
+    la page (meme mecanisme que les validations). Affiche les categories
+    (securite, reponse attendue, interne, notifications) et les mails de
+    chaque categorie, pendant que Jarvis resume a voix haute."""
+    titre = str(donnees.get("titre", "Compte rendu des mails") or
+                "Compte rendu des mails")[:80]
+    categories = donnees.get("categories") or []
+    with _VERROU:
+        _CONVERSATION.append({
+            "role": "jarvis", "type": "mails",
+            "texte": titre,
+            "categories": [{
+                "titre": str(c.get("titre", ""))[:60],
+                "icone": str(c.get("icone", ""))[:8],
+                "mails": [{
+                    "expediteur": str(m.get("expediteur", ""))[:80],
+                    "objet": str(m.get("objet", ""))[:120],
+                    "detail": str(m.get("detail", ""))[:200],
+                    "action": str(m.get("action", ""))[:200],
+                    "brouillon": str(m.get("brouillon", ""))[:400],
+                } for m in (c.get("mails") or [])[:10]],
+            } for c in categories[:6]],
+            "ts": time.time(),
+        })
+        del _CONVERSATION[:-_MAX_CONV]
+
+
+def action_vue(categorie, titre, detail="", resultat="ok"):
+    """Injecte une action executee dans la conversation de la page : chaque
+    outil appele par Jarvis apparait comme une carte compacte dans le fil,
+    en meme temps qu'il est journalise (« Pendant que tu dormais »).
+    resultat : ok | en_attente | erreur."""
+    with _VERROU:
+        _CONVERSATION.append({
+            "role": "jarvis", "type": "action",
+            "texte": str(titre)[:160],
+            "categorie": str(categorie)[:24] or "autre",
+            "detail": str(detail)[:400],
+            "resultat": str(resultat)[:16] or "ok",
+            "ts": time.time(),
+        })
+        del _CONVERSATION[:-_MAX_CONV]
 
 
 def carte_briefing(donnees):
@@ -393,6 +480,13 @@ def carte_briefing(donnees):
 
 
 # ------------------------------------------------------------------ routes
+
+def _redirection_console(resultat):
+    """Apres un callback OAuth : renvoie la console locale avec un
+    parametre de resultat — le navigateur affiche le message adequat."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(f"/console?oauth={resultat}", status_code=302)
+
 
 def monter_routes(app):
     """Routes du CRM Operator, LOCALES uniquement, meme garde que le panneau."""
@@ -451,26 +545,76 @@ def monter_routes(app):
 
     @app.get("/api/operator/profil")
     def api_profil(request: Request):
-        return garde(request) or profil()
+        refus = garde(request)
+        if refus:
+            return refus
+        return profil()
 
     @app.get("/api/operator/mode")
     def api_mode(request: Request):
-        return garde(request) or mode_autopilote()
+        """Mode global MANUAL / AUTO affiche par la console."""
+        refus = garde(request)
+        if refus:
+            return refus
+        return mode()
 
-    @app.post("/api/operator/mode")
-    async def api_definir_mode(request: Request):
+    @app.get("/api/operator/integrations")
+    def api_integrations(request: Request):
+        """Etat REEL de connexion de chaque plateforme (config + jetons)."""
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import integrations
+        return {"integrations": integrations.etat()}
+
+    @app.get("/api/operator/buts")
+    def api_buts(request: Request):
+        """Les buts persistes, statut deduit des integrations connectees."""
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import buts
+        buts.initialiser_modele()
+        return {"buts": buts.lister()}
+
+    @app.post("/api/operator/buts")
+    async def api_but_creer(request: Request):
         refus = garde(request)
         if refus:
             return refus
         corps = {}
         try:
-            corps = await request.json()
+            corps = await request.json() or {}
         except Exception:
             corps = {}
-        from core import registre
-        valeur = registre.definir_mode_autopilote((corps or {}).get("mode", ""))
-        journaliser("validation", f"Mode d'action : {valeur.upper()}")
-        return {"ok": True, "mode": valeur}
+        from core import buts
+        but = buts.ajouter((corps or {}).get("titre", ""),
+                           (corps or {}).get("requis"))
+        if but:
+            journaliser("systeme", f"But créé : {but['titre'][:60]}",
+                        "depuis la console ZOEY OS")
+        return {"ok": but is not None, "but": but}
+
+    @app.delete("/api/operator/buts/{ident}")
+    def api_but_supprimer(ident: str, request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import buts
+        return {"ok": buts.supprimer(ident)}
+
+    @app.post("/api/operator/mode")
+    async def api_mode_changer(request: Request):
+        """Bascule MANUAL / AUTO. Les N3 demandent dans les deux modes."""
+        refus = garde(request)
+        if refus:
+            return refus
+        corps = {}
+        try:
+            corps = await request.json() or {}
+        except Exception:
+            corps = {}
+        return changer_mode((corps or {}).get("mode", ""))
 
     @app.post("/api/operator/valider")
     def api_valider(request: Request):
@@ -563,14 +707,15 @@ def monter_routes(app):
             corps = await request.json()
         except Exception:
             corps = {}
-        from tools.mail import modifier_brouillon
+        from tools.mail import brouillon, modifier_brouillon
         ok = modifier_brouillon((corps or {}).get("destinataire"),
                                 (corps or {}).get("sujet"),
                                 (corps or {}).get("corps"))
         if ok:
             journaliser("mail", "Brouillon modifie depuis la page",
                         str(corps)[:200])
-        return {"ok": bool(ok), "brouillon": brouillon()} if ok else {"ok": False}
+            return {"ok": True, "brouillon": brouillon()}
+        return {"ok": False}
 
     @app.post("/api/operator/valider/{ident}")
     def api_valider_id(ident: int, request: Request):
@@ -652,6 +797,117 @@ def monter_routes(app):
             return refus
         from core import automations as autos
         return {"ok": autos.supprimer(identifiant)}
+
+    # -------------------------------------------------------- integrations
+    # Page INTEGRATIONS : catalogue + OAuth reel. Les jetons restent cote
+    # serveur (chiffres) ; le navigateur ne voit que l'etat de connexion.
+    @app.get("/api/integrations")
+    def api_integrations_catalogue(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import integrations_oauth
+        catalogue = integrations_oauth.vue_catalogue()
+        return {
+            "integrations": catalogue,
+            "categories": integrations_oauth.CATEGORIES,
+            "connectedCount": sum(1 for c in catalogue if c["connected"]),
+        }
+
+    @app.get("/api/integrations/connected")
+    def api_integrations_connectees(request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import integrations_oauth
+        return {"connected": [integrations_oauth.vue_connexion(pid)
+                              for pid in integrations_oauth.connectes_ids()
+                              if integrations_oauth.vue_connexion(pid)]}
+
+    @app.get("/api/integrations/{provider}/status")
+    def api_integration_statut(provider: str, request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import integrations_oauth
+        p = integrations_oauth.provider(provider)
+        if not p:
+            return JSONResponse({"ok": False,
+                                 "message": "Unknown integration."},
+                                status_code=404)
+        vue = integrations_oauth.vue_connexion(provider)
+        return {
+            "ok": True,
+            "connected": vue is not None,
+            "connection": vue,
+            "enabled": integrations_oauth.configure(provider),
+            "setupRequired": not integrations_oauth.configure(provider),
+        }
+
+    @app.post("/api/integrations/{provider}/connect")
+    def api_integration_connecter(provider: str, request: Request):
+        """Genere l'URL OAuth REELLE du provider (state + PKCE). Sans
+        identifiants configurés : erreur propre, jamais de simulation."""
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import integrations_oauth
+        if not integrations_oauth.provider(provider):
+            return JSONResponse({"ok": False,
+                                 "message": "Unknown integration."},
+                                status_code=404)
+        if not integrations_oauth.configure(provider):
+            return JSONResponse({"ok": False,
+                                 "message": "This integration requires "
+                                            "additional setup. Add its client "
+                                            "ID and secret to config.yaml."},
+                                status_code=409)
+        url = integrations_oauth.url_autorisation(
+            provider, integrations_oauth._base_url_locale())
+        if not url:
+            return JSONResponse({"ok": False,
+                                 "message": "Unable to start the connection."},
+                                status_code=500)
+        journaliser("systeme", f"Connexion OAuth lancée : {provider}",
+                    "page INTEGRATIONS")
+        return {"ok": True, "authorizationUrl": url}
+
+    @app.get("/api/integrations/{provider}/callback")
+    def api_integration_callback(provider: str, request: Request):
+        """Callback OAuth : valide le state (CSRF), echange le code, stocke
+        les jetons chiffres, puis renvoie la console (page locale)."""
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import integrations_oauth
+        erreur = request.query_params.get("error", "")
+        if erreur:
+            return _redirection_console("cancelled")
+        code = request.query_params.get("code", "")
+        state = request.query_params.get("state", "")
+        verifier = integrations_oauth.valider_state(provider, state)
+        if verifier is None or not code:
+            return _redirection_console("state")
+        _, message = integrations_oauth.echanger_code(provider, code, verifier)
+        if message:
+            return _redirection_console("failed")
+        journaliser("systeme", f"Intégration connectée : {provider}",
+                    "OAuth autorisé depuis la page INTEGRATIONS")
+        return _redirection_console("connected")
+
+    @app.post("/api/integrations/{provider}/disconnect")
+    def api_integration_deconnecter(provider: str, request: Request):
+        refus = garde(request)
+        if refus:
+            return refus
+        from core import integrations_oauth
+        if not integrations_oauth.connexion(provider):
+            return {"ok": False, "message": "Not connected."}
+        ok = integrations_oauth.deconnecter(provider)
+        if ok:
+            journaliser("systeme", f"Intégration déconnectée : {provider}",
+                        "révocation provider + suppression locale")
+        return {"ok": ok}
 
     # --------------------------------------------------------------- brain
 
