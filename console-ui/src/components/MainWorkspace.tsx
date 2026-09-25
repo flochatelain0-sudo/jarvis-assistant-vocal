@@ -25,33 +25,42 @@ interface Props {
   connectes: Set<IntegrationId>
   onConnecter: (id: IntegrationId) => void
   orbMobile: boolean
+  reco: {
+    actif: boolean
+    partiel: string
+    erreur: string | null
+    disponible: boolean
+  }
+  transcription: string
 }
 
 export default function MainWorkspace(props: Props) {
   const { mode, onMode, ecoute, onEcoute, niveau, page, onPage, orbMobile, etatOrbe } = props
   const tailleOrbe = useMemo(() => (orbMobile ? 300 : 430), [orbMobile])
-
   return (
     <main className="relative flex flex-1 flex-col items-center justify-center overflow-hidden">
       {/* orbe seul au fond */}
       <ParticleOrb etat={etatOrbe} niveau={niveau} taille={tailleOrbe} />
 
-      {/* micro discret en haut, cliquable meme panneau ouvert */}
-      <div className="absolute inset-x-0 top-6 z-30 flex justify-center">
-        <ListeningIndicator actif={ecoute} onBasculer={onEcoute} />
+      {/* micro + controles par-dessus l'orbe, TOUJOURS cliquables */}
+      <div className="absolute inset-x-0 top-6 z-30 flex flex-col items-center gap-2">
+        <ListeningIndicator
+          actif={ecoute}
+          onBasculer={onEcoute}
+          reco={props.reco}
+          transcription={props.transcription}
+        />
+        <div className="mt-2">
+          <WorkspaceControls
+            mode={mode}
+            onChoisir={(m) => onMode(mode === m ? 'chat' : m)}
+          />
+        </div>
       </div>
 
       {/* branding sobre en bas */}
       <div className="absolute inset-x-0 bottom-8 z-30 flex justify-center">
         <ZoeyBranding page={page} nbPages={1} onPage={onPage} />
-      </div>
-
-      {/* controles en icones, flottants discrets en bas a droite */}
-      <div className="absolute bottom-5 right-5 z-30">
-        <WorkspaceControls
-          mode={mode}
-          onChoisir={(m) => onMode(mode === m ? 'chat' : m)}
-        />
       </div>
 
       {mode === 'console' && (

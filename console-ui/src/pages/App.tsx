@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Search } from 'lucide-react'
 import TopBar from '../components/TopBar'
 import ConsoleSidebar from '../components/ConsoleSidebar'
@@ -19,6 +19,7 @@ import {
   type Automation,
   type IntegrationEtat,
 } from '../lib/api'
+import { useReconnaissanceVocale } from '../hooks/useReconnaissanceVocale'
 
 export default function App() {
   const { theme, basculer: basculerTheme } = useTheme()
@@ -42,6 +43,46 @@ export default function App() {
   }, [])
   const [etat, setEtat] = useState<EtatOperator | null>(null)
   const [modeGlobal, setModeGlobal] = useState<ModeGlobal>('manual')
+  const [transcription, setTranscription] = useState('')
+  // Micro reel du navigateur : la transcription part dans le chat de Jarvis
+  // (POST /api/operator/message) ; le backend prononce deja la reponse.
+  const transcrire = useCallback(async (texte: string) => {
+    setTranscription(texte)
+    await api.envoyer(texte)
+    setTimeout(() => setTranscription(''), 4000)
+  }, [])
+  const reco = useReconnaissanceVocale(transcrire)
+  // Barre espace : push-to-talk direct (appui = ecoute, relache = envoi).
+  // Ignore la touche quand on tape dans un champ de saisie ou la recherche.
+  const espaceRef = useRef(false)
+  useEffect(() => {
+    const surAppui = (e: KeyboardEvent) => {
+      const cible = e.target as HTMLElement | null
+      if (
+        cible &&
+        (cible.tagName === 'INPUT' ||
+          cible.tagName === 'TEXTAREA' ||
+          cible.isContentEditable)
+      )
+        return
+      if (e.code !== 'Space') return
+      e.preventDefault()
+      if (espaceRef.current) return
+      espaceRef.current = true
+      reco.demarrer()
+    }
+    const surRelache = (e: KeyboardEvent) => {
+      if (e.code !== 'Space') return
+      espaceRef.current = false
+      reco.arreter()
+    }
+    window.addEventListener('keydown', surAppui)
+    window.addEventListener('keyup', surRelache)
+    return () => {
+      window.removeEventListener('keydown', surAppui)
+      window.removeEventListener('keyup', surRelache)
+    }
+  }, [reco])
 
   // le vrai pouls de Jarvis : etat de vie + journal + buts + integrations,
   // poll toutes les 5 s — TOUT vient de l'API, rien n'est simule.
@@ -204,7 +245,10 @@ export default function App() {
           mode={mode}
           onMode={setMode}
           ecoute={ecoute}
-          onEcoute={() => setEcoute((e) => !e)}
+          onEcoute={() => {
+            setEcoute((e) => !e)
+            reco.basculer()
+          }}
           niveau={niveauMicro}
           page={page}
           onPage={setPage}
@@ -216,6 +260,8 @@ export default function App() {
           connectes={connectes}
           onConnecter={setAConnecter}
           orbMobile={false}
+          reco={reco}
+          transcription={transcription}
         />
 
         {/* droite : chat Jarvis */}
@@ -230,6 +276,7 @@ export default function App() {
             onNouveauBut={() => setModalButOuverte(true)}
             journal={journal}
             enAttente={etat?.kpis?.en_attente ?? 0}
+            nbButs={buts.length}
           />
         </div>
       </div>

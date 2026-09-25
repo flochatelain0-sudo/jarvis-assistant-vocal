@@ -46,29 +46,43 @@ interface Props {
   onNouveauBut: () => void
   journal: { ts: number; categorie: string; titre: string }[]
   enAttente: number
+  nbButs: number
 }
-
-const MESSAGE_ACCUEIL: MessageChat[] = [
-  {
-    id: 1,
-    role: 'zoey',
-    texte:
-      "Hey — I'm Jarvis. I keep an eye on your inbox, calendar and projects so you don't have to. What should we get on top of first?",
-    ts: Date.now() / 1000 - 90,
-  },
-  {
-    id: 2,
-    role: 'zoey',
-    texte:
-      'I set two goals for us: getting your inbox and calendar under control, and shipping your current project. Connect the platforms below and I\u2019ll take it from there.',
-    ts: Date.now() / 1000 - 60,
-  },
-]
 
 let compteur = 100
 
-const messageAccueil = (): MessageChat[] =>
-  MESSAGE_ACCUEIL.map((m) => ({ ...m, ts: Date.now() / 1000 - 90 }))
+function accueilHumain(prenom: string, nbButs: number): MessageChat[] {
+  const p = prenom || ''
+  const salut = p ? `Hey ${p}.` : 'Hey.'
+  const butsTxt =
+    nbButs > 0
+      ? `I've recorded the ${nbButs === 1 ? 'one thing' : `${nbButs} things`} you want to tackle${nbButs === 1 ? '' : ' — a solid mix'}.`
+      : "I've recorded what you want to tackle — a solid mix."
+  return [
+    {
+      id: 1,
+      role: 'zoey',
+      texte: `${salut} Welcome to your world.`,
+      ts: Date.now() / 1000 - 90,
+    },
+    {
+      id: 2,
+      role: 'zoey',
+      texte: `${butsTxt} I keep an eye on your inbox, calendar and projects so you don't have to. What should we get on top of first?`,
+      ts: Date.now() / 1000 - 70,
+    },
+    {
+      id: 3,
+      role: 'zoey',
+      texte:
+        'For what comes next, look for the Getting Started card in the bottom-left corner. But honestly, you don\u2019t have to follow any sequence. Just tell me what you want to start on first \u2014 typed or out loud, either works \u2014 and we\u2019ll get moving on it right now.',
+      ts: Date.now() / 1000 - 50,
+    },
+  ]
+}
+
+const messageAccueil = (): MessageChat[] => accueilHumain('', 0)
+
 const maintenant = () => Date.now() / 1000
 
 async function attendreReponse(texte: string): Promise<string | null> {
@@ -94,10 +108,18 @@ async function attendreReponse(texte: string): Promise<string | null> {
   return reponses[Math.floor(Math.random() * reponses.length)]
 }
 
-export default function ChatPanel({ ouverte, onOuvrir, onFermer, onNouveauBut, journal, enAttente }: Props) {
+export default function ChatPanel({ ouverte, onOuvrir, onFermer, onNouveauBut, journal, enAttente, nbButs }: Props) {
   const [messages, setMessages] = useState<MessageChat[]>(messageAccueil())
   const [saisie, setSaisie] = useState('')
   const [reflechir, setReflechir] = useState(false)
+
+  // prenom reel de config.yaml (utilisateur.nom) pour l'accueil humain
+  useEffect(() => {
+    api.profil().then((p) => {
+      if (!p || !p.nom) return
+      setMessages(accueilHumain(p.nom, nbButs))
+    })
+  }, [])
   const basRef = useRef<HTMLDivElement>(null)
 
   // rejoue la conversation existante du vrai Jarvis, puis la suit en direct :

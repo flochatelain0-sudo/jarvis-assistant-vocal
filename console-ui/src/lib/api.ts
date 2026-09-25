@@ -119,6 +119,8 @@ async function json<T>(chemin: string, init?: RequestInit): Promise<T | null> {
 export const api = {
   etat: () => json<EtatOperator>('/api/operator/etat'),
 
+  profil: () => json<{ nom: string }>('/api/operator/profil'),
+
   mode: () => json<{ mode: ModeGlobal }>('/api/operator/mode'),
 
   changerMode: async (mode: ModeGlobal): Promise<ModeGlobal | null> => {
